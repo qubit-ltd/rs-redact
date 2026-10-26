@@ -106,6 +106,11 @@ mode requires it. Separately, `#[redact(serde)]` preserves the source type’s e
 ordinary-serialization bridge through `RedactSerialize`; this legacy path has its own
 capability bounds and is not equivalent to the view projection. Unsupported view
 capabilities fail when serialization is requested, while text-only derives remain valid.
+Self-recursive `nested` edges through supported containers (for example,
+`Option<Box<Node>>` or `Vec<Box<Node>>`) use lazy child projection factories to avoid
+recursive associated-type obligations. `redact_view()` and `to_json()` retain the same
+field capability requirements as other projections; this does not add ordinary source
+`Serialize` as a blanket requirement.
 
 Text RuntimeCore and synchronous Serde scopes have different lifetimes and own separate
 ledgers. Serde scopes use PolicyFrame Arc snapshots and thread-local guards; nested and
@@ -187,7 +192,16 @@ validate metadata
 Preflight happens before advancing untrusted iterators. JSON text is parsed once
 during admission into an admitted tree. HTTP JSON, NDJSON, and multipart
 rendering reuse admitted structures within the operation, avoiding a second
-parse while rendering that result.
+parse while rendering that result. Redaction borrows those admitted `Value` nodes and
+serializes through a bounded writer; it does not construct a second masked tree or
+mutate the admitted source values.
+
+The JSON visitor preserves the first structural rejection cause. Shared structural
+depth rejection becomes `DepthLimitReached`; shared node or collection rejection and
+JSON-specific budget or transaction-commit rejection remain
+`TraversalLimitReached`. The `Value` entry points therefore retain the same shared-depth
+reason as inspection and rendering of JSON text instead of collapsing every failure to
+a boolean traversal reason.
 
 Flat structured formats such as argv and environment lists use one runtime
 admission helper for root nodes, collection entries, child nodes, and source
@@ -206,6 +220,9 @@ One-shot, composer, and batch share `runtime/scalar_operation.rs`: output prefli
 root-node admission, key-length check, key input-byte admission, classification, then formatting
 only if needed. Rejected keys increase presented but not inspected bytes, without normalization
 or value access. With redaction enabled, High/Secret writes a fixed mask after key admission.
+Scalar inspection admits its root node and raw UTF-8 key bytes before charging the presented
+field and value bytes; classification runs only after all admissions succeed. Rejection returns
+an inconclusive inspection and prevents classification, including when the policy is disabled.
 `InputCapture` admits complete UTF-8 chunks and latches its first rejection. Accepted prefixes
 remain charged but all raw text is discarded on failure. `ScalarFailure` distinguishes
 InputLimit from FormatterFailure without carrying a public completion state.
@@ -282,7 +299,11 @@ borrowed views. These corrections preserve JSON shape but change event streams
 observed by non-JSON serializers; persisted data written with earlier events may
 require its prior decoder or an explicit format version. Migration should read
 old data with the old implementation and re-encode it with the corrected one;
-the new event layout does not automatically decode the old layout.
+the new event layout does not automatically decode the old layout. In particular,
+`Option<Map>::Some` emits a `Some` event containing the map. Applications should
+read persisted data with the old decoder and re-encode it, or define an
+application-level format version; the library does not auto-detect or decode the
+earlier layout.
 
 ## 8. Format layer
 

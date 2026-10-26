@@ -301,6 +301,14 @@ the view and `to_json()` still work when the generated projection can serialize 
 If a required field capability is missing, formatting the view still works; attempting structural
 serialization of the view or calling `to_json()` produces a compile-time trait-bound error.
 
+Self-recursive `nested` edges are supported through containers such as
+`Option<Box<Node>>` and `Vec<Box<Node>>`. Child projections are created lazily
+while the parent is serialized, so the source type does not need ordinary
+`Serialize` just to use `redact_view()` or `to_json()`. The usual field
+capability rules still apply; a missing projection capability is reported when
+serialization is requested, while text-only redaction remains available.
+`to_json()` additionally requires the `json` feature.
+
 Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
 with `bigdecimal`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
 VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. Ordinary level
@@ -361,6 +369,8 @@ Tuple events apply to direct source serialization enabled by `#[redact(serde)]` 
 Non-JSON serializers can observe these event changes, so stored data may need its old decoder or an
 explicit format version. When migrating, read old data with the old implementation and re-encode it
 with the corrected one; do not assume the new event layout decodes old data automatically.
+In particular, `Option<Map>::Some` now emits `Some` containing the map. The library does not
+automatically decode the earlier layout.
 
 ### Scalar Newtypes
 
@@ -515,6 +525,11 @@ value as JSON rather than as a quoted JSON string. Sequence implementations use
 `items.json_value_item(&value)` for the same recursive JSON policy; this matters
 for downstream collections whose declared data type is JSON, because each item
 must be traversed as JSON instead of formatted as an opaque scalar.
+
+HTTP JSON, NDJSON, and multipart JSON rendering also borrows the structures
+admitted for that body operation. Rendering does not build a second masked
+`Value` tree or mutate the admitted values; the bounded serializer writes the
+redacted result from those borrowed nodes.
 
 <!-- redact-example: kind=run features=json -->
 ```rust
@@ -833,6 +848,14 @@ fn main() {
 Parallel `inspect_*` entry points exist for domain values, JSON text and values, HTTP parts, URI,
 argv, environment pairs, and full process descriptions. Treat any inspection error as inconclusive
 when the result controls admission.
+
+Scalar `inspect_field(field, value)` admits its root node and the raw UTF-8
+bytes of `field` before charging the key and value bytes or classifying the
+field. A structural or key rejection therefore returns an inspection error
+without classifying the value. These structural limits still apply when the
+policy is disabled. For JSON text and borrowed `Value`, a shared `max_depth`
+rejection reports `DepthLimitReached`; a JSON-specific limit such as
+`max_json_depth` remains `TraversalLimitReached`.
 
 Build one immutable policy and share the resulting `Redactor`. Builder closures
 are transactional: an invalid field rule leaves the prior builder unchanged.

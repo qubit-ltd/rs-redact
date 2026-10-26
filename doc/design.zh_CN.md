@@ -21,6 +21,7 @@
 2. 每个 composer、batch 或 inspection 拥有独立事务和独立预算账本。
 3. 启用脱敏时，解析错误、输入截断和预算耗尽均 fail closed，只发布安全替代文本及原因。
 4. 标量 key 先通过结构长度与输入字节准入，再做敏感判定；判定先于惰性值访问和格式化。
+   标量 inspection 先准入根节点与原始 key 字节，再准入输入字节并分类。
 5. 结构深度、节点数、集合项、输入字节、JSON 值和输出字节由同一事务统一计费。
 6. 只有完成事务才能构造公开摘要；内部 parser 和 format executor 不发布第二套结果类型。
 7. `RedactionPolicy::disabled()` 是显式调试逃生口，会恢复原值；授权和使用时机由下游负责。
@@ -93,6 +94,10 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 该路径有自己的能力边界，不等同于 view 投影。缺少 view 所需能力时在请求序列化处报错，
 纯文本派生仍然有效。
 
+受支持容器中的自递归 `nested` 字段（例如 `Option<Box<Node>>` 或
+`Vec<Box<Node>>`）通过惰性子投影工厂打断递归关联类型约束。`redact_view()` 与
+`to_json()` 仍遵循普通投影的字段能力要求，不会因此要求源对象一律实现普通 `Serialize`。
+
 脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，level 模式切片使用 sequence，通过准入的固定数组使用
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。
@@ -100,7 +105,9 @@ derive 生成的 transparent、adjacent-tagged 与 untagged 表示也遵循 Serd
 adjacent tag 保留枚举名、变体索引和序列化变体名。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于
 `#[redact(serde)]` 启用的源对象序列化和借用 view。这些修正不改变 JSON 结构，但非 JSON serializer
 观察到的事件流会变化；使用旧事件写入的持久化数据可能需要旧 decoder 或显式格式版本。迁移时应由旧实现
-读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
+读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。其中
+`Option<Map>::Some` 会发出包住 map 的 `Some` 事件。持久化数据应由旧 decoder 读取后重编码，
+或使用应用级格式版本；库不会自动识别或解码旧布局。
 
 文本 RuntimeCore 与同步 Serde scope 生命周期不同，分别拥有账本。Serde scope 使用
 PolicyFrame 的 Arc 快照和线程局部 guard；嵌套及普通 serializer 复用活动预算，错误或
@@ -165,7 +172,13 @@ inspection error 表示结论不完整；安全决策应按敏感处理。
 ```
 
 预检发生在推进不可信迭代器之前。JSON 文本在准入时解析一次并建立 admitted tree；HTTP JSON、
-NDJSON 和 multipart 的渲染复用本次操作已准入的结构，生成结果时无需再次解析。
+NDJSON 和 multipart 的渲染复用本次操作已准入的结构，生成结果时无需再次解析。渲染直接借用
+已准入的 `Value` 节点，经有界 writer 输出；不会构造另一棵掩码树，也不修改已准入值。
+
+JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
+`DepthLimitReached`；共享节点/集合拒绝，以及 JSON 专属预算或事务提交拒绝仍映射为
+`TraversalLimitReached`。借用 `Value` 入口因此会保留与 JSON 文本 inspection 和渲染相同的共享深度原因，
+不会把所有失败折叠为布尔遍历结果。
 
 argv、环境变量列表等扁平结构格式通过同一个 runtime admission helper 计费根节点、集合项、子节点
 和源字节。composer 与 batch 保留不同发布模型，但同一输入迭代器的推进和计费规则不能各自漂移。
@@ -179,6 +192,8 @@ argv、环境变量列表等扁平结构格式通过同一个 runtime admission 
 one-shot、composer、batch 共享 `runtime/scalar_operation.rs`，依次进行输出预检、根节点
 准入、key 长度检查、key 输入字节准入、分类、必要时格式化。拒绝 key 只增加 presented，
 不增加 inspected，不规范化或访问值；脱敏启用时，High/Secret 准入 key 后直接输出固定掩码。
+标量 inspection 则先准入根节点和 key 的原始 UTF-8 字节，再计入字段和值的 input 字节；所有准入
+成功后才分类。任一准入拒绝都会让 inspection 结论不完整并阻止分类，disabled 也一样。
 `InputCapture` 按完整 UTF-8 片段计量，首次拒绝后永久锁存。已接受前缀仍计费，失败时全部
 丢弃原文；`ScalarFailure` 区分 InputLimit 与 FormatterFailure，不携带完成状态。
 显式 Low/Medium 领域文本在共享输入字节额度下只格式化源值一次；即使 formatter 失败，已接受的

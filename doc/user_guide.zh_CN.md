@@ -282,6 +282,11 @@ fn main() {
 字段，view 和 `to_json()` 仍可用。若字段缺少所需能力，view 的文本格式化仍可用；但结构化
 序列化该 view 或调用 `to_json()` 会产生编译期 trait-bound 错误。
 
+自递归的 `nested` 字段也可通过受支持的容器使用，例如 `Option<Box<Node>>` 或
+`Vec<Box<Node>>`。父对象序列化时才会逐个惰性创建子投影；仅为调用 `redact_view()` 或
+`to_json()`，源类型不必实现普通 `Serialize`。字段仍须满足各自脱敏模式的能力要求；缺少
+投影能力时，在请求序列化时报告，纯文本脱敏仍可使用。`to_json()` 还需要启用 `json` feature。
+
 内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `bigdecimal` 下的 BigDecimal。
 等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
 标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。
@@ -337,6 +342,7 @@ adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型�
 不变。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于 `#[redact(serde)]` 启用的源对象序列化
 和借用 view。非 JSON serializer 会观察到这些事件变化，已存储数据可能需要旧 decoder 或明确的
 格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
+其中 `Option<Map>::Some` 会以 `Some` 事件包住 map。库不会自动解码旧事件布局。
 
 ### 标量 newtype
 
@@ -485,6 +491,10 @@ JSON 文本只解析一次，解析过程同时完成结构准入并构造 admit
 序列实现则应逐项调用 `items.json_value_item(&value)`，它会执行同样的递归 JSON 策略。对于
 声明数据类型为 JSON 的下游集合，这一点尤其重要：每一项都必须按 JSON 结构遍历，不能作为
 不透明标量格式化。
+
+HTTP JSON、NDJSON 和 multipart 中的 JSON 渲染也会借用该 body 操作已准入的结构。渲染时
+不会再构造一棵掩码后的 `Value` 树，也不会修改已准入值；有界 serializer 会直接从借用节点
+写出脱敏结果。
 
 <!-- redact-example: kind=run features=json -->
 ```rust
@@ -783,6 +793,11 @@ fn main() {
 
 领域对象、JSON 文本与值、HTTP 各部分、URI、argv、环境变量对以及完整进程描述都有对应的
 `inspect_*` 入口。若 inspection 结果用于准入决策，任何错误都应视为分类不完整。
+
+标量 `inspect_field(field, value)` 会先准入根节点和 `field` 的原始 UTF-8 字节，再计入字段名与
+值的 input 字节，最后才分类。结构或 key 被拒绝时会返回 inspection 错误，不会继续分类；
+disabled 策略仍受这些结构限制约束。JSON 文本和借用 `Value` 遇到共享 `max_depth` 时会报告
+`DepthLimitReached`；JSON 专属的 `max_json_depth` 等限制仍报告 `TraversalLimitReached`。
 
 建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
 无效时，原 builder 不会受到部分修改。
