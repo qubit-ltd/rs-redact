@@ -15,6 +15,11 @@ EXPECTED_SCRIPTS = (
     "check_doc_examples_tests.py",
     "check_doc_examples.py",
 )
+EXPECTED_CARGO_ARGS = (
+    "test",
+    "--locked",
+    "--manifest-path",
+)
 
 
 class ProjectCiHookTests(unittest.TestCase):
@@ -38,13 +43,24 @@ class ProjectCiHookTests(unittest.TestCase):
             f"#!{sys.executable}\n"
             "import json, os, pathlib, sys\n"
             "with pathlib.Path(os.environ['HOOK_TEST_LOG']).open('a', encoding='utf-8') as log:\n"
-            "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "    log.write(json.dumps({'executable': 'python3', 'argv': sys.argv[1:]}) + '\\n')\n"
             "script = pathlib.Path(sys.argv[1]).name\n"
             "sys.exit(int(os.environ.get('HOOK_TEST_FAIL_ON', '') == script) * "
             "int(os.environ.get('HOOK_TEST_FAIL_STATUS', '0')))\n",
             encoding="utf-8",
         )
         python_stub.chmod(0o755)
+        cargo_stub = self.bin_directory / "cargo"
+        cargo_stub.write_text(
+            f"#!{sys.executable}\n"
+            "import json, os, pathlib, sys\n"
+            "with pathlib.Path(os.environ['HOOK_TEST_LOG']).open('a', encoding='utf-8') as log:\n"
+            "    log.write(json.dumps({'executable': 'cargo', 'argv': sys.argv[1:]}) + '\\n')\n"
+            "sys.exit(int(os.environ.get('HOOK_TEST_FAIL_ON', '') == 'cargo') * "
+            "int(os.environ.get('HOOK_TEST_FAIL_STATUS', '0')))\n",
+            encoding="utf-8",
+        )
+        cargo_stub.chmod(0o755)
 
     def run_hook(self, failed_script=None, failure_status=0):
         environment = os.environ.copy()
@@ -72,13 +88,34 @@ class ProjectCiHookTests(unittest.TestCase):
             self.call_log.unlink()
         return result, calls
 
+    def expected_python_calls(self, scripts):
+        return [
+            {"executable": "python3", "argv": [str(self.root / "scripts" / script)]}
+            for script in scripts
+        ]
+
+    def expected_cargo_call(self):
+        return {
+            "executable": "cargo",
+            "argv": [
+                *EXPECTED_CARGO_ARGS,
+                str(self.root / "fuzz" / "Cargo.toml"),
+                "--bin",
+                "command_inputs",
+                "--bin",
+                "multipart_body",
+            ],
+        }
+
     def test_hook_runs_checks_in_order_from_outside_project(self):
         result, calls = self.run_hook()
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual([Path(call[0]).name for call in calls], list(EXPECTED_SCRIPTS))
-        self.assertEqual([len(call) for call in calls], [1, 1, 1])
-        self.assertTrue(all(Path(call[0]).is_absolute() for call in calls))
+        self.assertEqual(
+            calls,
+            [*self.expected_python_calls(EXPECTED_SCRIPTS), self.expected_cargo_call()],
+        )
+        self.assertTrue(Path(calls[-1]["argv"][3]).is_absolute())
 
     def test_hook_stops_and_preserves_each_python_failure(self):
         for index, (script, status) in enumerate(zip(EXPECTED_SCRIPTS, (7, 8, 9), strict=True)):
@@ -86,7 +123,16 @@ class ProjectCiHookTests(unittest.TestCase):
                 result, calls = self.run_hook(script, status)
 
                 self.assertEqual(result.returncode, status, result.stderr)
-                self.assertEqual([Path(call[0]).name for call in calls], list(EXPECTED_SCRIPTS[: index + 1]))
+                self.assertEqual(calls, self.expected_python_calls(EXPECTED_SCRIPTS[: index + 1]))
+
+    def test_hook_preserves_cargo_failure(self):
+        result, calls = self.run_hook("cargo", 23)
+
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertEqual(
+            calls,
+            [*self.expected_python_calls(EXPECTED_SCRIPTS), self.expected_cargo_call()],
+        )
 
 
 if __name__ == "__main__":
