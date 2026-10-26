@@ -77,14 +77,8 @@ pub(in crate::formats::http) fn redact(
             Some(admitted_parts) => Some(admitted_parts.next()?.as_ref()),
             None => None,
         };
-        let (line, part_passed, part_truncated) = redact_part(
-            redactor,
-            part,
-            policy,
-            require_form_data,
-            max_output_bytes,
-            parsed,
-        )?;
+        let (line, part_passed, part_truncated) =
+            redact_part(redactor, part, policy, require_form_data, max_output_bytes, parsed)?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));

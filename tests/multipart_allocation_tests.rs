@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 #![cfg(feature = "http")]
 
 use std::alloc::GlobalAlloc;
@@ -117,13 +124,7 @@ fn test_multipart_auxiliary_allocations_do_not_scale_with_unadmitted_parts() {
                     "size={} limit={collection_limit} operation={operation} was accepted",
                     body.len()
                 );
-                measurements.push((
-                    part_count,
-                    body.len(),
-                    collection_limit,
-                    operation,
-                    allocated,
-                ));
+                measurements.push((part_count, body.len(), collection_limit, operation, allocated));
             }
         }
     }
@@ -138,18 +139,14 @@ fn test_multipart_auxiliary_allocations_do_not_scale_with_unadmitted_parts() {
             let small = measurements
                 .iter()
                 .find(|(part_count, _, limit, measured_operation, _)| {
-                    *part_count == 4_096
-                        && *limit == collection_limit
-                        && *measured_operation == operation
+                    *part_count == 4_096 && *limit == collection_limit && *measured_operation == operation
                 })
                 .expect("small allocation measurement exists")
                 .4;
             let large = measurements
                 .iter()
                 .find(|(part_count, _, limit, measured_operation, _)| {
-                    *part_count == 32_768
-                        && *limit == collection_limit
-                        && *measured_operation == operation
+                    *part_count == 32_768 && *limit == collection_limit && *measured_operation == operation
                 })
                 .expect("large allocation measurement exists")
                 .4;

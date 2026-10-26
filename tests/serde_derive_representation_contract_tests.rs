@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 #![cfg(all(feature = "derive", feature = "serde"))]
 #![allow(non_camel_case_types)]
 
@@ -37,12 +44,7 @@ struct TransparentBudget(#[redact(nested)] NestedBudget);
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]
-#[serde(
-    tag = "kind",
-    content = "payload",
-    rename = "WireEvent",
-    rename_all = "kebab-case"
-)]
+#[serde(tag = "kind", content = "payload", rename = "WireEvent", rename_all = "kebab-case")]
 #[allow(non_camel_case_types)]
 enum AdjacentEvent {
     Unit,
@@ -88,24 +90,16 @@ fn test_transparent_named_source_and_view_forward_inner_event() {
     };
     let redactor = Redactor::standard();
     check_transparent_tokens(&source, serde_test::Token::Str("<redacted>"));
-    check_transparent_tokens(
-        &redactor.redact_view(&source),
-        serde_test::Token::Str("<redacted>"),
-    );
+    check_transparent_tokens(&redactor.redact_view(&source), serde_test::Token::Str("<redacted>"));
 
     let disabled = Redactor::new(RedactionPolicy::disabled());
-    check_transparent_tokens(
-        &disabled.redact_view(&source),
-        serde_test::Token::Str("raw-secret"),
-    );
+    check_transparent_tokens(&disabled.redact_view(&source), serde_test::Token::Str("raw-secret"));
     assert_eq!(
-        serde_json::to_value(&redactor.redact_view(&source))
-            .expect("transparent JSON should serialize"),
+        serde_json::to_value(&redactor.redact_view(&source)).expect("transparent JSON should serialize"),
         serde_json::json!("<redacted>")
     );
     assert_eq!(
-        serde_json::to_value(&disabled.redact_view(&source))
-            .expect("disabled transparent JSON should serialize"),
+        serde_json::to_value(&disabled.redact_view(&source)).expect("disabled transparent JSON should serialize"),
         serde_json::json!("raw-secret")
     );
 }
@@ -261,8 +255,7 @@ fn test_adjacent_tags_use_unit_variant_events_with_effective_names() {
             Token::StructEnd,
         ],
     );
-    let json = serde_json::to_value(&redactor.redact_view(&named))
-        .expect("adjacent JSON should serialize");
+    let json = serde_json::to_value(&redactor.redact_view(&named)).expect("adjacent JSON should serialize");
     assert_eq!(
         json,
         serde_json::json!({ "kind": "wire-name", "payload": { "secret": "<redacted>" } })
@@ -282,10 +275,7 @@ fn test_adjacent_tags_use_unit_variant_events_with_effective_names() {
                 variant: "empty",
             },
             Token::Str("payload"),
-            Token::Struct {
-                name: "empty",
-                len: 0,
-            },
+            Token::Struct { name: "empty", len: 0 },
             Token::StructEnd,
             Token::StructEnd,
         ],
@@ -307,10 +297,7 @@ fn test_adjacent_tags_use_unit_variant_events_with_effective_names() {
                 variant: "type",
             },
             Token::Str("payload"),
-            Token::Struct {
-                name: "type",
-                len: 1,
-            },
+            Token::Struct { name: "type", len: 1 },
             Token::Str("secret"),
             Token::Str("<redacted>"),
             Token::StructEnd,
@@ -336,9 +323,7 @@ fn test_adjacent_tag_probe_preserves_enum_index_for_each_shape() {
     ];
     for (value, index) in variants {
         let recorded = Cell::new(None);
-        let mut serializer = VariantIndexProbe {
-            recorded: &recorded,
-        };
+        let mut serializer = VariantIndexProbe { recorded: &recorded };
         Redactor::standard()
             .redact_view(&value)
             .serialize(&mut serializer)
@@ -453,11 +438,7 @@ impl serde::ser::SerializeStruct for ProbeStruct<'_, '_> {
     type Ok = ();
     type Error = ProbeError;
 
-    fn serialize_field<T: ?Sized + Serialize>(
-        &mut self,
-        _key: &'static str,
-        value: &T,
-    ) -> Result<(), Self::Error> {
+    fn serialize_field<T: ?Sized + Serialize>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error> {
         value.serialize(&mut *self.probe)
     }
 
@@ -599,11 +580,7 @@ impl<'probe, 'recorded> serde::Serializer for &'probe mut VariantIndexProbe<'rec
         Err(serde::ser::Error::custom("map unsupported"))
     }
 
-    fn serialize_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeStruct, Self::Error> {
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct, Self::Error> {
         Ok(ProbeStruct { probe: self })
     }
 

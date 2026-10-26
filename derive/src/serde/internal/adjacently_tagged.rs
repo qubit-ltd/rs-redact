@@ -56,7 +56,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
     let rust_name = &variant.variant().ident;
     let variant_name = serialized_variant_name(variant, container_attributes);
     let enum_name = container_attributes.name();
-    let tag_serializer = adjacent_tag_serializer(serde, &enum_name, variant.index(), &variant_name);
+    let tag_serializer = adjacent_tag_serializer(serde, enum_name, variant.index(), &variant_name);
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, _conditions, names, carriers) = enum_named_parts(
@@ -198,7 +198,8 @@ pub(in crate::serde) fn adjacent_variant_arm(
     Ok(arm)
 }
 
-/// Generates a local Serde adapter that preserves an adjacent enum's event identity.
+/// Generates a local Serde adapter that preserves an adjacent enum's event
+/// identity.
 ///
 /// # Parameters
 ///
@@ -209,20 +210,13 @@ pub(in crate::serde) fn adjacent_variant_arm(
 ///
 /// # Returns
 ///
-/// A local unit type whose serializer emits the corresponding unit-variant event.
-fn adjacent_tag_serializer(
-    serde: &Path,
-    enum_name: &str,
-    variant_index: u32,
-    variant_name: &str,
-) -> TokenStream {
+/// A local unit type whose serializer emits the corresponding unit-variant
+/// event.
+fn adjacent_tag_serializer(serde: &Path, enum_name: &str, variant_index: u32, variant_name: &str) -> TokenStream {
     let enum_name = syn::LitStr::new(enum_name, proc_macro2::Span::call_site());
     let variant_name = syn::LitStr::new(variant_name, proc_macro2::Span::call_site());
     let variant_index = syn::Index::from(variant_index as usize);
-    let tag_type = format_ident!(
-        "__QubitRedactAdjacentTag",
-        span = proc_macro2::Span::mixed_site()
-    );
+    let tag_type = format_ident!("__QubitRedactAdjacentTag", span = proc_macro2::Span::mixed_site());
     quote! {
         struct #tag_type;
         impl #serde::Serialize for #tag_type {

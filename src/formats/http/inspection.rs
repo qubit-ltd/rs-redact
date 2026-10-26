@@ -311,11 +311,7 @@ pub(in crate::formats::http) fn inspect_ndjson(
 /// * `session` - Shared inspection transaction.
 /// * `bytes` - URL-encoded form body.
 /// * `field_depth` - Structural depth charged to each form field.
-pub(in crate::formats::http) fn inspect_form(
-    session: &mut InspectionSession,
-    bytes: &[u8],
-    field_depth: usize,
-) {
+pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, bytes: &[u8], field_depth: usize) {
     if !form::is_valid(bytes) {
         session.fail_inspection(RedactionReason::InvalidForm);
         return;

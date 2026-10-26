@@ -33,8 +33,7 @@ pub(super) fn serialized_variant_name(
     variant: &VariantData<'_>,
     container_attributes: &SerdeContainerAttributes,
 ) -> String {
-    let default_name =
-        container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
+    let default_name = container_attributes.rename_variant(&variant.variant().ident.unraw().to_string());
     variant.serde_attributes().rename_variant(default_name)
 }
 

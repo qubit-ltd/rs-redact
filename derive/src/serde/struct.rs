@@ -67,17 +67,15 @@ pub(super) fn struct_body(
         FieldsData::Named(fields) => {
             named_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
         }
-        FieldsData::Unnamed(fields) if fields.len() == 1 && container_attributes.transparent() => {
-            newtype_struct_body(
-                type_name,
-                &fields[0],
-                runtime,
-                serde,
-                container_attributes,
-                legacy_nested,
-                true,
-            )
-        }
+        FieldsData::Unnamed(fields) if fields.len() == 1 && container_attributes.transparent() => newtype_struct_body(
+            type_name,
+            &fields[0],
+            runtime,
+            serde,
+            container_attributes,
+            legacy_nested,
+            true,
+        ),
         FieldsData::Unnamed(fields) if fields.len() == 1 => newtype_struct_body(
             type_name,
             &fields[0],
@@ -87,14 +85,9 @@ pub(super) fn struct_body(
             legacy_nested,
             false,
         ),
-        FieldsData::Unnamed(fields) => tuple_struct_body(
-            type_name,
-            fields,
-            runtime,
-            serde,
-            container_attributes,
-            legacy_nested,
-        ),
+        FieldsData::Unnamed(fields) => {
+            tuple_struct_body(type_name, fields, runtime, serde, container_attributes, legacy_nested)
+        }
         FieldsData::Unit => {
             let serialized_name = container_attributes.name();
             quote! {
@@ -322,7 +315,8 @@ fn named_struct_body(
 ///
 /// # Returns
 ///
-/// A direct transparent value or a newtype serializer expression, or a unit struct when omitted.
+/// A direct transparent value or a newtype serializer expression, or a unit
+/// struct when omitted.
 ///
 /// # Panics
 ///

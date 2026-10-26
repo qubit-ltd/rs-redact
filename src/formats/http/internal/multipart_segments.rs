@@ -20,7 +20,8 @@ pub(in crate::formats::http) struct MultipartSegments<'a> {
 }
 
 impl<'a> MultipartSegments<'a> {
-    /// Validates all delimiters and the epilogue before returning a fresh iterator.
+    /// Validates all delimiters and the epilogue before returning a fresh
+    /// iterator.
     ///
     /// # Parameters
     ///
@@ -110,10 +111,7 @@ impl<'a> Iterator for MultipartSegments<'a> {
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
     if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
         let end = position + relative;
-        let trimmed = end
-            .checked_sub(1)
-            .filter(|index| bytes[*index] == b'\r')
-            .unwrap_or(end);
+        let trimmed = end.checked_sub(1).filter(|index| bytes[*index] == b'\r').unwrap_or(end);
         (position, trimmed, end + 1)
     } else {
         (position, bytes.len(), bytes.len())
@@ -136,10 +134,7 @@ mod tests {
     fn test_segments_preserve_strict_framing_cases() {
         let multiple = b"--b \t\r\nfirst\r\n--b\r\n \t\n--b\nsecond\n--b--\n \t";
         let segments = MultipartSegments::new(multiple, "b").expect("framing should be valid");
-        assert_eq!(
-            segments.collect::<Vec<_>>(),
-            [b"first".as_slice(), b"second"]
-        );
+        assert_eq!(segments.collect::<Vec<_>>(), [b"first".as_slice(), b"second"]);
 
         let empty = MultipartSegments::new(b"--b--\r\n", "b").expect("empty multipart is valid");
         assert_eq!(empty.count(), 0);

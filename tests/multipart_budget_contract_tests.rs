@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 #![cfg(feature = "http")]
 
 use qubit_redact::RedactionPolicy;
@@ -31,13 +38,8 @@ fn test_multipart_nested_form_depth_matches_rendering_and_inspection() {
     let inspected = shallow
         .inspect_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(content_type))
         .expect_err("nested field should exceed depth two");
-    assert!(
-        inspected
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
-    );
-    let rendered = shallow
-        .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(content_type));
+    assert!(inspected.reasons().contains(RedactionReason::DepthLimitReached));
+    let rendered = shallow.redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(content_type));
     assert!(
         rendered
             .summary()
