@@ -219,6 +219,30 @@ fn test_nested_http_output_rejection_closes_later_batch_items() {
 }
 
 #[test]
+fn test_blank_json_array_keeps_later_batch_field_within_output_allowance() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(64);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let redactor = Redactor::new(policy);
+    let body = format!("[{}]", " ".repeat(80));
+    let mut batch = redactor.diagnostic_batch();
+    let first =
+        batch.redact_http_body_with_content_type_text(BodyCapture::complete(body.as_bytes()), Some("application/json"));
+    let second = batch.redact_field("region", "east");
+    let output = batch.finish_with_marker("<incomplete>");
+
+    assert_eq!(output.text(first).as_str(), "[]");
+    assert_eq!(output.text(second).as_str(), "east");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert_eq!(output.summary().usage().output_bytes(), "[]east".len());
+}
+
+#[test]
 fn test_source_truncation_keeps_its_reason_without_closing_remaining_output() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let first = batch.redact_http_body_with_content_type_text(

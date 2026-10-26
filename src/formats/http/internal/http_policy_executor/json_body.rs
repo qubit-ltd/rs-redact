@@ -51,8 +51,6 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// # Parameters
     ///
-    /// - `bounded`: Original admitted JSON source used for the root-array size
-    ///   check.
     /// - `value`: Parsed tree borrowed under the body policy.
     /// - `truncated`: Whether ingress omitted source bytes.
     /// - `output_limit`: Remaining output-byte ceiling.
@@ -61,13 +59,7 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// A serialized redacted tree, or a safe invalid/truncated representation.
     #[must_use]
-    pub(super) fn redact_json_value(
-        &self,
-        bounded: &[u8],
-        value: &mut Value,
-        truncated: bool,
-        output_limit: usize,
-    ) -> ParsedBody {
+    pub(super) fn redact_json_value(&self, value: &mut Value, truncated: bool, output_limit: usize) -> ParsedBody {
         if truncated {
             return ParsedBody::new(
                 markers::INVALID_OR_TRUNCATED_JSON.to_string(),
@@ -75,18 +67,16 @@ impl HttpPolicyExecutor<'_> {
                 false,
             );
         }
-        // Root arrays may contain unkeyed pass-through scalars. When their
-        // complete source representation cannot fit, do not attempt to retain
-        // a partial array whose omitted element boundary would be ambiguous.
-        if matches!(value, Value::Array(_)) && bounded.len() > output_limit {
-            return ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true);
-        }
+        let root_array = matches!(value, Value::Array(_));
         match json::redact_and_serialize_bounded(
             &self.body_field_redactor(),
             value,
             self.policy.unkeyed_json_value_policy(),
             output_limit,
         ) {
+            Some((_text, _passed, true)) if root_array => {
+                ParsedBody::new(markers::TRUNCATED.to_string(), BodyRenderStatus::Structured, true)
+            }
             Some((text, passed, rendered_truncated)) => ParsedBody::new(
                 text,
                 if passed {

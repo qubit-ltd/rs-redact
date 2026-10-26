@@ -250,7 +250,7 @@ fn test_http_disabled_body_truncation_preserves_utf8_boundaries() {
 }
 
 #[test]
-fn test_http_json_array_uses_safe_marker_when_source_exceeds_output() {
+fn test_http_json_array_uses_safe_marker_when_redacted_output_exceeds_output() {
     let redactor = configured_redactor(|builder| {
         *builder = std::mem::take(builder)
             .limits(|limits| {
@@ -266,4 +266,41 @@ fn test_http_json_array_uses_safe_marker_when_source_exceeds_output() {
     assert_eq!(output.text().as_str(), "<truncated>");
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+}
+
+#[test]
+fn test_http_json_array_whitespace_does_not_consume_output_allowance() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(64);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let body = format!("[{}]", " ".repeat(80));
+    let output = Redactor::new(policy)
+        .redact_http_body_with_content_type_text(BodyCapture::complete(body.as_bytes()), Some("application/json"));
+
+    assert_eq!(output.text().as_str(), "[]");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+}
+
+#[test]
+fn test_http_json_array_password_redaction_shrinks_output_within_allowance() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_output_bytes(64);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let body = format!("[{{\"password\":\"{}\"}}]", "s".repeat(100));
+    let output = Redactor::new(policy)
+        .redact_http_body_with_content_type_text(BodyCapture::complete(body.as_bytes()), Some("application/json"));
+
+    assert_eq!(output.text().as_str(), "[{\"password\":\"<redacted>\"}]");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(!output.text().as_str().contains(&"s".repeat(100)));
+    assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }

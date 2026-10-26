@@ -75,7 +75,7 @@ impl HttpPolicyExecutor<'_> {
             Self::invalid_content_type_body()
         } else {
             match &mut admitted {
-                AdmittedBody::Json(value) => self.redact_json_value(bounded, value, truncated, output_limit),
+                AdmittedBody::Json(value) => self.redact_json_value(value, truncated, output_limit),
                 AdmittedBody::InvalidContentType => Self::invalid_content_type_body(),
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
                 AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
