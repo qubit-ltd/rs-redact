@@ -831,13 +831,43 @@ fn main() {
 
 | Builder 调用 | 作用 |
 | --- | --- |
-| `secret_sensitive(name)` | 将精确字段名分类为 secret |
+| `secret_sensitive(name)` | 按当前 matching 模式将字段分类为 secret；默认是 `ExactOrTokenSuffix` |
 | `raise(name, level)` | 把运行时分类至少提升到给定等级 |
-| `allow_exact` / `allow_suffix` | 允许列出的名称保持未分类 |
+| `allow_exact(name)` | 仅允许规范化后的完整名称保持未分类 |
+| `allow_suffix(name)` | 显式允许规范化名称及其语义 token 后缀匹配保持未分类 |
 | `floor(floor)` | 为匹配名称安装最低脱敏 floor |
 
 当 floor 与 allow 规则同时匹配同名字段时，floor 可以把敏感度提高到 allow 之上。floor 适合
 供应商 token 等绝不能原样出现的字段，即使 allow 列表本来会放行该名称。 `classify_field()` 解释首个匹配的应用规则，不应用 floor，也不合并所有匹配等级。需要最终有效等级时使用 `sensitivity_for()`，它会取应用规则与 floor 中匹配等级的最大值。
+
+`FieldNameMatching::Exact` 比较完整的规范化名称：匹配前会去除首尾空白、忽略大小写并移除支持的分隔符，
+所以它不等于逐字节完全相同。默认的 `ExactOrTokenSuffix` 还会检查语义 token 后缀，例如 `pin` 可匹配
+`user_pin` 和 `userPin`，但不匹配任意以相同字符结尾的字符串。`allow_exact` 始终只针对规范化后的完整名称；
+`allow_suffix` 则显式启用语义 token 后缀匹配。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::FieldNameMatching;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    for (mode, suffix_level) in [
+        (FieldNameMatching::ExactOrTokenSuffix, Some(Sensitivity::Secret)),
+        (FieldNameMatching::Exact, None),
+    ] {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| { fields.secret_sensitive("pin").matching(mode); })
+            .expect("fields")
+            .build()
+            .expect("policy");
+        assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Secret));
+        assert_eq!(policy.sensitivity_for("user_pin"), suffix_level);
+        assert_eq!(policy.sensitivity_for("userPin"), suffix_level);
+        assert_eq!(policy.sensitivity_for(" PIN "), Some(Sensitivity::Secret));
+    }
+}
+```
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -986,7 +1016,7 @@ marker，而不是半截 secret。传给 `text_or_marker` 或 `finish_with_marke
 | 句柄显示降级 marker | 句柄是否属于当前 batch | 句柄不能跨 batch 使用 |
 | `complete_text()` 失败 | 输出被截断或耗尽 | 审计路径的预期行为；日志可用 `text_or_marker` |
 | 领域字段未命中 | derive 等级、keyed_by 兄弟字段、手写 `Redact` | 运行时不会从 Rust 类型推断业务语义 |
-| JSON key 仍可见 | 使用的是 `redact_json_value` 还是领域 `Redact` | JSON 文本路径按 key 分类；领域路径看标注 |
+| JSON 敏感字段值仍可见 | 检查输入走的是 `redact_json` / `redact_json_value` 还是领域 `Redact` 实现 | 两种 JSON 入口都会保留 key，并按 key 对 value 分类；领域对象依赖标注或手写实现 |
 | 测试里 inspection 不 panic 但日志泄露 | 生产日志是否绕开脱敏入口 | inspection 本身不渲染值 |
 | URI 该拒绝却被接受 | 是否只用了 `redact_uri` 而非 `inspect_uri` | 脱敏产出安全文本；准入应走 inspection |
 | HTTP body 显示来源截断 | `RedactionReason::SourceTruncated` 与输出限制 | 不完整 body 应使用对应的 `BodyCapture` 构造方式 |

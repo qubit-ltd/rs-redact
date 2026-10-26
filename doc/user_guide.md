@@ -890,9 +890,10 @@ Common builder actions include:
 
 | Builder call | Effect |
 | --- | --- |
-| `secret_sensitive(name)` | Classify an exact field name as secret |
+| `secret_sensitive(name)` | Classify a field as secret using the policy's current matching mode; the default is `ExactOrTokenSuffix` |
 | `raise(name, level)` | Raise runtime classification to at least the given level |
-| `allow_exact` / `allow_suffix` | Permit listed names to stay unclassified |
+| `allow_exact(name)` | Permit only the normalized complete name to stay unclassified |
+| `allow_suffix(name)` | Explicitly permit the normalized name and semantic token-suffix matches to stay unclassified |
 | `floor(floor)` | Install a minimum redaction floor for matching names |
 
 A floor can raise sensitivity above an allow rule when both match the same name. Floors are useful
@@ -900,6 +901,36 @@ for provider-specific tokens that must never appear verbatim even if an allow li
 permit the field. `classify_field()` explains the first matching application rule; it does not apply
 floors or combine all matching sensitivities. Use `sensitivity_for()` for the final effective level,
 which takes the strongest matching application and floor sensitivity.
+
+`FieldNameMatching::Exact` compares the complete normalized name: matching trims surrounding
+whitespace, ignores case, and removes supported separators, so it does not mean byte-for-byte
+equality. The default `ExactOrTokenSuffix` also checks semantic token suffixes (such as `pin` in
+`user_pin` and `userPin`), not arbitrary string endings. `allow_exact` always limits the allow rule
+to the normalized complete name; `allow_suffix` explicitly opts into semantic token-suffix matches.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::FieldNameMatching;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::Sensitivity;
+
+fn main() {
+    for (mode, suffix_level) in [
+        (FieldNameMatching::ExactOrTokenSuffix, Some(Sensitivity::Secret)),
+        (FieldNameMatching::Exact, None),
+    ] {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| { fields.secret_sensitive("pin").matching(mode); })
+            .expect("fields")
+            .build()
+            .expect("policy");
+        assert_eq!(policy.sensitivity_for("pin"), Some(Sensitivity::Secret));
+        assert_eq!(policy.sensitivity_for("user_pin"), suffix_level);
+        assert_eq!(policy.sensitivity_for("userPin"), suffix_level);
+        assert_eq!(policy.sensitivity_for(" PIN "), Some(Sensitivity::Secret));
+    }
+}
+```
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -1064,7 +1095,7 @@ transaction `output_bytes`.
 | Handle shows fallback marker | Handle belongs to a different batch | Handles do not cross batches |
 | `complete_text()` fails | Output was truncated or exhausted | Expected for audit paths; use `text_or_marker` for logs |
 | Domain field not masked | Derive level, sibling keyed_by field, or manual `Redact` rules | Runtime does not infer business semantics from Rust types |
-| JSON key visible | Input used `redact_json_value` vs domain `Redact` | JSON text path classifies keys; domain path uses annotations |
+| Sensitive JSON field value remains visible | Check whether the input uses `redact_json` / `redact_json_value` or a domain `Redact` implementation | Both JSON entry points preserve keys and classify values by key; domain objects rely on annotations or a manual implementation |
 | Inspection panics in tests but not production | Inspection must not format values | Ensure production logging does not bypass redaction entry points |
 | URI accepted when it should be rejected | Use `inspect_uri`, not only `redact_uri` | Redaction produces safe text; inspection drives admission |
 | HTTP body shows source truncation | `RedactionReason::SourceTruncated` vs output limits | Use the correct `BodyCapture` constructor for partial bodies |
