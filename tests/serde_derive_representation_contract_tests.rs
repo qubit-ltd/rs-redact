@@ -95,11 +95,11 @@ fn test_transparent_named_source_and_view_forward_inner_event() {
     let disabled = Redactor::new(RedactionPolicy::disabled());
     check_transparent_tokens(&disabled.redact_view(&source), serde_test::Token::Str("raw-secret"));
     assert_eq!(
-        serde_json::to_value(&redactor.redact_view(&source)).expect("transparent JSON should serialize"),
+        serde_json::to_value(redactor.redact_view(&source)).expect("transparent JSON should serialize"),
         serde_json::json!("<redacted>")
     );
     assert_eq!(
-        serde_json::to_value(&disabled.redact_view(&source)).expect("disabled transparent JSON should serialize"),
+        serde_json::to_value(disabled.redact_view(&source)).expect("disabled transparent JSON should serialize"),
         serde_json::json!("raw-secret")
     );
 }
@@ -255,7 +255,7 @@ fn test_adjacent_tags_use_unit_variant_events_with_effective_names() {
             Token::StructEnd,
         ],
     );
-    let json = serde_json::to_value(&redactor.redact_view(&named)).expect("adjacent JSON should serialize");
+    let json = serde_json::to_value(redactor.redact_view(&named)).expect("adjacent JSON should serialize");
     assert_eq!(
         json,
         serde_json::json!({ "kind": "wire-name", "payload": { "secret": "<redacted>" } })

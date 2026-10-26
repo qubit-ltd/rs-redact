@@ -54,7 +54,7 @@ pub(in crate::formats::http) fn redact(
     max_output_bytes: usize,
     admitted: Option<&mut AdmittedMultipart>,
 ) -> Option<(String, bool, bool)> {
-    let mut parts = MultipartSegments::new(bytes, boundary)?;
+    let parts = MultipartSegments::new(bytes, boundary)?;
     if admitted
         .as_ref()
         .is_some_and(|admitted| admitted.parts.len() != parts.clone().count())
@@ -68,7 +68,7 @@ pub(in crate::formats::http) fn redact(
     }
     let mut passed = false;
     let mut has_parts = false;
-    while let Some(part) = parts.next() {
+    for part in parts {
         if has_parts && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
