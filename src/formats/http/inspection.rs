@@ -136,7 +136,7 @@ pub(crate) fn inspect_body_with_content_type_text(
         }
         Some(content_type::ContentType::Form) => {
             if session.admit_format_node(1) {
-                inspect_form(session, bytes);
+                inspect_form(session, bytes, 2);
             }
         }
         Some(content_type::ContentType::Text) => {
@@ -304,13 +304,27 @@ pub(in crate::formats::http) fn inspect_ndjson(
 }
 
 /// Parses and classifies one URL-encoded form body.
-pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, bytes: &[u8]) {
+/// Completely classifies form fields at their containing structural depth.
+///
+/// # Parameters
+///
+/// * `session` - Shared inspection transaction.
+/// * `bytes` - URL-encoded form body.
+/// * `field_depth` - Structural depth charged to each form field.
+pub(in crate::formats::http) fn inspect_form(
+    session: &mut InspectionSession,
+    bytes: &[u8],
+    field_depth: usize,
+) {
     if !form::is_valid(bytes) {
         session.fail_inspection(RedactionReason::InvalidForm);
         return;
     }
     for (key, _) in form_urlencoded::parse(bytes) {
-        if !session.admit_format_collection_item() || !session.admit_format_node(2) || !session.admit_domain_key(&key) {
+        if !session.admit_format_collection_item()
+            || !session.admit_format_node(field_depth)
+            || !session.admit_domain_key(&key)
+        {
             return;
         }
         if let Some(sensitivity) = body_fields(session).sensitivity(&key) {

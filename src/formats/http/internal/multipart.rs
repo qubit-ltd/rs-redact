@@ -11,6 +11,7 @@ use std::io::Write;
 
 use super::super::internal::AdmittedMultipart;
 use super::super::internal::AdmittedMultipartBody;
+use super::super::internal::MultipartSegments;
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
 use super::content_type;
@@ -53,30 +54,44 @@ pub(in crate::formats::http) fn redact(
     max_output_bytes: usize,
     admitted: Option<&mut AdmittedMultipart>,
 ) -> Option<(String, bool, bool)> {
-    let parts = part_segments(bytes, boundary)?;
+    let mut parts = MultipartSegments::new(bytes, boundary)?;
     if admitted
         .as_ref()
-        .is_some_and(|admitted| admitted.parts.len() != parts.len())
+        .is_some_and(|admitted| admitted.parts.len() != parts.clone().count())
     {
         return None;
     }
-    let has_parts = !parts.is_empty();
+    let mut admitted_parts = admitted.map(|admitted| admitted.parts.iter());
     let mut output = BoundedBodyWriter::new(max_output_bytes);
     if output.write_all(b"<multipart>\n").is_err() {
         return Some((output.into_string()?, false, true));
     }
     let mut passed = false;
-    for (index, part) in parts.into_iter().enumerate() {
-        if index > 0 && output.write_all(b"\n").is_err() {
+    let mut has_parts = false;
+    while let Some(part) = parts.next() {
+        if has_parts && output.write_all(b"\n").is_err() {
             return Some((output.into_string()?, passed, true));
         }
-        let parsed = admitted.as_ref().map(|admitted| admitted.parts[index].as_ref());
-        let (line, part_passed, part_truncated) =
-            redact_part(redactor, part, policy, require_form_data, max_output_bytes, parsed)?;
+        has_parts = true;
+        let parsed = match &mut admitted_parts {
+            Some(admitted_parts) => Some(admitted_parts.next()?.as_ref()),
+            None => None,
+        };
+        let (line, part_passed, part_truncated) = redact_part(
+            redactor,
+            part,
+            policy,
+            require_form_data,
+            max_output_bytes,
+            parsed,
+        )?;
         passed |= part_passed;
         if part_truncated || output.write_all(line.as_bytes()).is_err() {
             return Some((output.into_string()?, passed, true));
         }
+    }
+    if admitted_parts.is_some_and(|mut parts| parts.next().is_some()) {
+        return None;
     }
     let closing = if has_parts {
         b"\n</multipart>".as_slice()
@@ -101,10 +116,10 @@ pub(in crate::formats::http) fn admit_structure(
     require_form_data: bool,
     bytes: &[u8],
 ) -> Result<AdmittedMultipart, JsonAdmissionError> {
-    let Some(parts) = part_segments(bytes, boundary) else {
+    let Some(parts) = MultipartSegments::new(bytes, boundary) else {
         return Ok(AdmittedMultipart { parts: Vec::new() });
     };
-    let mut admitted = Vec::with_capacity(parts.len());
+    let mut admitted = Vec::new();
     for part in parts {
         if !session.admit_format_collection_item() || !session.admit_format_node(2) {
             return Err(JsonAdmissionError::Limit);
@@ -160,7 +175,7 @@ pub(in crate::formats::http) fn inspect(
     require_form_data: bool,
     bytes: &[u8],
 ) {
-    let Some(parts) = part_segments(bytes, boundary) else {
+    let Some(parts) = MultipartSegments::new(bytes, boundary) else {
         session.fail_inspection(RedactionReason::InvalidMultipart);
         return;
     };
@@ -205,7 +220,7 @@ pub(in crate::formats::http) fn inspect(
                 }
             }
             Some(value) if content_type::is_form(value) => {
-                inspect_form(session, body);
+                inspect_form(session, body, 3);
             }
             Some(value) if content_type::is_text(value) => {
                 if std::str::from_utf8(body).is_err() {
@@ -412,84 +427,6 @@ fn redact_non_sensitive_part(
     }
 }
 
-/// Splits a complete multipart body into strict delimiter-bounded segments.
-///
-/// # Type Parameters
-///
-/// * `'a` - Lifetime of the multipart bytes borrowed by returned segments.
-///
-/// # Parameters
-///
-/// * `bytes` - Complete multipart bytes.
-/// * `boundary` - Validated boundary without delimiter prefix.
-///
-/// # Returns
-///
-/// Part segments, or `None` for malformed delimiters or epilogue.
-fn part_segments<'a>(bytes: &'a [u8], boundary: &str) -> Option<Vec<&'a [u8]>> {
-    let delimiter = format!("--{boundary}");
-    let closing = format!("{delimiter}--");
-    let mut start = None;
-    let mut result = Vec::new();
-    let mut position = 0;
-    while position < bytes.len() {
-        let (line_start, line_end, next) = next_line(bytes, position);
-        let line = std::str::from_utf8(&bytes[line_start..line_end]).ok();
-        let kind = line.and_then(|line| {
-            let line = line.trim_end_matches([' ', '\t']);
-            if line == delimiter {
-                Some(false)
-            } else if line == closing {
-                Some(true)
-            } else {
-                None
-            }
-        });
-        let Some(closing_kind) = kind else {
-            position = next;
-            continue;
-        };
-        if let Some(start) = start {
-            let part = strip_line_ending(&bytes[start..line_start]);
-            if !part.iter().all(u8::is_ascii_whitespace) {
-                result.push(part);
-            }
-        }
-        if closing_kind {
-            return bytes[next..].iter().all(u8::is_ascii_whitespace).then_some(result);
-        }
-        start = Some(next);
-        position = next;
-    }
-    None
-}
-
-/// Finds the next logical line bounds.
-///
-/// # Parameters
-///
-/// * `bytes` - Complete bounded multipart bytes.
-/// * `position` - Valid starting offset.
-///
-/// # Returns
-///
-/// Start, end without line ending, and next scan position.
-///
-/// # Panics
-///
-/// Panics when `position` exceeds `bytes.len()`.
-#[must_use]
-#[inline]
-fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
-    if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
-        let end = position + relative;
-        let trimmed = end.checked_sub(1).filter(|index| bytes[*index] == b'\r').unwrap_or(end);
-        (position, trimmed, end + 1)
-    } else {
-        (position, bytes.len(), bytes.len())
-    }
-}
-
 /// Splits a part's UTF-8 headers from its raw body.
 ///
 /// # Parameters
@@ -517,22 +454,4 @@ fn split_headers_body(segment: &[u8]) -> Option<(&str, &[u8])> {
         std::str::from_utf8(&segment[..header_end]).ok()?,
         &segment[body_start..],
     ))
-}
-
-/// Removes one multipart line ending.
-///
-/// # Parameters
-///
-/// * `value` - Bytes that may end with CRLF or LF.
-///
-/// # Returns
-///
-/// The slice without one trailing line ending.
-#[must_use]
-#[inline(always)]
-fn strip_line_ending(value: &[u8]) -> &[u8] {
-    value
-        .strip_suffix(b"\r\n")
-        .or_else(|| value.strip_suffix(b"\n"))
-        .unwrap_or(value)
 }
