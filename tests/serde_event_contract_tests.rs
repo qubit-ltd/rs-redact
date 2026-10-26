@@ -20,9 +20,308 @@ use qubit_redact::domain::internal::RedactedLevelSerializeRef;
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]
+struct EventChild {
+    #[redact(level = "secret")]
+    secret: String,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct OptionalEvent {
+    #[redact(nested)]
+    child: Option<EventChild>,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct ArrayEvent {
+    #[redact(nested)]
+    children: [EventChild; 2],
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct VectorEvent {
+    #[redact(nested)]
+    children: Vec<EventChild>,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct EmptyArrayEvent {
+    #[redact(nested)]
+    children: [EventChild; 0],
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
 struct NestedOption {
     #[redact(level = "secret")]
     value: Option<String>,
+}
+
+#[test]
+fn test_nested_option_source_and_view_preserve_some_event() {
+    let source = OptionalEvent {
+        child: Some(EventChild {
+            secret: String::from("raw-secret"),
+        }),
+    };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalEvent",
+            len: 1,
+        },
+        serde_test::Token::Str("child"),
+        serde_test::Token::Some,
+        serde_test::Token::Struct {
+            name: "EventChild",
+            len: 1,
+        },
+        serde_test::Token::Str("secret"),
+        serde_test::Token::Str("<redacted>"),
+        serde_test::Token::StructEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_nested_array_source_and_view_preserve_tuple_event() {
+    let source = ArrayEvent {
+        children: [
+            EventChild {
+                secret: String::from("first-secret"),
+            },
+            EventChild {
+                secret: String::from("second-secret"),
+            },
+        ],
+    };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "ArrayEvent",
+            len: 1,
+        },
+        serde_test::Token::Str("children"),
+        serde_test::Token::Tuple { len: 2 },
+        serde_test::Token::Struct {
+            name: "EventChild",
+            len: 1,
+        },
+        serde_test::Token::Str("secret"),
+        serde_test::Token::Str("<redacted>"),
+        serde_test::Token::StructEnd,
+        serde_test::Token::Struct {
+            name: "EventChild",
+            len: 1,
+        },
+        serde_test::Token::Str("secret"),
+        serde_test::Token::Str("<redacted>"),
+        serde_test::Token::StructEnd,
+        serde_test::Token::TupleEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_nested_option_none_source_and_view_preserve_none_event() {
+    let source = OptionalEvent { child: None };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalEvent",
+            len: 1,
+        },
+        serde_test::Token::Str("child"),
+        serde_test::Token::None,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_nested_empty_array_source_and_view_preserve_empty_tuple_event() {
+    let source = EmptyArrayEvent { children: [] };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "EmptyArrayEvent",
+            len: 1,
+        },
+        serde_test::Token::Str("children"),
+        serde_test::Token::Tuple { len: 0 },
+        serde_test::Token::TupleEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_nested_vector_source_and_view_preserve_sequence_event() {
+    let source = VectorEvent {
+        children: vec![EventChild {
+            secret: String::from("raw-secret"),
+        }],
+    };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "VectorEvent",
+            len: 1,
+        },
+        serde_test::Token::Str("children"),
+        serde_test::Token::Seq { len: Some(1) },
+        serde_test::Token::Struct {
+            name: "EventChild",
+            len: 1,
+        },
+        serde_test::Token::Str("secret"),
+        serde_test::Token::Str("<redacted>"),
+        serde_test::Token::StructEnd,
+        serde_test::Token::SeqEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_disabled_nested_option_and_array_view_preserve_container_events() {
+    let redactor = qubit_redact::Redactor::new(RedactionPolicy::disabled());
+    let optional = OptionalEvent {
+        child: Some(EventChild {
+            secret: String::from("visible"),
+        }),
+    };
+    serde_test::assert_ser_tokens(
+        &redactor.redact_view(&optional),
+        &[
+            serde_test::Token::Struct {
+                name: "OptionalEvent",
+                len: 1,
+            },
+            serde_test::Token::Str("child"),
+            serde_test::Token::Some,
+            serde_test::Token::Struct {
+                name: "EventChild",
+                len: 1,
+            },
+            serde_test::Token::Str("secret"),
+            serde_test::Token::Str("visible"),
+            serde_test::Token::StructEnd,
+            serde_test::Token::StructEnd,
+        ],
+    );
+    let array = ArrayEvent {
+        children: [
+            EventChild {
+                secret: String::from("visible"),
+            },
+            EventChild {
+                secret: String::from("also-visible"),
+            },
+        ],
+    };
+    serde_test::assert_ser_tokens(
+        &redactor.redact_view(&array),
+        &[
+            serde_test::Token::Struct {
+                name: "ArrayEvent",
+                len: 1,
+            },
+            serde_test::Token::Str("children"),
+            serde_test::Token::Tuple { len: 2 },
+            serde_test::Token::Struct {
+                name: "EventChild",
+                len: 1,
+            },
+            serde_test::Token::Str("secret"),
+            serde_test::Token::Str("visible"),
+            serde_test::Token::StructEnd,
+            serde_test::Token::Struct {
+                name: "EventChild",
+                len: 1,
+            },
+            serde_test::Token::Str("secret"),
+            serde_test::Token::Str("also-visible"),
+            serde_test::Token::StructEnd,
+            serde_test::Token::TupleEnd,
+            serde_test::Token::StructEnd,
+        ],
+    );
+}
+
+#[test]
+fn test_nested_array_collection_rejection_uses_masking_fallback() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let source = ArrayEvent {
+        children: [
+            EventChild {
+                secret: String::from("raw-secret"),
+            },
+            EventChild {
+                secret: String::from("another-secret"),
+            },
+        ],
+    };
+    serde_test::assert_ser_tokens(
+        &qubit_redact::Redactor::new(policy).redact_view(&source),
+        &[
+            serde_test::Token::Struct {
+                name: "ArrayEvent",
+                len: 1,
+            },
+            serde_test::Token::Str("children"),
+            serde_test::Token::Str("<redacted>"),
+            serde_test::Token::StructEnd,
+        ],
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_nested_array_json_content_is_unchanged_between_source_and_view() {
+    let source = ArrayEvent {
+        children: [
+            EventChild {
+                secret: String::from("raw-secret"),
+            },
+            EventChild {
+                secret: String::from("another-secret"),
+            },
+        ],
+    };
+    let encoded_source = serde_json::to_value(&source).expect("redacted source JSON");
+    let encoded_view =
+        serde_json::to_value(qubit_redact::Redactor::standard().redact_view(&source)).expect("redacted view JSON");
+    assert_eq!(encoded_source, encoded_view);
+    assert_eq!(encoded_source["children"][0]["secret"], "<redacted>");
+    assert_eq!(encoded_source["children"][1]["secret"], "<redacted>");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_nested_option_json_content_is_unchanged_between_source_and_view() {
+    let source = OptionalEvent {
+        child: Some(EventChild {
+            secret: String::from("raw-secret"),
+        }),
+    };
+    let encoded_source = serde_json::to_value(&source).expect("redacted source JSON");
+    let encoded_view =
+        serde_json::to_value(qubit_redact::Redactor::standard().redact_view(&source)).expect("redacted view JSON");
+    assert_eq!(encoded_source, encoded_view);
+    assert_eq!(encoded_source["child"]["secret"], "<redacted>");
 }
 
 #[test]

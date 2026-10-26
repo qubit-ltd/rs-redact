@@ -20,7 +20,8 @@ use super::redact_serialize_scope::serialize_structured;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
-    /// Serializes contained redacted values through the active policy scope.
+    /// Serializes contained redacted values through the active policy scope,
+    /// preserving the Serde `Some` event for present values.
     ///
     /// # Errors
     ///
@@ -43,7 +44,7 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
         S: Serializer,
     {
         match self {
-            Some(value) => value.serialize_redacted(serializer, policy),
+            Some(value) => serializer.serialize_some(&RedactedSerializeRef::new(value, policy)),
             None => serializer.serialize_none(),
         }
     }
@@ -89,7 +90,8 @@ impl<T: RedactSerialize> RedactSerialize for Vec<T> {
 }
 
 impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
-    /// Serializes contained redacted values through the active policy scope.
+    /// Serializes admitted elements as a tuple through the active policy
+    /// scope, while preserving the existing masking fallback on rejection.
     ///
     /// # Errors
     ///
@@ -118,11 +120,11 @@ impl<T: RedactSerialize, const N: usize> RedactSerialize for [T; N] {
                     policy.masking().mask_opaque(crate::Sensitivity::Secret),
                 );
             }
-            let mut sequence = serializer.serialize_seq(Some(N))?;
+            let mut tuple = serializer.serialize_tuple(N)?;
             for value in self {
-                sequence.serialize_element(&RedactedSerializeRef::new(value, policy))?;
+                tuple.serialize_element(&RedactedSerializeRef::new(value, policy))?;
             }
-            sequence.end()
+            tuple.end()
         })
     }
 }

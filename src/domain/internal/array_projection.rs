@@ -10,7 +10,7 @@
 use serde::Serialize;
 use serde::Serializer;
 use serde::ser::Error as SerdeError;
-use serde::ser::SerializeSeq;
+use serde::ser::SerializeTuple;
 
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::current_policy;
@@ -22,7 +22,7 @@ use crate::RedactionPolicy;
 use crate::Sensitivity;
 
 /// Lazily serializes each borrowed array element through its redaction
-/// projection.
+/// projection, preserving the fixed-array tuple event when admitted.
 pub struct ArrayProjection<'value, T, const N: usize>(&'value [T; N]);
 
 impl<T, const N: usize> RedactSerializeSource for [T; N] {
@@ -53,11 +53,11 @@ where
             if !admit_collection_items(N) {
                 return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
             }
-            let mut sequence = serializer.serialize_seq(Some(N))?;
+            let mut tuple = serializer.serialize_tuple(N)?;
             for value in *values {
-                sequence.serialize_element(&RedactedProjectionRef::new(value, policy))?;
+                tuple.serialize_element(&RedactedProjectionRef::new(value, policy))?;
             }
-            sequence.end()
+            tuple.end()
         })
     }
 }

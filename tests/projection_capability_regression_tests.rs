@@ -117,7 +117,7 @@ fn test_array_and_tuple_projection_keep_their_serde_event_shapes() {
     serde_test::assert_ser_tokens(
         &redactor.redact_view(&array),
         &[
-            serde_test::Token::Seq { len: Some(2) },
+            serde_test::Token::Tuple { len: 2 },
             serde_test::Token::Struct { name: "Child", len: 1 },
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
@@ -126,7 +126,7 @@ fn test_array_and_tuple_projection_keep_their_serde_event_shapes() {
             serde_test::Token::Str("password"),
             serde_test::Token::Str("<redacted>"),
             serde_test::Token::StructEnd,
-            serde_test::Token::SeqEnd,
+            serde_test::Token::TupleEnd,
         ],
     );
 

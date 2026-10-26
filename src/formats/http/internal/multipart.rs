@@ -256,6 +256,9 @@ pub(in crate::formats::http) fn admit_form_fields(
     }
     let valid = form::is_valid(bytes);
     for field in bytes.split(|byte| *byte == b'&') {
+        if field.is_empty() {
+            continue;
+        }
         if !session.admit_format_collection_item() || !session.admit_format_node(field_depth) {
             return false;
         }
