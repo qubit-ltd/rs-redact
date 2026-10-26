@@ -231,14 +231,15 @@ impl Redact for MapField {
 
 #[test]
 fn test_disabled_map_field_keeps_separator_before_next_field() {
-    for entries in [BTreeMap::new(), BTreeMap::from([("x".to_owned(), "y".to_owned())])] {
+    for (entries, expected) in [
+        (BTreeMap::new(), "MapField { attributes: {}, next: 1 }"),
+        (
+            BTreeMap::from([("x".to_owned(), "y".to_owned())]),
+            "MapField { attributes: {\"x\": \"y\"}, next: 1 }",
+        ),
+    ] {
         let output = Redactor::new(RedactionPolicy::disabled()).redact_text(&MapField { entries });
 
-        let expected = if output.text().as_str().contains("\"x\"") {
-            "MapField { attributes: {\"x\": \"y\"}, next: 1 }"
-        } else {
-            "MapField { attributes: {}, next: 1 }"
-        };
         assert_eq!(output.text().as_str(), expected);
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
     }
