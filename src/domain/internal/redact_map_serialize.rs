@@ -18,6 +18,7 @@ use super::budget_serialize::BudgetSerialize;
 use super::redact_level_serialize::RedactLevelSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
+use super::redacted_map_serialize_ref::RedactedMapSerializeRef;
 use crate::RedactionPolicy;
 use crate::Sensitivity;
 
@@ -133,7 +134,7 @@ macro_rules! map_redact_serialize {
                 S: Serializer,
             {
                 match self {
-                    Some(value) => value.serialize_redacted_map(serializer, policy),
+                    Some(value) => serializer.serialize_some(&RedactedMapSerializeRef::new(value, policy)),
                     None => serializer.serialize_none(),
                 }
             }

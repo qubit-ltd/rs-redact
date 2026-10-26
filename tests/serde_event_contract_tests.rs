@@ -10,13 +10,17 @@
 #![cfg(all(feature = "derive", feature = "serde"))]
 
 use std::cell::Cell;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::internal::RedactLevelSerialize;
 use qubit_redact::domain::internal::RedactSerializeScope;
 use qubit_redact::domain::internal::RedactSerializeSource;
 use qubit_redact::domain::internal::RedactedLevelSerializeRef;
+use qubit_redact::domain::internal::RedactedMapSerializeRef;
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]
@@ -58,6 +62,197 @@ struct EmptyArrayEvent {
 struct NestedOption {
     #[redact(level = "secret")]
     value: Option<String>,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct OptionalMap {
+    #[redact(map)]
+    values: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct OptionalHashMap {
+    #[redact(map)]
+    values: Option<HashMap<String, String>>,
+}
+
+struct FailingMapValue;
+
+impl serde::Serialize for FailingMapValue {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        Err(<S::Error as serde::ser::Error>::custom("optional map probe error"))
+    }
+}
+
+impl RedactLevelSerialize for FailingMapValue {
+    fn serialize_redacted_level<S>(
+        &self,
+        serializer: S,
+        _policy: &RedactionPolicy,
+        _level: Sensitivity,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(self, serializer)
+    }
+}
+
+#[test]
+fn test_optional_map_source_and_view_preserve_some_event() {
+    let source = OptionalMap {
+        values: Some(BTreeMap::new()),
+    };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::Some,
+        serde_test::Token::Map { len: Some(0) },
+        serde_test::Token::MapEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_optional_map_source_and_view_preserve_none_and_entry_events() {
+    let none = OptionalMap { values: None };
+    let none_tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::None,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&none, &none_tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&none), &none_tokens);
+
+    let hash_none = OptionalHashMap { values: None };
+    let hash_none_tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalHashMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::None,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&hash_none, &hash_none_tokens);
+    serde_test::assert_ser_tokens(
+        &qubit_redact::Redactor::standard().redact_view(&hash_none),
+        &hash_none_tokens,
+    );
+
+    let mut btree_entries = BTreeMap::new();
+    btree_entries.insert("x".to_owned(), "y".to_owned());
+    let btree_one = OptionalMap {
+        values: Some(btree_entries),
+    };
+    let btree_one_tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::Some,
+        serde_test::Token::Map { len: Some(1) },
+        serde_test::Token::Str("x"),
+        serde_test::Token::Str("y"),
+        serde_test::Token::MapEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&btree_one, &btree_one_tokens);
+    serde_test::assert_ser_tokens(
+        &qubit_redact::Redactor::standard().redact_view(&btree_one),
+        &btree_one_tokens,
+    );
+
+    let hash_empty = OptionalHashMap {
+        values: Some(HashMap::new()),
+    };
+    let hash_empty_tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalHashMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::Some,
+        serde_test::Token::Map { len: Some(0) },
+        serde_test::Token::MapEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&hash_empty, &hash_empty_tokens);
+    serde_test::assert_ser_tokens(
+        &qubit_redact::Redactor::standard().redact_view(&hash_empty),
+        &hash_empty_tokens,
+    );
+
+    let mut entries = HashMap::new();
+    entries.insert("x".to_owned(), "y".to_owned());
+    let source = OptionalHashMap { values: Some(entries) };
+    let tokens = [
+        serde_test::Token::Struct {
+            name: "OptionalHashMap",
+            len: 1,
+        },
+        serde_test::Token::Str("values"),
+        serde_test::Token::Some,
+        serde_test::Token::Map { len: Some(1) },
+        serde_test::Token::Str("x"),
+        serde_test::Token::Str("y"),
+        serde_test::Token::MapEnd,
+        serde_test::Token::StructEnd,
+    ];
+    serde_test::assert_ser_tokens(&source, &tokens);
+    serde_test::assert_ser_tokens(&qubit_redact::Redactor::standard().redact_view(&source), &tokens);
+}
+
+#[test]
+fn test_optional_map_some_and_map_share_the_enclosing_structure_budget() {
+    let mut entries = BTreeMap::new();
+    entries.insert("x".to_owned(), "y".to_owned());
+    let source = OptionalMap { values: Some(entries) };
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_nodes(3);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+
+    let result = serde_json::to_string(&qubit_redact::Redactor::new(policy).redact_view(&source));
+
+    assert!(
+        result
+            .expect_err("Some and its map must consume the enclosing node budget")
+            .to_string()
+            .contains("structural budget")
+    );
+}
+
+#[test]
+fn test_optional_map_some_propagates_nested_serializer_errors() {
+    let mut entries = BTreeMap::new();
+    entries.insert("x".to_owned(), FailingMapValue);
+    let source = Some(entries);
+    let policy = RedactionPolicy::standard();
+    let adapter = RedactedMapSerializeRef::new(&source, &policy);
+
+    let error = serde_json::to_string(&adapter).expect_err("nested serializer failure must propagate");
+
+    assert!(error.to_string().contains("optional map probe error"));
 }
 
 #[test]
