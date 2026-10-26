@@ -894,6 +894,8 @@ Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
 脱敏启用时，High/Secret 只计字段名字节，不调用值的 Display。capture 按完整写入片段准入：拒绝片段
 计入 presented，不计入 inspected；已接受片段仍计费，失败时其原文全部丢弃。
 因此 `inspected_input_bytes <= max_input_bytes`，但 presented 可以更大。
+显式 Low/Medium `Display` 值在共享输入字节额度下只格式化一次；formatter 失败后，已接受的
+UTF-8 前缀仍计费。High/Secret 和 inspection 不执行源 formatter。disabled 策略仍会为显式选择的文本值计费。
 领域字段的静态标签、结构节点以及 Serde 事件有各自准入单位，不能把它们的 usage 当作原对象大小。
 
 Serde 逻辑载荷按 str/char 的 UTF-8 字节、bytes 切片长度及数字/bool 的标量表示计量；

@@ -952,6 +952,9 @@ or value formatting. With redaction enabled, High/Secret charges only key bytes 
 Capture admits complete write chunks atomically: rejected chunks count as presented but not inspected;
 accepted prefixes remain charged even when failure discards all their raw text.
 Thus `inspected_input_bytes <= max_input_bytes`, while presented bytes may be larger.
+Explicit Low/Medium `Display` values are formatted once under the shared input-byte allowance;
+their accepted UTF-8 prefix remains charged after formatter failure. High/Secret and inspection
+do not evaluate the source formatter. Disabled policies still charge explicitly selected text values.
 Domain labels, structural nodes, and Serde events have their own admission units; usage is not the
 memory size of the original object.
 

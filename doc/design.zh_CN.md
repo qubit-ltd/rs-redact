@@ -181,6 +181,8 @@ one-shot、composer、batch 共享 `runtime/scalar_operation.rs`，依次进行�
 不增加 inspected，不规范化或访问值；脱敏启用时，High/Secret 准入 key 后直接输出固定掩码。
 `InputCapture` 按完整 UTF-8 片段计量，首次拒绝后永久锁存。已接受前缀仍计费，失败时全部
 丢弃原文；`ScalarFailure` 区分 InputLimit 与 FormatterFailure，不携带完成状态。
+显式 Low/Medium 领域文本在共享输入字节额度下只格式化源值一次；即使 formatter 失败，已接受的
+UTF-8 字节仍计入输入账本。High/Secret 和 inspection 不访问源 formatter；disabled 显式文本仍受输入额度限制。
 
 OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错误的 `<truncated>` 能完整
 容纳时为 Truncated，仅保留真实原因；不能容纳时为 Exhausted，并记录实际 OutputLimitReached。
@@ -251,6 +253,8 @@ Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入�
 Multipart framing 会先由借用的 segment 游标完整校验，再逐段消费。辅助 segment 状态不随原始
 segment 数量增长；admitted slot 只为通过准入的 part 增长。顶层 form 字段使用深度 2，multipart
 part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入的 JSON 与 NDJSON 结构只解析一次并复用。
+NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空行的辅助空间保持常量；渲染通过有界 writer
+恢复换行，multipart NDJSON 也保留源行位置。
 
 来源截断元数据只由 `BodyCapture` 持有。当已捕获 body 超过父 runtime 的剩余输入额度时，父事务
 会原子拒绝整段 body；renderer 不再维护第二套“部分输入”状态。已解析的来源截断 body 会保留

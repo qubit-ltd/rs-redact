@@ -241,6 +241,9 @@ both operations succeed; their success conditions are not equivalent.
 Scalar text fields, handwritten domain nodes, and Serde events have distinct input admission
 units; usage is not source-object memory size. Budgets cannot preempt arbitrary computation
 inside user Display/Serialize or bound allocations performed before the library call.
+Explicit Low/Medium domain text captures the source formatter once under the shared input-byte
+allowance and charges accepted UTF-8 bytes even when formatting fails. High/Secret and inspection
+avoid source formatting; disabled explicit text remains input-bounded.
 
 ## 7. Domain objects and Serde
 
@@ -318,7 +321,10 @@ cursor before the segments are consumed. Auxiliary segment state does not scale
 with the raw segment count; admitted slots grow only for admitted parts. Top-level
 form fields use depth 2, while form fields inside multipart parts use depth 3 in
 both inspection and rendering. Admitted JSON and NDJSON structures are parsed
-once and reused.
+once and reused. NDJSON admission stores nonblank values with source-line indices
+and counts blank lines separately, keeping auxiliary storage constant for blank
+runs. Rendering restores line breaks through the bounded output writer, including
+for multipart NDJSON.
 
 `BodyCapture` alone owns source-truncation metadata. The parent runtime rejects
 an HTTP body atomically when its captured bytes exceed the remaining input
