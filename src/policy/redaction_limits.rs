@@ -155,6 +155,9 @@ impl RedactionLimits {
 
     /// Returns the maximum nested structural depth.
     ///
+    /// JSON nested in a domain value adds its JSON-relative depth to the
+    /// current domain depth; a standalone JSON root begins at depth one.
+    ///
     /// # Returns
     ///
     /// `Some(maximum)` is the configured ceiling; `None` disables this limit.

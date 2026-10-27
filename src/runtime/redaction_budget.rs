@@ -101,6 +101,13 @@ impl RedactionBudget {
         self.usage
     }
 
+    /// Returns the current domain depth used as the base for nested formats.
+    #[cfg(feature = "json")]
+    #[inline(always)]
+    pub(super) const fn current_domain_depth(&self) -> usize {
+        self.structural.current_depth()
+    }
+
     /// Returns the active operation's resource snapshot.
     ///
     /// # Returns
@@ -250,6 +257,7 @@ impl RedactionBudget {
     #[cfg(feature = "json")]
     #[inline]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> Result<(), RedactionReason> {
+        let base_depth = self.structural.current_depth();
         let Self {
             structural,
             usage,
@@ -261,6 +269,7 @@ impl RedactionBudget {
             structural,
             usage,
             active_operation_usage,
+            base_depth,
         };
         let mut transaction = json_budget.transaction();
         let admitted = JsonTreeReader::new(&mut transaction).process(root, &mut visitor);
@@ -280,6 +289,7 @@ struct JsonUsageVisitor<'a> {
     structural: &'a mut StructuralBudget,
     usage: &'a mut RedactionUsage,
     active_operation_usage: &'a mut Option<RedactionUsage>,
+    base_depth: usize,
 }
 
 #[cfg(feature = "json")]
@@ -296,14 +306,15 @@ impl JsonTreeVisitor for JsonUsageVisitor<'_> {
                 *usage = usage.with_collection_item();
             }
         }
-        match self.structural.admit_format_node(context.depth) {
+        let depth = self.base_depth.saturating_add(context.depth);
+        match self.structural.admit_format_node(depth) {
             StructuralEntry::Entered => {}
             StructuralEntry::DepthLimitReached => return Err(RedactionReason::DepthLimitReached),
             StructuralEntry::TraversalLimitReached => return Err(RedactionReason::TraversalLimitReached),
         }
-        *self.usage = self.usage.with_domain_node(context.depth);
+        *self.usage = self.usage.with_domain_node(depth);
         if let Some(usage) = self.active_operation_usage.as_mut() {
-            *usage = usage.with_domain_node(context.depth);
+            *usage = usage.with_domain_node(depth);
         }
         Ok(())
     }

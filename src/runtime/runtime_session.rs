@@ -238,6 +238,14 @@ pub(crate) trait RuntimeSession {
         self.runtime_mut().admit_json_value(value)
     }
 
+    /// Returns the root-inclusive depth for JSON nested in the active domain.
+    #[cfg(feature = "json")]
+    #[must_use]
+    #[inline(always)]
+    fn json_root_depth(&self) -> usize {
+        self.runtime().json_root_depth()
+    }
+
     /// Splits JSON structure accounting from lexical value accounting.
     ///
     /// # Returns

@@ -413,6 +413,15 @@ impl RuntimeCore {
         }
     }
 
+    /// Returns the absolute root depth for a JSON value nested in the current
+    /// domain scope.
+    #[cfg(feature = "json")]
+    #[must_use]
+    #[inline(always)]
+    pub(super) fn json_root_depth(&self) -> usize {
+        self.budget.current_domain_depth().saturating_add(1)
+    }
+
     /// Records output exhaustion and tells the caller to skip aggregate work.
     ///
     /// # Returns

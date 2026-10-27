@@ -47,7 +47,8 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// unsupported numbers, or duplicate object keys. Error values do not retain
 /// source text.
 pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
-    admit_json_text_value_at_depth(session, text, 1)
+    let root_depth = session.json_root_depth();
+    admit_json_text_value_at_depth(session, text, root_depth)
 }
 
 /// Parses `text` with its root at `root_depth`, charging the shared `session`.
@@ -70,7 +71,7 @@ pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str
 /// Returns `JsonAdmissionError::Limit` after structural or JSON-budget
 /// rejection, recording JSON-value exhaustion in the session where applicable.
 /// Returns `JsonAdmissionError::Invalid` for malformed input, unsupported
-/// numbers, duplicate keys, or more than 127 nested containers; error values
+/// numbers, or duplicate keys; error values
 /// do not retain source text.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut dyn RuntimeSession,

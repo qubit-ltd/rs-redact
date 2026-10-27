@@ -125,7 +125,7 @@ impl RedactionUsage {
     }
 
     /// Returns the greatest active structural depth observed by the
-    /// transaction.
+    /// transaction, including JSON depth added to its active domain depth.
     ///
     /// # Returns
     ///
