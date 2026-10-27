@@ -204,26 +204,34 @@ fn uses_type_parameter(generics: &Generics, field_type: &impl ToTokens) -> bool 
     token_stream_uses_parameter(field_type.to_token_stream(), &parameters)
 }
 
-/// Selects the input generic parameters referenced by one field type.
+/// Selects generic parameters referenced by a field type or its adapter path.
 ///
-/// The returned generics retain only parameters and where predicates needed by
-/// the field. Generated local carrier items can therefore introduce their own
-/// generic parameters instead of capturing the surrounding impl's parameters.
+/// The field type and adapter path jointly seed the transitive closure over
+/// inline bounds and where predicates.
 ///
 /// # Parameters
 ///
 /// * `generics` - Input generic parameters and where predicates.
 /// * `field_type` - Field type whose referenced parameters are retained.
+/// * `adapter` - Serialization adapter path whose referenced parameters are
+///   retained.
 ///
 /// # Returns
 ///
-/// Filtered generics containing referenced parameters and transitively related
-/// inline bounds and where predicates.
+/// Filtered generics containing parameters referenced by the field or adapter,
+/// along with transitively related inline bounds and where predicates.
 #[must_use]
-pub(crate) fn generics_for_field(generics: &Generics, field_type: &Type) -> Generics {
+pub(crate) fn generics_for_field_and_adapter(generics: &Generics, field_type: &Type, adapter: &Path) -> Generics {
+    let field_tokens = field_type.to_token_stream();
+    let adapter_tokens = adapter.to_token_stream();
+    generics_for_tokens(generics, quote!(#field_tokens #adapter_tokens))
+}
+
+/// Selects parameters from a token seed and closes over dependent bounds.
+fn generics_for_tokens(generics: &Generics, seed: TokenStream) -> Generics {
     let parameter_names = generic_parameter_names(generics);
     let mut used = BTreeSet::new();
-    collect_parameter_names(field_type.to_token_stream(), &parameter_names, &mut used);
+    collect_parameter_names(seed, &parameter_names, &mut used);
 
     loop {
         let mut changed = false;

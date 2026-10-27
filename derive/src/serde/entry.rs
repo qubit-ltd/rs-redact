@@ -997,7 +997,7 @@ fn adapter_helper(
     let wrapper = format_ident!("{helper}_carrier", span = field.span());
     let field_type = &field.ty;
     let lifetime = assertions::fresh_lifetime(generics);
-    let mut helper_generics = assertions::generics_for_field(generics, field_type);
+    let mut helper_generics = assertions::generics_for_field_and_adapter(generics, field_type, adapter);
     helper_generics
         .params
         .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));

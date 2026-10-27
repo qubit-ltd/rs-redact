@@ -30,6 +30,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/nested_source_serde_chain.rs");
     tests.pass("tests/fixtures/pass/recursive_debug_storage.rs");
     tests.pass("tests/fixtures/pass/adapter_with_skip_predicate.rs");
+    tests.pass("tests/fixtures/pass/adapter_path_generics.rs");
     tests.pass("tests/fixtures/pass/generic_keyed_by.rs");
     tests.pass("tests/fixtures/pass/generic_borrowed_source.rs");
     tests.pass("tests/fixtures/pass/concrete_text_only_skip_predicate.rs");
