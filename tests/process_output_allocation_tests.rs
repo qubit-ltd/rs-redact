@@ -116,6 +116,78 @@ fn test_large_public_utf8_argv_does_not_drive_intermediate_allocation() {
 }
 
 #[test]
+fn test_heuristic_inline_option_join_allocation_is_bounded() {
+    let redactor = bounded_redactor();
+    let _ = Redactor::standard().redact_heuristic_argv([ArgvItem::plain(OsStr::new("--password=x"))]);
+    let small = format!("{}password=x", "-".repeat(4 * 1024));
+    let large = format!("{}password=x", "-".repeat(48 * 1024));
+
+    let (small_max, small_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&small))]));
+    let (large_max, large_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&large))]));
+
+    eprintln!("inline option maximum allocation: 4 KiB={small_max}, 48 KiB={large_max}");
+    assert!(small_max < 4 * 1024, "4 KiB option requested {small_max} bytes");
+    assert!(large_max < 4 * 1024, "48 KiB option requested {large_max} bytes");
+    assert!(
+        large_max <= small_max,
+        "large option request {large_max} exceeded small request {small_max}"
+    );
+    for output in [small_output, large_output] {
+        assert_eq!(output.text().as_str(), "<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    }
+}
+
+#[test]
+fn test_heuristic_assignment_join_allocation_is_bounded() {
+    let redactor = bounded_redactor();
+    let _ = Redactor::standard().redact_heuristic_argv([ArgvItem::plain(OsStr::new("password=x"))]);
+    let small = format!("password{}=x", " ".repeat(4 * 1024));
+    let large = format!("password{}=x", " ".repeat(48 * 1024));
+
+    let (small_max, small_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&small))]));
+    let (large_max, large_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&large))]));
+
+    eprintln!("assignment maximum allocation: 4 KiB={small_max}, 48 KiB={large_max}");
+    assert!(small_max < 4 * 1024, "4 KiB assignment requested {small_max} bytes");
+    assert!(large_max < 4 * 1024, "48 KiB assignment requested {large_max} bytes");
+    assert!(
+        large_max <= small_max,
+        "large assignment request {large_max} exceeded small request {small_max}"
+    );
+    for output in [small_output, large_output] {
+        assert_eq!(output.text().as_str(), "<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    }
+}
+
+#[test]
+fn test_heuristic_jvm_property_join_allocation_is_bounded() {
+    let redactor = bounded_redactor();
+    let _ = Redactor::standard().redact_heuristic_argv([ArgvItem::plain(OsStr::new("-Dpassword=x"))]);
+    let small = format!("-Dpassword{}=x", " ".repeat(4 * 1024));
+    let large = format!("-Dpassword{}=x", " ".repeat(48 * 1024));
+
+    let (small_max, small_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&small))]));
+    let (large_max, large_output) = measure(|| redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(&large))]));
+
+    eprintln!("JVM property maximum allocation: 4 KiB={small_max}, 48 KiB={large_max}");
+    assert!(small_max < 4 * 1024, "4 KiB property requested {small_max} bytes");
+    assert!(large_max < 4 * 1024, "48 KiB property requested {large_max} bytes");
+    assert!(
+        large_max <= small_max,
+        "large property request {large_max} exceeded small request {small_max}"
+    );
+    for output in [small_output, large_output] {
+        assert_eq!(output.text().as_str(), "<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    }
+}
+
+#[test]
 fn test_large_public_utf8_env_value_does_not_drive_intermediate_allocation() {
     let _ = Redactor::standard().redact_env("PUBLIC_VALUE", "warmup");
     let redactor = bounded_redactor();

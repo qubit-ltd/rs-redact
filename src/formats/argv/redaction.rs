@@ -12,6 +12,7 @@ use std::ffi::OsStr;
 use std::fmt::Write as _;
 
 use super::ArgvItem;
+use super::internal::bounded_join::join_bounded;
 use super::pending_field::PendingField;
 use crate::RedactionReason;
 use crate::Sensitivity;
@@ -230,8 +231,9 @@ fn redact_assignment_bounded<'a>(
     if name.is_empty() {
         return None;
     }
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((Cow::Owned(format!("{name}={redacted}")), truncated))
+    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (joined, join_truncated) = join_bounded(&[name, "=", &redacted], max_output_bytes);
+    Some((Cow::Owned(joined), mask_truncated || join_truncated))
 }
 
 /// Redacts a `--name=value` option when its name is sensitive.
@@ -245,8 +247,9 @@ fn redact_inline_option_bounded<'a>(
     }
     let (left, raw_value) = value.split_once('=')?;
     let name = option_name(left)?;
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((Cow::Owned(format!("{left}={redacted}")), truncated))
+    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (joined, join_truncated) = join_bounded(&[left, "=", &redacted], max_output_bytes);
+    Some((Cow::Owned(joined), mask_truncated || join_truncated))
 }
 
 /// Redacts a `-Dname=value` JVM property when its name is sensitive.
@@ -260,8 +263,9 @@ fn redact_jvm_property_bounded<'a>(
     if name.is_empty() {
         return None;
     }
-    let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((Cow::Owned(format!("-D{name}={redacted}")), truncated))
+    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
+    let (joined, join_truncated) = join_bounded(&["-D", name, "=", &redacted], max_output_bytes);
+    Some((Cow::Owned(joined), mask_truncated || join_truncated))
 }
 
 /// Masks the value following a sensitive option.

@@ -14,6 +14,7 @@ use std::ffi::OsStr;
 use proptest::prelude::prop_assert;
 use proptest::prelude::prop_assert_eq;
 use proptest::prelude::proptest;
+use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
@@ -68,6 +69,61 @@ fn heuristic_mode_masks_sensitive_options_and_assignments() {
 
     for secret in ["separate-secret", "inline-secret", "assignment-secret"] {
         assert!(!rendered.contains(secret), "{rendered}");
+    }
+}
+
+#[test]
+fn test_heuristic_inline_join_shapes_preserve_debug_escaping() {
+    let mask = "quote\" slash\\ newline\n snow雪";
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.mask(Sensitivity::Secret, MaskPolicy::fixed(mask));
+        })
+        .expect("field draft should build")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+
+    for input in ["--password=raw", "password=raw", "-Dpassword=raw"] {
+        let output = redactor.redact_heuristic_argv([ArgvItem::plain(OsStr::new(input))]);
+        let joined = match input {
+            "--password=raw" => format!("--password={mask}"),
+            "password=raw" => format!("password={mask}"),
+            "-Dpassword=raw" => format!("-Dpassword={mask}"),
+            _ => unreachable!(),
+        };
+        assert_eq!(output.text().as_str(), format!("[{joined:?}]"));
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    }
+}
+
+#[test]
+fn test_heuristic_inline_join_budget_failures_keep_batch_marker_and_provenance() {
+    const MARKER: &str = "<argv incomplete>";
+
+    for max_output_bytes in [0, 11] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_output_bytes(max_output_bytes);
+            })
+            .expect("limit draft should build")
+            .build()
+            .expect("policy should build");
+        let mut batch = Redactor::new(policy).diagnostic_batch();
+        let handles = [
+            batch.redact_heuristic_argv([ArgvItem::plain(OsStr::new("--password=raw"))]),
+            batch.redact_heuristic_argv([ArgvItem::plain(OsStr::new("password=raw"))]),
+            batch.redact_heuristic_argv([ArgvItem::plain(OsStr::new("-Dpassword=raw"))]),
+        ];
+        let output = batch.finish_with_marker(MARKER);
+
+        assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        assert!(output.summary().usage().output_bytes() <= max_output_bytes);
+        for handle in handles {
+            assert_eq!(output.text(handle).as_str(), MARKER);
+        }
     }
 }
 
