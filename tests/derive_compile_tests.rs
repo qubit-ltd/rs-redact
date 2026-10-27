@@ -62,6 +62,7 @@ fn test_compile_fail_fixtures() {
     tests.compile_fail("tests/fixtures/fail/invalid_serde_container_attributes.rs");
     tests.compile_fail("tests/fixtures/fail/invalid_serde_field_attributes.rs");
     tests.compile_fail("tests/fixtures/fail/invalid_serde_variant_attributes.rs");
+    tests.compile_fail("tests/fixtures/fail/internal_tag_after_skipped_field.rs");
     tests.compile_fail("tests/fixtures/fail/removed_attributes.rs");
     tests.compile_fail("tests/fixtures/fail/level_struct.rs");
     tests.compile_fail("tests/fixtures/fail/sensitive_serde_adapter.rs");

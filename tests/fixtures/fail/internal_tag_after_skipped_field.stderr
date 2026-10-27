@@ -1,0 +1,6 @@
+error: Redact serde for `Event` variant `Named` has field `kind` conflicting with the internal tag
+  --> tests/fixtures/fail/internal_tag_after_skipped_field.rs:18:9
+   |
+18 | /         #[serde(rename = "kind")]
+19 | |         value: String,
+   | |_____________________^

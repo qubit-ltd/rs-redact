@@ -19,6 +19,7 @@ use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
+use crate::serde::field::field_is_skipped;
 use crate::serde::naming::serialized_variant_name;
 /// Generates one internally tagged variant arm.
 ///
@@ -65,7 +66,12 @@ pub(in crate::serde) fn internal_variant_arm(
                 variant,
                 legacy_nested,
             );
-            if let Some((field, _)) = fields.iter().zip(&names).find(|(_, name)| *name == tag) {
+            if let Some((field, _)) = fields
+                .iter()
+                .filter(|field| !field_is_skipped(field.serde_attributes()))
+                .zip(&names)
+                .find(|(_, name)| *name == tag)
+            {
                 return Err(Error::new_spanned(
                     field.field(),
                     format!(
