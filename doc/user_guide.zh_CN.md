@@ -987,7 +987,11 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 | 输出真实截断，替代可容纳 | Truncated | OutputLimitReached | 否 |
 | 输出连替代也不能容纳 | Exhausted | OutputLimitReached | 否 |
 
-单项失败不会重置批次预算，也不会无条件关闭输出；aggregate summary 保留不完整状态。
+输入或输出预算超限、解析失败、formatter 返回错误等受控单项失败不会重置批次预算，
+也不会无条件关闭输出；aggregate summary 保留不完整状态。若批次操作调用的用户代码 panic 并展开，
+整个未发布批次会重置：此前发出的句柄失效，已有文本、用量和摘要全部丢弃。捕获 panic 后可以继续使用
+该 batch，但须丢弃旧句柄；新摘要不包含重置前的事件。此恢复仅适用于 panic 展开，`panic = "abort"`
+时不承诺恢复。
 `finish_with_marker(marker)`、`text_or_marker` 等发布后的展示替代会转义 marker，
 但 marker 及调用方日志前后缀不计入原事务 `output_bytes` 或 `max_output_bytes`。
 预算约束库可控制的准入和写入，不抢占 Display/Serialize 内部的任意计算或调用前的分配。

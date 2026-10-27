@@ -1079,8 +1079,13 @@ The caller must bound additional encoding overhead from an arbitrary external se
 | Actual output truncation; replacement fits | Truncated | OutputLimitReached | No |
 | Output cannot even retain a replacement | Exhausted | OutputLimitReached | No |
 
-An item failure neither resets the batch budget nor unconditionally closes output; the aggregate
-summary remains incomplete. Post-publication helpers such as `finish_with_marker(marker)` and
+Controlled item failures such as input or output budget limits, parse failures, or a formatter
+returning an error neither reset the batch budget nor unconditionally close output; the aggregate
+summary remains incomplete. If user code invoked by a batch operation panics and unwinds, the entire
+unpublished batch is reset: previously issued handles become invalid, and earlier text, usage, and
+summary are discarded. After catching the panic, discard old handles before reusing the batch; its
+new summary does not include events from before the reset. This recovery requires unwinding and does
+not apply with `panic = "abort"`. Post-publication helpers such as `finish_with_marker(marker)` and
 `text_or_marker` escape the caller's marker, but that marker and caller-added log prefixes/suffixes
 are outside the original transaction's `output_bytes` and `max_output_bytes`.
 Budgets control library admission and writes, not arbitrary computation inside Display/Serialize or

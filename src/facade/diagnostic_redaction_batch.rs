@@ -35,6 +35,17 @@ const DEFAULT_DIAGNOSTIC_MARKER: &str = "<redaction incomplete>";
 /// [`DiagnosticRedactionOutput`] produced by consuming this batch with
 /// [`Self::finish_with_marker`].
 ///
+/// # Panic recovery
+///
+/// User code invoked by an operation can panic. If that panic unwinds, it is
+/// propagated after the entire unpublished batch is reset: all previously
+/// issued handles become invalid, and recorded text, summary, and usage are
+/// discarded. After catching the panic, the batch can be used again, but old
+/// handles must be discarded and the new summary does not include events from
+/// before the reset. This recovery applies only when panics unwind; `panic =
+/// "abort"` does not permit continuing after a panic. Returned formatting
+/// errors and other controlled failures do not trigger this reset.
+///
 /// # Examples
 ///
 /// ```
@@ -114,6 +125,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from `T::fmt` after resetting the entire unpublished
+    /// batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_field<T>(&mut self, field: &str, value: &T) -> DiagnosticRedactionHandle
@@ -143,6 +159,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from `T::redact` after resetting the entire
+    /// unpublished batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_value<T>(&mut self, value: &T) -> DiagnosticRedactionHandle
@@ -172,6 +193,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the `items` iterator after resetting the entire
+    /// unpublished batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_argv<'items, I>(&mut self, items: I) -> DiagnosticRedactionHandle
@@ -200,6 +226,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the `items` iterator after resetting the entire
+    /// unpublished batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_heuristic_argv<'items, I>(&mut self, items: I) -> DiagnosticRedactionHandle
@@ -248,6 +279,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the `pairs` iterator after resetting the entire
+    /// unpublished batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_env_pairs<'items, I>(&mut self, pairs: I) -> DiagnosticRedactionHandle
@@ -280,6 +316,11 @@ impl DiagnosticRedactionBatch {
     ///
     /// An opaque handle to the recorded item, resolvable after this batch is
     /// finished.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from either iterator after resetting the entire
+    /// unpublished batch; see [panic recovery](Self#panic-recovery).
     #[must_use]
     #[inline(always)]
     pub fn redact_process<'arguments, 'variables, A, E>(
