@@ -84,11 +84,11 @@ flowchart TD
     O --> T[TextSession / BatchSession publication]
     V[RedactedView] --> P[Borrowed field projection]
     D[Derived source Serialize] --> H[RedactSerialize]
-    H --> P
-    P --> B[StructuredSerdeBudget]
-    B --> X[External Serializer]
+    H --> B[Shared structured Serde scope and budget]
+    P --> B
+    B -- direct Serialize --> X[External Serializer]
     J[to_json] --> P
-    B --> Y[serde_json Serializer for to_json]
+    B -- to_json only --> Y[serde_json Serializer for to_json]
     Y --> W[BoundedJsonWriter final encoding limit]
 ```
 

@@ -72,11 +72,11 @@ flowchart TD
     O --> T[TextSession / BatchSession 发布]
     V[RedactedView] --> P[借用字段投影]
     D[派生源 Serialize] --> H[RedactSerialize]
-    H --> P
-    P --> B[StructuredSerdeBudget]
-    B --> X[外部 Serializer]
+    H --> B[共享结构化 Serde scope 与预算]
+    P --> B
+    B -- 直接 Serialize --> X[外部 Serializer]
     J[to_json] --> P
-    B --> Y[to_json 使用 serde_json Serializer]
+    B -- 仅 to_json --> Y[to_json 使用的 serde_json Serializer]
     Y --> W[BoundedJsonWriter 最终编码额度]
 ```
 
