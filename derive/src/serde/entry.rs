@@ -80,13 +80,22 @@ pub(crate) fn expand(
     } else {
         assertions::recursive_target(input)
     };
+    let name_fragment = name.to_string();
+    let name_fragment = name_fragment.trim_start_matches("r#");
     let projection = format_ident!("__QubitRedact{}Fields", name);
+    let source_projection =
+        assertions::fresh_identifier(&input.generics, &format!("__QubitRedact{name_fragment}Projection"));
+    let source_fields_trait =
+        assertions::fresh_identifier(&input.generics, &format!("__QubitRedact{name_fragment}SourceFields"));
     let marker = projection_marker(model);
     let fields = collected_fields(model);
     let parameters = (0..fields.len())
         .map(|index| assertions::fresh_identifier(&input.generics, &format!("__QubitRedactField{index}")))
         .collect::<Vec<_>>();
     let lifetime = assertions::fresh_lifetime(&input.generics);
+    let source_lifetime = assertions::fresh_lifetime(&input.generics);
+    let source_parameter = assertions::fresh_identifier(&input.generics, "__QubitRedactSource");
+    let source_serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSourceSerializer");
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
     let body = match model {
         ContainerData::Struct(fields) => struct_body(
@@ -143,7 +152,7 @@ pub(crate) fn expand(
     projection_generics.params.extend(
         parameters
             .iter()
-            .map(|parameter| -> GenericParam { parse_quote!(#parameter) }),
+            .map(|parameter| -> GenericParam { parse_quote!(#parameter: ?Sized) }),
     );
     let adapters = serialization_adapter_helpers(name, &projection_generics, model, serde);
     let (projection_impl_generics, projection_type_generics, _) = projection_generics.split_for_impl();
@@ -156,7 +165,6 @@ pub(crate) fn expand(
         &projection_generics,
         &marker,
     );
-    let constructor = projection_constructor_for(name, &projection, model, &marker, quote!(self));
     let recursive_helpers = recursive_projection::expand(input, &projection, model, &marker, serde);
     let actual_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
     let projection_bounds = projection_bounds(input, model, &parameters, runtime, serde, &lifetime);
@@ -215,6 +223,52 @@ pub(crate) fn expand(
             }
         })
         .collect::<Vec<_>>();
+    let source_projection_type = quote!(#projection<#source_lifetime, #(#source_arguments,)* #(#actual_types),*>);
+    let projection_constructor = projection_constructor_for(name, &projection, model, &marker, quote!(self));
+    let source_projection_visibility = &input.vis;
+    let source_projection_support = quote! {
+        trait #source_fields_trait {
+            type Fields<#source_lifetime>
+            where
+                Self: #source_lifetime;
+
+            fn project<#source_lifetime>(&#source_lifetime self) -> Self::Fields<#source_lifetime>;
+        }
+
+        impl #source_impl_generics #source_fields_trait for #name #source_type_generics #source_where_clause {
+            type Fields<#source_lifetime> = #source_projection_type
+            where
+                Self: #source_lifetime;
+
+            fn project<#source_lifetime>(&#source_lifetime self) -> Self::Fields<#source_lifetime> {
+                #projection_constructor
+            }
+        }
+
+        #[doc(hidden)]
+        #source_projection_visibility struct #source_projection<#source_lifetime, #source_parameter: ?Sized> {
+            source: &#source_lifetime #source_parameter,
+        }
+
+        #[allow(private_bounds)]
+        impl<#source_lifetime, #source_parameter: ?Sized> #serde::Serialize
+            for #source_projection<#source_lifetime, #source_parameter>
+        where
+            #source_parameter: #source_fields_trait + #source_lifetime,
+            <#source_parameter as #source_fields_trait>::Fields<#source_lifetime>: #serde::Serialize,
+        {
+            fn serialize<#source_serializer>(&self, serializer: #source_serializer)
+                -> ::core::result::Result<#source_serializer::Ok, #source_serializer::Error>
+            where
+                #source_serializer: #serde::Serializer,
+            {
+                #serde::Serialize::serialize(
+                    &<#source_parameter as #source_fields_trait>::project(self.source),
+                    serializer,
+                )
+            }
+        }
+    };
 
     let source_serialize = generate_serialize.then(|| {
         let legacy_body = legacy_body.as_ref().expect("legacy body generated for source Serialize");
@@ -252,16 +306,17 @@ pub(crate) fn expand(
         #runtime::__qubit_redact_serde_optional! {
             #declaration
             #recursive_helpers
+            #source_projection_support
 
             #projection_serialize_impl
 
             impl #source_impl_generics #runtime::domain::internal::RedactSerializeSource
                 for #name #source_type_generics #source_where_clause {
-                type RedactedFields<#lifetime> = #projection<#lifetime, #(#source_arguments,)* #(#actual_types),*>
+                type RedactedFields<#lifetime> = #source_projection<#lifetime, Self>
                 where Self: #lifetime;
 
                 fn redacted_fields<#lifetime>(&#lifetime self, _policy: &#runtime::RedactionPolicy) -> Self::RedactedFields<#lifetime> {
-                    #constructor
+                    #source_projection { source: self }
                 }
             }
         }
@@ -630,7 +685,6 @@ fn projection_declaration(
     generics: &Generics,
     marker: &Ident,
 ) -> TokenStream {
-    let visibility = &input.vis;
     let source = &input.ident;
     let (_, source_arguments, source_where_clause) = input.generics.split_for_impl();
     let (declaration_generics, _, _) = generics.split_for_impl();
@@ -674,7 +728,7 @@ fn projection_declaration(
             quote! {
                 #[doc(hidden)]
                 #[derive(Clone, Copy)]
-                #visibility struct #projection #declaration_generics #source_where_clause {
+                struct #projection #declaration_generics #source_where_clause {
                     #marker: ::core::marker::PhantomData<(&#lifetime #source #source_arguments, #(&#lifetime #parameters),*)>,
                     #(#members),*
                 }
@@ -725,7 +779,7 @@ fn projection_declaration(
             quote! {
                 #[doc(hidden)]
                 #[derive(Clone, Copy)]
-                #visibility enum #projection #declaration_generics #source_where_clause {
+                enum #projection #declaration_generics #source_where_clause {
                     #(#declarations,)*
                     #marker(::core::marker::PhantomData<(&#lifetime #source #source_arguments, #(&#lifetime #parameters),*)>)
                 }

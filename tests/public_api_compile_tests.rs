@@ -15,6 +15,7 @@ use std::fs;
 use std::process;
 use std::process::Output;
 
+use serde_json::Value;
 use support::compile_diagnostics::source_error_matches;
 
 /// Compiles one isolated dependent crate against the current source tree.
@@ -61,6 +62,34 @@ fn assert_rejected(case: &str, source: &str, expected_diagnostic: &str) {
         source_error_matches(&output.stdout, expected_diagnostic, None),
         "the {case} diagnostics must mention {expected_diagnostic}: {diagnostics}",
     );
+}
+
+/// Returns the fixture's primary rustc error from Cargo's JSON stream.
+fn primary_source_diagnostic(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .find_map(|event| {
+            let message = &event["message"];
+            let primary = message["spans"]
+                .as_array()?
+                .iter()
+                .find(|span| span["is_primary"] == true)?;
+            (event["reason"] == "compiler-message"
+                && event["target"]["src_path"]
+                    .as_str()
+                    .is_some_and(|path| std::path::Path::new(path).ends_with("src/main.rs"))
+                && message["level"] == "error")
+                .then(|| {
+                    format!(
+                        "{} {} at src/main.rs:{}",
+                        message["code"]["code"].as_str().unwrap_or("<no code>"),
+                        message["message"].as_str().unwrap_or("<no message>"),
+                        primary["line_start"].as_u64().unwrap_or_default(),
+                    )
+                })
+        })
+        .unwrap_or_else(|| "<no fixture-source rustc error>".to_owned())
 }
 
 /// Raw batch publications and their resolution error are internal details.
@@ -271,6 +300,98 @@ fn test_scalar_derive_rejects_collection_fields() {
             "expected scalar capability rejection: {}\n{}",
             String::from_utf8_lossy(&rejected.stderr),
             String::from_utf8_lossy(&rejected.stdout),
+        );
+    }
+}
+
+/// Checks whether a public derived type can keep a private field type hidden.
+#[test]
+fn test_private_projection() {
+    let source = r#"
+use qubit_redact::Redact;
+use qubit_redact::Redactor;
+
+#[derive(Debug)]
+struct Private(u8);
+
+#[derive(Redact)]
+pub struct Public {
+    inner: Private,
+}
+
+fn main() {
+    let value = Public { inner: Private(7) };
+    assert!(Redactor::standard().redact_text(&value).complete_text().is_ok());
+}
+"#;
+    for (feature_name, features) in [
+        ("derive", &(["derive"][..])),
+        ("derive-serde", &["derive", "serde"][..]),
+        ("derive-json", &["derive", "json"][..]),
+    ] {
+        let output = check_dependent(&format!("private-projection-{feature_name}"), source, features);
+        let diagnostics = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            output.status.success(),
+            "private projection must compile for {feature_name} (exit {}): {}\n{diagnostics}",
+            output.status,
+            primary_source_diagnostic(&output)
+        );
+        eprintln!(
+            "private_projection source=Public{{inner:Private}} features={feature_name} exit={} primary={}",
+            output.status,
+            primary_source_diagnostic(&output)
+        );
+    }
+}
+
+/// Checks unsized final fields through the text-only derive path.
+#[test]
+fn test_unsized_projection() {
+    let source = r#"
+use qubit_redact::Redact;
+use qubit_redact::Redactor;
+
+#[derive(Redact)]
+pub struct Tail<T: ?Sized> {
+    tail: T,
+}
+
+pub fn text(value: &Tail<str>) -> String {
+    Redactor::standard().redact_text(value).text().as_str().to_owned()
+}
+
+pub fn bytes(value: &Tail<[u8]>) -> String {
+    Redactor::standard().redact_text(value).text().as_str().to_owned()
+}
+
+fn main() {}
+"#;
+    for (feature_name, features) in [
+        ("derive", &(["derive"][..])),
+        ("derive-serde", &["derive", "serde"][..]),
+        ("derive-json", &["derive", "json"][..]),
+    ] {
+        let output = check_dependent(&format!("unsized-projection-{feature_name}"), source, features);
+        let diagnostics = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            output.status.success(),
+            "unsized projection must compile for {feature_name} (exit {}): {}\n{diagnostics}",
+            output.status,
+            primary_source_diagnostic(&output)
+        );
+        eprintln!(
+            "unsized_projection source=Tail<str>/Tail<[u8]> features={feature_name} exit={} primary={}",
+            output.status,
+            primary_source_diagnostic(&output)
         );
     }
 }
