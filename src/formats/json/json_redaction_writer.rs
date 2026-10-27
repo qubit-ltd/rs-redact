@@ -128,7 +128,27 @@ pub(crate) fn admit_json_text_value_at_depth(
 ///
 /// A bounded, unpublished rendering with truncation provenance when needed.
 pub(crate) fn passthrough_json_text_with_limit(text: &str, max_output_bytes: usize) -> RenderedOperation {
-    json_output_from_bounded(BoundedJsonRedaction::Complete(text.to_owned()), max_output_bytes)
+    let mut writer = OperationByteSink::new(max_output_bytes);
+    let mut encoded = [0_u8; 12];
+    for character in text.chars() {
+        let piece = encode_log_safe_character(character, &mut encoded)
+            .expect("log-safe character encoding must fit its fixed buffer");
+        if writer.write_all(piece.as_bytes()).is_err() {
+            return if "<truncated>".len() <= max_output_bytes {
+                OperationSink::truncated("<truncated>", crate::RedactionReason::OutputLimitReached).finish()
+            } else {
+                OperationSink::exhausted(String::new())
+                    .with_reason(crate::RedactionReason::OutputLimitReached)
+                    .finish()
+            };
+        }
+    }
+    OperationSink::complete(
+        writer
+            .into_string()
+            .expect("log-safe JSON text encoding must produce valid UTF-8"),
+    )
+    .finish()
 }
 
 /// Converts bounded JSON rendering into unpublished adapter state.
@@ -236,9 +256,7 @@ impl<'session> JsonRedactionWriter<'session> {
                 Err(JsonAdmissionError::Invalid) => {
                     invalid_json_output(self.session.policy(), self.session.remaining_output_bytes())
                 }
-                Err(JsonAdmissionError::Limit) => {
-                    OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish()
-                }
+                Err(JsonAdmissionError::Limit) => OperationSink::complete("<truncated>").finish(),
             }
         };
         self.session.append_rendered_operation(result);
@@ -260,9 +278,8 @@ impl<'session> JsonRedactionWriter<'session> {
             return self;
         }
         if !self.session.admit_json_value(value) {
-            self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         }
         let result = self.redact_value_direct(value);

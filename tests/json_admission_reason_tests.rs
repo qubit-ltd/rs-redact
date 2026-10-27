@@ -11,6 +11,7 @@
 
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
+use qubit_redact::RedactionReasons;
 use qubit_redact::Redactor;
 use serde_json::json;
 
@@ -52,19 +53,71 @@ fn test_json_admission_preserves_shared_depth_limit_reason() {
     let text_output = redactor.redact_json(input);
     let value_output = redactor.redact_json_value(&value);
 
-    assert!(text_inspection.reasons().contains(RedactionReason::DepthLimitReached));
-    assert!(value_inspection.reasons().contains(RedactionReason::DepthLimitReached));
-    assert!(
-        text_output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
+    let expected = RedactionReasons::empty().with(RedactionReason::DepthLimitReached);
+    assert_eq!(text_inspection.reasons(), expected);
+    assert_eq!(value_inspection.reasons(), expected);
+    assert_eq!(text_output.summary().reasons(), expected);
+    assert_eq!(value_output.summary().reasons(), expected);
+
+    let composed = redactor
+        .text_composer()
+        .literal("safe prefix")
+        .json(|writer| {
+            writer.text(input);
+        })
+        .finish();
+    assert_eq!(composed.summary().reasons(), expected);
+    assert!(composed.text().as_str().starts_with("safe prefix"));
+
+    let mut batch = redactor.diagnostic_batch();
+    let handle = batch.redact_json(input);
+    let published = batch.finish_with_marker("<batch incomplete>");
+    assert_eq!(published.summary().reasons(), expected);
+    assert_eq!(published.text(handle).as_str(), "<batch incomplete>");
+}
+
+#[test]
+fn test_json_admission_marker_output_limit_adds_only_real_output_reason() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_depth(1).max_output_bytes(5);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let output = Redactor::new(policy).redact_json(r#"{"label":"x"}"#);
+
+    assert!(output.text().as_str().is_empty());
+    assert_eq!(
+        output.summary().reasons(),
+        RedactionReasons::empty()
+            .with(RedactionReason::DepthLimitReached)
+            .with(RedactionReason::OutputLimitReached)
     );
-    assert!(
-        value_output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
+}
+
+#[test]
+fn test_json_batch_keeps_neighbor_reasons_separate_and_incomplete_marker() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_depth(1);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let redactor = Redactor::new(policy);
+    let mut batch = redactor.diagnostic_batch();
+    let rejected = batch.redact_json(r#"{"label":"x"}"#);
+    let invalid = batch.redact_json("{");
+    let output = batch.finish_with_marker("<batch incomplete>");
+
+    assert_eq!(output.text(rejected).as_str(), "<batch incomplete>");
+    assert_eq!(output.text(invalid).as_str(), "<redacted>");
+    assert_eq!(
+        output.summary().reasons(),
+        RedactionReasons::empty()
+            .with(RedactionReason::DepthLimitReached)
+            .with(RedactionReason::InvalidJson)
     );
 }
 
