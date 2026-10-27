@@ -102,7 +102,9 @@ by taking the stronger level, so strict can raise it. Unmarked fields retain ord
 Nested view projections use `RedactSerializeSource`, whose generic associated view
 allows Option, Vec, and other supported containers to borrow data for the current
 call. The source type does not need ordinary `Serialize` unless a field’s pass-through
-mode requires it. Separately, `#[redact(serde)]` preserves the source type’s existing
+mode requires it. For `serialize_with` adapters, generated field carriers retain only
+generics referenced by the field type or adapter path, plus transitively required
+predicates; unrelated source parameters are not copied. Separately, `#[redact(serde)]` preserves the source type’s existing
 ordinary-serialization bridge through `RedactSerialize`; this legacy path has its own
 capability bounds and is not equivalent to the view projection. Unsupported view
 capabilities fail when serialization is requested, while text-only derives remain valid.
@@ -215,15 +217,21 @@ JSON-specific budget or transaction-commit rejection remain
 reason as inspection and rendering of JSON text instead of collapsing every failure to
 a boolean traversal reason.
 
+At a domain-to-JSON boundary, the JSON root starts at the current domain depth plus
+one. Borrowed-value admission adds each JSON-relative depth to that base for both
+admission and usage; text preflight and its decoder seed share the same absolute root.
+Standalone JSON starts at depth one, and `max_json_depth` remains relative to its
+JSON root. Thus domain depth 2 containing JSON depth 2 uses shared depth 4 and
+requires `max_depth` to allow that combined depth.
+
 The strict text contract rejects duplicate object keys after decoding their
 strings, requires negative integers to fit `i64`, non-negative integers to fit
-`u64`, and fractional/exponent numbers to be finite `f64`. The text decoder has
-an independent fixed maximum of 127 nested containers; raising configured
-depth limits does not remove it. This text construction failure is reported as
-`InvalidJson` (or the existing opaque replacement in safe output APIs). A
-borrowed `Value` has no raw-text construction stage and does not have this fixed
-decoder boundary. Test-time `serde_json/arbitrary_precision` feature merging
-protects this contract; it does not make arbitrary-precision inputs supported.
+`u64`, and fractional/exponent numbers to be finite `f64`. The decoder applies
+configured shared and JSON-specific depth budgets and has no additional fixed
+127-container cap. A borrowed `Value` skips raw-text validation, so it cannot
+recover the original input bytes or detect duplicate source keys. Test-time
+`serde_json/arbitrary_precision` feature merging protects the number contract;
+it does not make arbitrary-precision inputs supported.
 
 Flat structured formats such as argv and environment lists use one runtime
 admission helper for root nodes, collection entries, child nodes, and source

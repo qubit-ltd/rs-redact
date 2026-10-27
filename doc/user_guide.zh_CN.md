@@ -336,6 +336,7 @@ fn main() {
 
 Serde 名称遵循其生效后的字段和 variant 名称，包括 `rename`/`rename_all`；匹配前会规范化 Rust raw identifier，显式 Serde rename 可保持指定 wire 名。枚举 tag/content/untagged、transparent、skip、skip_serializing、
 skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
+adapter 路径引用的类型或 const 泛型及其传递约束会保留在生成的 carrier 中；无关的源类型参数不会一并复制。
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。生成的 Serde
 adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型直接转发字段事件，adjacent tag
 使用枚举名、变体索引和生效后的变体名，untagged 具名变体使用生效后的容器名。JSON 结构形状保持
@@ -533,10 +534,11 @@ fn main() {
 
 JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
 小数/指数必须得到有限 `f64`。越界文本沿用安全降级的无效 JSON 路径。重复对象键按解码后的键判断，
-因此转义拼写后相同的键也会冲突。文本 decoder 有独立的 127 层容器固定上限；提高 `max_depth` 或
-`max_json_depth` 不会解除此限制。该文本构建失败报告为 `InvalidJson`，并使用不透明安全替代。
-借用 `Value` 没有原始文本构建阶段，因此不受该固定 decoder 上限影响；解析后也无法再限制原始输入字节
-或检测重复键。`arbitrary_precision` 只在合并依赖 feature 的回归测试中启用，不代表库接受任意精度 JSON 数字。
+因此转义拼写后相同的键也会冲突。文本 decoder 使用配置的共享 `max_depth` 和 JSON 专属
+`max_json_depth`，没有额外的固定容器层数上限。JSON 嵌入领域值时，其相对深度会加到当前领域深度上；
+`RedactionUsage::max_depth()` 会报告组合后的深度，因此结果可能比旧版本更早出现
+`DepthLimitReached`。包装层需要更多空间时，应提高共享 `max_depth`。借用 `Value` 跳过原始文本解析，
+解析后无法再限制原始输入字节或检测重复键。`arbitrary_precision` 只在合并依赖 feature 的回归测试中启用，不代表库接受任意精度 JSON 数字。
 serde_json 旧私有 Number
 标记键仍是普通对象键。
 
@@ -811,8 +813,10 @@ fn main() {
 
 标量 `inspect_field(field, value)` 会先准入根节点和 `field` 的原始 UTF-8 字节，再计入字段名与
 值的 input 字节，最后才分类。结构或 key 被拒绝时会返回 inspection 错误，不会继续分类；
-disabled 策略仍受这些结构限制约束。JSON 文本和借用 `Value` 遇到共享 `max_depth` 时会报告
-`DepthLimitReached`；JSON 专属的 `max_json_depth` 等限制仍报告 `TraversalLimitReached`。
+disabled 策略仍受这些结构限制约束。JSON 嵌入领域对象时，JSON 根从当前领域深度下一层开始，后续
+JSON 相对深度也计入共享 `max_depth`。例如领域深度 2 加 JSON 深度 2，usage 深度为 4；上限为 3 时
+inspection 会以 `DepthLimitReached` 拒绝。需要保留更深输出时，应提高共享上限。
+JSON 专属的 `max_json_depth` 仍以 JSON 根为基准，并报告 `TraversalLimitReached`。
 
 建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
 无效时，原 builder 不会受到部分修改。
@@ -1065,7 +1069,7 @@ composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断
 
 在仓库根目录运行 `python3 -B scripts/check_doc_examples.py`，可以编译并执行两种语言的 README
 与用户手册中所有带注解的 Rust/Cargo 代码块。校验脚本以本仓库为 path 依赖，在临时 consumer
-crate 中执行 `cargo run --quiet`。Cargo 可能访问 registry 解析或下载未缓存依赖，需要时应提供相应网络条件；校验脚本不强制离线解析。
+crate 中执行 `cargo run --quiet`。Cargo 可能访问 registry 解析或下载未缓存依赖，需要时应提供相应网络条件；校验脚本不强制离线解析。Rust 代码块会使用同一文档中此前最近且 feature 集相同的 Cargo 配置；没有匹配配置时才使用 runner fixtures，PASS 输出会注明来源。
 项目 CI hook 会依次运行接线测试、校验脚本测试和这些带注解示例。
 
 验证本地检出与完整 CI 矩阵：

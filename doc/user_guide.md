@@ -360,7 +360,10 @@ fn main() {
 ```
 
 Serde names use their effective field and variant names, including `rename`/`rename_all`; raw Rust identifiers are normalized before matching, while an explicit Serde rename preserves its chosen wire name. Enum tag/content/untagged, transparent, skip, skip_serializing, and skip_serializing_if are supported. with/serialize_with work on ordinary or skipped fields, not on sensitive
-modes observing raw field state. flatten is unsupported. JSON text fields retain their string
+modes observing raw field state. Generic type or const parameters referenced by
+the adapter path, plus predicates transitively required by those parameters, are
+retained for its generated carrier; unrelated source parameters are not copied.
+flatten is unsupported. JSON text fields retain their string
 wire type; parsed Value fields retain JSON structure. Generated Serde adapters follow Serde's
 representation events and effective names: transparent types forward the field event, adjacent
 tags report the enum name, variant index, and effective variant name, and untagged named variants
@@ -578,13 +581,14 @@ JSON text uses `qubit-json`'s explicit number contract: negative integers must
 fit `i64`, non-negative integers must fit `u64`, and fractional/exponential
 tokens must produce finite `f64`. Out-of-range text follows the same fail-closed
 invalid-JSON path. Duplicate object keys are rejected after JSON string
-decoding, so escaped spellings of the same key also conflict. The text decoder
-has a fixed limit of 127 nested containers; raising `max_depth` or
-`max_json_depth` does not remove it. This text-only construction failure is
-reported as `InvalidJson` and uses the opaque safe replacement. A borrowed
-`Value` has no raw-text construction stage and therefore does not encounter
-this fixed decoder limit; original input-byte limits and duplicate-key
-detection are also unavailable after parsing. The `arbitrary_precision` feature is enabled only
+decoding, so escaped spellings of the same key also conflict. The text decoder applies the configured shared `max_depth` and JSON-specific
+`max_json_depth`; it has no additional fixed container cap. When JSON is nested
+inside a domain value, its relative depth adds to the active domain depth. This
+combined depth is reported by `RedactionUsage::max_depth()` and can cause an
+earlier `DepthLimitReached` result than before; raise the shared `max_depth` when
+the wrapper structure needs more room. A borrowed `Value` skips raw-text parsing,
+so original input-byte limits and duplicate-key detection are unavailable after
+parsing. The `arbitrary_precision` feature is enabled only
 for a merged-dependency regression test; it does not mean this library accepts
 arbitrary-precision JSON numbers. A former serde_json private Number-marker
 key is an ordinary object key.
@@ -880,9 +884,12 @@ Scalar `inspect_field(field, value)` admits its root node and the raw UTF-8
 bytes of `field` before charging the key and value bytes or classifying the
 field. A structural or key rejection therefore returns an inspection error
 without classifying the value. These structural limits still apply when the
-policy is disabled. For JSON text and borrowed `Value`, a shared `max_depth`
-rejection reports `DepthLimitReached`; a JSON-specific limit such as
-`max_json_depth` remains `TraversalLimitReached`.
+policy is disabled. For JSON inside a domain value, the JSON root begins one
+level below the current domain depth, and its relative depth contributes to the
+shared `max_depth`. For example, domain depth 2 plus JSON depth 2 reports usage
+depth 4; a limit of 3 rejects inspection with `DepthLimitReached`. Raising the
+shared limit restores the previous output depth. JSON-specific `max_json_depth`
+remains relative to the JSON root and rejects with `TraversalLimitReached`.
 
 Build one immutable policy and share the resulting `Redactor`. Builder closures
 are transactional: an invalid field rule leaves the prior builder unchanged.
@@ -1161,7 +1168,7 @@ be capped separately from logical Serde payload limits.
 
 From the repository root, run `python3 -B scripts/check_doc_examples.py` to compile
 and execute every annotated Rust/Cargo block in both README and guide languages.
-The checker uses this checkout as a path dependency and builds temporary consumer crates. It runs `cargo run --quiet`; Cargo may access the registry to resolve or download uncached dependencies. Provide registry access when needed; the checker does not force offline resolution.
+The checker uses this checkout as a path dependency and builds temporary consumer crates. It runs `cargo run --quiet`; Cargo may access the registry to resolve or download uncached dependencies. Provide registry access when needed; the checker does not force offline resolution. For each Rust block it uses the nearest earlier Cargo block in the same document with the same feature set. If none exists, runner fixtures supply its dependencies; PASS output identifies that source.
 The project CI hook runs its wiring tests, the checker tests, and this annotated-example runner.
 
 To validate a local checkout with the full CI matrix:

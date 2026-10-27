@@ -90,7 +90,8 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 
 嵌套 view 投影使用 `RedactSerializeSource`，其泛型关联 view 允许 Option、Vec 等支持的
 容器在当前调用中借用数据。除字段普通放行模式所需能力外，源类型不必实现普通
-`Serialize`。另外，`#[redact(serde)]` 通过旧的 `RedactSerialize` 桥保留源类型普通序列化；
+`Serialize`。对于 `serialize_with` adapter，生成的字段 carrier 只保留字段类型或 adapter 路径引用的
+泛型，以及传递所需的约束；无关源类型参数不会被复制。另外，`#[redact(serde)]` 通过旧的 `RedactSerialize` 桥保留源类型普通序列化；
 该路径有自己的能力边界，不等同于 view 投影。缺少 view 所需能力时在请求序列化处报错，
 纯文本派生仍然有效。
 
@@ -188,11 +189,15 @@ JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 `TraversalLimitReached`。借用 `Value` 入口因此会保留与 JSON 文本 inspection 和渲染相同的共享深度原因，
 不会把所有失败折叠为布尔遍历结果。
 
+领域对象嵌入 JSON 时，JSON 根深度等于当前领域深度加一。借用 Value 的准入与 usage
+会将每个 JSON 相对深度加到这个基数；JSON 文本的预检和 decoder seed 使用相同的绝对根深度。
+独立 JSON 根从深度 1 开始，`max_json_depth` 仍相对 JSON 根计量。因此领域深度 2 中的 JSON 深度 2
+会占用共享深度 4，`max_depth` 必须允许组合后的深度。
+
 严格文本契约按解码后的字符串拒绝重复对象键；负整数必须装入 `i64`，非负整数必须装入 `u64`，
-小数/指数必须是有限 `f64`。文本 decoder 另有固定的 127 层嵌套容器上限，提高配置深度不会解除该限制。
-此文本构建失败按 `InvalidJson` 报告（安全输出 API 使用现有不透明替代）。借用 `Value` 没有原始文本
-构建阶段，因此没有该固定 decoder 边界。测试期间合并启用 `serde_json/arbitrary_precision` 是为了保护此契约，
-不表示支持任意精度输入。
+小数/指数必须是有限 `f64`。decoder 使用配置的共享和 JSON 专属深度预算，没有额外固定的 127 层容器上限。
+借用 `Value` 跳过原始文本校验，因此无法还原源输入字节或检测源文本中的重复键。
+测试期间合并启用 `serde_json/arbitrary_precision` 是为了保护数字契约，不表示支持任意精度输入。
 
 argv、环境变量列表等扁平结构格式通过同一个 runtime admission helper 计费根节点、集合项、子节点
 和源字节。composer 与 batch 保留不同发布模型，但同一输入迭代器的推进和计费规则不能各自漂移。
