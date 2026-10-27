@@ -5,8 +5,9 @@ Each Rust block is a complete binary. Cargo blocks are dependency snippets and
 are checked with an empty binary. An immediately preceding annotation declares
 kind=run|cargo and a declared feature set. Undeclared blocks fail closed.
 Examples run from a fresh temporary directory, using this checkout via a path
-dependency. serde, serde_json, and http are available as explicit example fixtures
-when the annotated feature set requires them.
+dependency. Rust blocks use the nearest preceding Cargo configuration in the same
+document when its feature annotation matches; otherwise they use explicit runner
+fixtures for serde, serde_json, and http as required by the annotated features.
 """
 import json
 import os
@@ -72,7 +73,10 @@ def allowed_extra_dependencies(features):
 def cargo_dependency(example, version):
     """Validate the advertised dependency, including its declared feature set."""
     data = tomllib.loads(example["code"])
-    dependency = data.get("dependencies", {}).get("qubit-redact")
+    dependencies = data.get("dependencies", {})
+    if not isinstance(dependencies, dict):
+        raise ValueError("Cargo example dependencies must be a table")
+    dependency = dependencies.get("qubit-redact")
     if isinstance(dependency, str):
         dependency = {"version": dependency}
     if not isinstance(dependency, dict):
@@ -80,15 +84,79 @@ def cargo_dependency(example, version):
     expected = {version, ".".join(version.split(".")[:2])}
     if dependency.get("version") not in expected:
         raise ValueError(f"Cargo example version must describe {version}")
-    if set(dependency.get("features", [])) != set(example["features"]):
+    features = dependency.get("features", [])
+    if not isinstance(features, list) or any(not isinstance(feature, str) for feature in features):
+        raise ValueError("Cargo example dependency features must be an array of strings")
+    if set(features) != set(example["features"]):
         raise ValueError("Cargo example features disagree with annotation")
-    extra = set(data.get("dependencies", {})) - {"qubit-redact"}
+    conflicts = set(dependency) & {"path", "git", "branch", "tag", "rev", "registry"}
+    if conflicts:
+        raise ValueError(f"qubit-redact source conflicts with checkout path: {sorted(conflicts)}")
+    extra = set(dependencies) - {"qubit-redact"}
     unexpected = extra - allowed_extra_dependencies(example["features"])
     if unexpected:
         raise ValueError(f"Cargo example contains unexpected dependencies: {sorted(unexpected)}")
     if set(data) != {"dependencies"}:
         raise ValueError("Cargo example must contain only [dependencies]")
     return dependency
+
+
+def consumer_manifest(root, features, cargo_example=None):
+    """Build a consumer manifest from the documented dependencies or runner fixtures."""
+    if cargo_example is None:
+        dependencies = tomllib.loads("[dependencies]\n" + consumer_dependencies(features))["dependencies"]
+        runtime = {"path": str(root), "default-features": False, "features": list(features)}
+    else:
+        dependencies = tomllib.loads(cargo_example["code"])["dependencies"]
+        runtime = dependencies["qubit-redact"]
+        runtime = {"version": runtime} if isinstance(runtime, str) else dict(runtime)
+        runtime["path"] = str(root)
+        dependencies = dict(dependencies)
+    dependencies["qubit-redact"] = runtime
+    return (
+        '[package]\nname = "redact-doc-example"\nversion = "0.0.0"\nedition = "2024"\n'
+        '[dependencies]\n' + "".join(
+            f"{toml_key(name)} = {toml_value(value)}\n"
+            for name, value in dependencies.items()
+        )
+    )
+
+
+def toml_key(value):
+    """Serialize a basic or quoted TOML key."""
+    if re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def toml_value(value):
+    """Serialize the TOML value types supported by Cargo dependency tables."""
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(toml_value(item) for item in value) + "]"
+    if isinstance(value, dict):
+        return "{ " + ", ".join(
+            f"{toml_key(key)} = {toml_value(item)}" for key, item in value.items()
+        ) + " }"
+    raise ValueError(f"unsupported TOML dependency value: {type(value).__name__}")
+
+
+def matching_cargo_example(examples, index):
+    """Find the nearest preceding matching Cargo snippet in the same document."""
+    current = examples[index]
+    for candidate in reversed(examples[:index]):
+        if (
+            candidate["path"] == current["path"]
+            and candidate["kind"] == "cargo"
+            and set(candidate["features"]) == set(current["features"])
+        ):
+            return candidate
+    return None
 
 
 def consumer_dependencies(features):
@@ -103,7 +171,7 @@ def consumer_dependencies(features):
     return manifest
 
 
-def run_examples(root):
+def run_examples(root, runner=None):
     """Compile and run every language variant without relying on repository cwd."""
     if shutil.which("cargo") is None:
         raise ValueError("cargo is required to verify documentation examples")
@@ -113,26 +181,30 @@ def run_examples(root):
         raise ValueError("no executable documentation examples found")
     with tempfile.TemporaryDirectory(prefix="rs-redact-doc-examples-") as directory:
         workspace = Path(directory)
+        validated_cargo = {}
         for ordinal, example in enumerate(examples):
             location = f'{example["path"].relative_to(root)}:{example["line"]}'
             try:
                 if example["kind"] == "cargo":
                     cargo_dependency(example, package["package"]["version"])
+                    validated_cargo[id(example)] = example
                 consumer = workspace / f"example-{ordinal}"
                 (consumer / "src").mkdir(parents=True)
-                manifest = (
-                    '[package]\nname = "redact-doc-example"\nversion = "0.0.0"\nedition = "2024"\n'
-                    '[dependencies]\nqubit-redact = { path = ' + json.dumps(str(root)) +
-                    ', default-features = false, features = ' + json.dumps(example["features"]) + ' }\n'
-                    + consumer_dependencies(example["features"])
+                cargo_example = (
+                    example if example["kind"] == "cargo"
+                    else matching_cargo_example(examples, ordinal)
                 )
+                if cargo_example is not None and id(cargo_example) not in validated_cargo:
+                    cargo_example = None
+                manifest = consumer_manifest(root, example["features"], cargo_example)
                 (consumer / "Cargo.toml").write_text(manifest, encoding="utf-8")
                 shutil.copyfile(root / "Cargo.lock", consumer / "Cargo.lock")
                 code = example["code"] if example["kind"] == "run" else "fn main() {}\n"
                 (consumer / "src/main.rs").write_text(code, encoding="utf-8")
                 env = os.environ.copy()
                 env["CARGO_TARGET_DIR"] = str(workspace / "target")
-                completed = subprocess.run(
+                invoke = runner or subprocess.run
+                completed = invoke(
                     cargo_run_command(), cwd=consumer, env=env,
                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120,
                 )
@@ -140,7 +212,12 @@ def run_examples(root):
                     raise ValueError(completed.stdout)
             except (ValueError, subprocess.TimeoutExpired) as error:
                 raise ValueError(f"{location}: documentation example failed\n{error}") from error
-            print(f"PASS {location} ({example['kind']}, features={example['features']})", flush=True)
+            source = (
+                "document config"
+                if example["kind"] == "cargo" or cargo_example
+                else "runner fixture"
+            )
+            print(f"PASS {location} ({example['kind']}, features={example['features']}, {source})", flush=True)
     print(f"Verified {len(examples)} documentation examples in both languages.")
 
 
