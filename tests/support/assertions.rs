@@ -212,9 +212,8 @@ pub fn assert_serde_expansion() {
         .expect("the adjacent tuple serializes");
     let ready = serde_json::to_value(SerializableEvent::Ready).expect("the unit variant serializes");
 
-    assert_eq!(tuple["kind"], "Tuple");
-    assert_ne!(tuple["payload"][0], "raw-secret");
-    assert_eq!(ready["kind"], "Ready");
+    assert_eq!(tuple, serde_json::json!({"kind": "Tuple", "payload": "<redacted>"}));
+    assert_eq!(ready, serde_json::json!({"kind": "Ready"}));
 }
 
 /// Verifies unmarked fields preserve Serde serialization adapters.

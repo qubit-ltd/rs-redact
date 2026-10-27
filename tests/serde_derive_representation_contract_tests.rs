@@ -368,21 +368,22 @@ fn test_adjacent_tag_adapter_does_not_shadow_user_type_parameters() {
 
 #[test]
 fn test_adjacent_tag_still_obeys_payload_budget() {
-    let payload_policy = RedactionPolicy::builder()
-        .limits(|limits| {
-            limits.max_serde_payload_bytes(1);
-        })
-        .expect("limits should be valid")
-        .build()
-        .expect("policy should be valid");
-    let value = AdjacentEvent::Named {
-        secret: String::from("raw-secret"),
-    };
-    let payload_result = serde_json::to_string(&Redactor::new(payload_policy).redact_view(&value));
-    assert!(
-        payload_result.is_err(),
-        "the serialized tag must consume payload budget"
-    );
+    for budget in [0, 3, 4] {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_serde_payload_bytes(budget);
+            })
+            .expect("limits should be valid")
+            .build()
+            .expect("policy should be valid");
+        let redactor = Redactor::new(policy);
+        let result = serde_json::to_string(&redactor.redact_view(&AdjacentEvent::Unit));
+        if budget < 4 {
+            assert!(result.is_err(), "tag must exceed payload budget {budget}");
+        } else {
+            assert_eq!(result.expect("four-byte tag fits"), r#"{"kind":"unit"}"#);
+        }
+    }
 }
 
 #[test]

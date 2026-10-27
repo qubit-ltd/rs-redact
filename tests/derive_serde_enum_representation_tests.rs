@@ -70,34 +70,37 @@ fn test_all_enum_representations_preserve_their_serde_wire_shape() {
         visible: "shown".to_owned(),
     })
     .expect("external representation");
-    assert_eq!(external["Named"]["visible"], "shown");
-    assert_ne!(external["Named"]["token"], "raw-external");
+    assert_eq!(
+        external,
+        serde_json::json!({"Named": {"token": "<redacted>", "visible": "shown"}})
+    );
 
     let internal = serde_json::to_value(Internal::Named {
         token: "raw-internal".to_owned(),
         visible: "shown".to_owned(),
     })
     .expect("internal representation");
-    assert_eq!(internal["kind"], "Named");
-    assert_eq!(internal["visible"], "shown");
-    assert_ne!(internal["token"], "raw-internal");
+    assert_eq!(
+        internal,
+        serde_json::json!({"kind": "Named", "token": "<redacted>", "visible": "shown"})
+    );
 
     let adjacent = serde_json::to_value(Adjacent::Named {
         token: "raw-adjacent".to_owned(),
         visible: "shown".to_owned(),
     })
     .expect("adjacent representation");
-    assert_eq!(adjacent["kind"], "Named");
-    assert_eq!(adjacent["payload"]["visible"], "shown");
-    assert_ne!(adjacent["payload"]["token"], "raw-adjacent");
+    assert_eq!(
+        adjacent,
+        serde_json::json!({"kind": "Named", "payload": {"token": "<redacted>", "visible": "shown"}})
+    );
 
     let untagged = serde_json::to_value(Untagged::Named {
         token: "raw-untagged".to_owned(),
         visible: "shown".to_owned(),
     })
     .expect("untagged representation");
-    assert_eq!(untagged["visible"], "shown");
-    assert_ne!(untagged["token"], "raw-untagged");
+    assert_eq!(untagged, serde_json::json!({"token": "<redacted>", "visible": "shown"}));
 
     let _ = Redactor::replace_application_default(previous);
 }

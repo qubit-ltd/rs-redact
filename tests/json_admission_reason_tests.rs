@@ -15,7 +15,7 @@ use qubit_redact::RedactionReasons;
 use qubit_redact::Redactor;
 use serde_json::json;
 
-fn reason_for_limit(limits: impl FnOnce(&mut qubit_redact::RedactionLimitsBuilder)) -> RedactionReason {
+fn reason_for_limit(limits: impl FnOnce(&mut qubit_redact::RedactionLimitsBuilder)) -> RedactionReasons {
     let policy = RedactionPolicy::builder()
         .limits(limits)
         .expect("limits should be valid")
@@ -24,11 +24,7 @@ fn reason_for_limit(limits: impl FnOnce(&mut qubit_redact::RedactionLimitsBuilde
     let error = Redactor::new(policy)
         .inspect_json_value(&json!({"label": "x"}))
         .expect_err("configured structural limit should reject the JSON tree");
-    if error.reasons().contains(RedactionReason::DepthLimitReached) {
-        RedactionReason::DepthLimitReached
-    } else {
-        RedactionReason::TraversalLimitReached
-    }
+    error.reasons()
 }
 
 #[test]
@@ -127,19 +123,19 @@ fn test_json_specific_and_traversal_limits_keep_traversal_reason() {
         reason_for_limit(|limits| {
             limits.max_nodes(1);
         }),
-        RedactionReason::TraversalLimitReached
+        RedactionReasons::empty().with(RedactionReason::TraversalLimitReached)
     );
     assert_eq!(
         reason_for_limit(|limits| {
             limits.max_collection_items(0);
         }),
-        RedactionReason::TraversalLimitReached
+        RedactionReasons::empty().with(RedactionReason::TraversalLimitReached)
     );
     assert_eq!(
         reason_for_limit(|limits| {
             limits.max_json_depth(1);
         }),
-        RedactionReason::TraversalLimitReached
+        RedactionReasons::empty().with(RedactionReason::TraversalLimitReached)
     );
 }
 

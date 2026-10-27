@@ -27,27 +27,31 @@ struct RecursiveDebugStorage {
 #[test]
 fn test_recursive_redaction_storage_preserves_field_structure_and_values() {
     let value = RecursiveDebugStorage {
-        root: "root".to_owned(),
-        leaf: [("leaf".to_owned(), "value".to_owned())].into(),
-        shared: std::rc::Rc::new("shared".to_owned()),
+        root: "probe-root-17".to_owned(),
+        leaf: [("probe-map-key-29".to_owned(), "probe-map-value-31".to_owned())].into(),
+        shared: std::rc::Rc::new("probe-rc-37".to_owned()),
         boxed: Box::new(RecursiveDebugChild {
-            leaf: "boxed".to_owned(),
+            leaf: "probe-box-41".to_owned(),
         }),
     };
-    assert_eq!(value.boxed.leaf, "boxed");
-    let rendered = qubit_redact::Redactor::standard().redact_text(&value);
-    let rendered = rendered.text().as_str();
-    assert!(
-        rendered.contains("root"),
-        "root field should remain visible: {rendered}"
+    let output = qubit_redact::Redactor::standard().redact_text(&value);
+    assert_eq!(
+        output.summary().completion(),
+        qubit_redact::RedactionCompletion::Complete
     );
-    assert!(rendered.contains("leaf"), "map child should remain visible: {rendered}");
-    assert!(
-        rendered.contains("shared"),
-        "Rc child should remain visible: {rendered}"
-    );
-    assert!(
-        rendered.contains("boxed"),
-        "supported Box recursion should remain visible: {rendered}"
-    );
+    let rendered = output.text().as_str();
+    for expected in [
+        "RecursiveDebugStorage",
+        "root",
+        "leaf",
+        "shared",
+        "boxed",
+        "probe-root-17",
+        "probe-map-key-29",
+        "probe-map-value-31",
+        "probe-rc-37",
+        "probe-box-41",
+    ] {
+        assert!(rendered.contains(expected), "missing {expected:?}: {rendered}");
+    }
 }
