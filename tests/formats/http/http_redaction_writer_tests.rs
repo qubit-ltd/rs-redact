@@ -21,3 +21,20 @@ fn test_enabled_http_ndjson_preserves_empty_lines() {
 
     assert_eq!(output.text().as_str(), "{\"name\":\"one\"}\\n\\n{\"name\":\"two\"}\\n");
 }
+
+/// Verifies the public JSON HTTP adapter preserves numeric representations.
+#[test]
+fn test_enabled_http_json_text_preserves_native_numbers() {
+    let output = Redactor::standard().redact_http_body(
+        BodyCapture::complete(br#"{"amount":1.5,"values":[-0.0,1e2,-9223372036854775808,18446744073709551615]}"#),
+        Some(&HeaderValue::from_static("application/json")),
+    );
+
+    assert_eq!(
+        output.summary().completion(),
+        qubit_redact::RedactionCompletion::Complete
+    );
+    assert!(output.text().as_str().contains("1.5"));
+    assert!(output.text().as_str().contains("-9223372036854775808"));
+    assert!(output.text().as_str().contains("18446744073709551615"));
+}

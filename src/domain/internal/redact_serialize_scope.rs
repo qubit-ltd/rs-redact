@@ -20,6 +20,8 @@ use serde::ser::Error;
 use super::policy_frame::PolicyFrame;
 use super::serde_node_guard::SerdeNodeGuard;
 use super::structured_serde_budget::StructuredSerdeBudget;
+#[cfg(feature = "json")]
+use crate::runtime::JsonStructurePreflight;
 
 thread_local! {
     /// Nested transaction ledgers, shared while ordinary serializers remain active.
@@ -141,6 +143,26 @@ impl Drop for RedactSerializeScope<'_> {
 #[inline(always)]
 pub fn current_policy() -> Option<Arc<crate::RedactionPolicy>> {
     STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow().last().map(|frame| Arc::clone(&frame.snapshot)))
+}
+
+/// Copies remaining shared structural capacity for one JSON text field.
+#[cfg(feature = "json")]
+pub(super) fn json_preflight() -> Option<JsonStructurePreflight> {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let budgets = slot.borrow();
+        let state = budgets.last()?;
+        let policy = &state.policy;
+        let remaining_nodes = policy.max_nodes().map(|maximum| maximum.saturating_sub(state.nodes));
+        let remaining_items = policy
+            .max_collection_items()
+            .map(|maximum| maximum.saturating_sub(state.collection_items));
+        Some(JsonStructurePreflight {
+            remaining_nodes,
+            remaining_items,
+            max_relative_depth: policy.max_depth().map(|maximum| maximum.saturating_sub(state.depth)),
+            traversal_closed: false,
+        })
+    })
 }
 
 /// Admits one structured node and enters its depth scope.

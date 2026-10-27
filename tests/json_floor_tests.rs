@@ -59,8 +59,10 @@ fn test_json_documents_share_the_parent_structural_budget() {
 
     assert!(output.text().as_str().contains("first"));
     assert!(!output.text().as_str().contains("must-not-be-traversed"));
-    assert_eq!(output.summary().usage().visited_nodes(), 3);
-    assert_eq!(output.summary().usage().visited_collection_items(), 2);
+    // The second document is rejected before materialization, so it adds no
+    // partial node or item charges to the shared ledger.
+    assert_eq!(output.summary().usage().visited_nodes(), 2);
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
     assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
 }
 

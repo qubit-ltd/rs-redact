@@ -11,6 +11,8 @@
 use qubit_budget::StructureBudget;
 use qubit_budget::StructureLimits;
 
+#[cfg(feature = "json")]
+use super::JsonStructurePreflight;
 use super::structural_entry::StructuralEntry;
 
 /// Tracks the shared structural resources of one redaction transaction.
@@ -29,6 +31,24 @@ pub(crate) struct StructuralBudget {
 }
 
 impl StructuralBudget {
+    /// Copies remaining shared JSON capacity without charging the ledger.
+    #[cfg(feature = "json")]
+    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
+        let remaining_items = self
+            .budget
+            .limits()
+            .max_sequence_items()
+            .map(|maximum| maximum.saturating_sub(self.collection_items_seen));
+        JsonStructurePreflight {
+            remaining_nodes: self.budget.remaining_nodes(),
+            remaining_items,
+            max_relative_depth: self
+                .max_depth
+                .map(|maximum| maximum.saturating_sub(root_depth.saturating_sub(1))),
+            traversal_closed: self.traversal_closed,
+        }
+    }
+
     /// Creates the structural ledger from immutable transaction limits.
     ///
     /// # Parameters
@@ -179,7 +199,7 @@ impl StructuralBudget {
 
     /// Closes traversal after a resource limit rejects it.
     #[inline(always)]
-    fn close_traversal(&mut self) {
+    pub(super) fn close_traversal(&mut self) {
         self.traversal_closed = true;
     }
 }

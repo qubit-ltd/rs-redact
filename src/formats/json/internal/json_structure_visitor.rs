@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Streaming visitor that builds a JSON tree from admitted structure.
+//! Streaming visitor that builds the JSON tree from unique decoder events after
+//! shared preflight.
 
 use std::fmt;
 
@@ -20,7 +21,7 @@ use serde_json::Value;
 use super::JsonStructureSeed;
 use crate::runtime::JsonStructureAdmission;
 
-/// Streams JSON structure through the transaction ledger.
+/// Streams unique decoder events through the formal transaction ledger.
 pub(crate) struct JsonStructureVisitor<'admission, 'runtime, 'rejected> {
     /// Narrow structural ledger shared by every nested seed.
     pub(super) admission: &'admission mut JsonStructureAdmission<'runtime>,

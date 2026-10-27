@@ -11,6 +11,23 @@ use std::cell::Cell;
 
 thread_local! {
     static JSON_PARSE_COUNT: Cell<usize> = const { Cell::new(0) };
+    static JSON_MATERIALIZATION_COUNT: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Records entry into the unique decoder path after shared preflight.
+pub(crate) fn record_json_materialization() {
+    JSON_MATERIALIZATION_COUNT.set(JSON_MATERIALIZATION_COUNT.get().saturating_add(1));
+}
+
+/// Resets the current test thread's unique decoder path-entry count to zero.
+pub(crate) fn reset_json_materialization_count() {
+    JSON_MATERIALIZATION_COUNT.set(0);
+}
+
+/// Returns unique decoder path entries recorded on this test thread.
+#[must_use]
+pub(crate) fn json_materialization_count() -> usize {
+    JSON_MATERIALIZATION_COUNT.get()
 }
 
 /// Records one JSON parser entry for the current test thread.

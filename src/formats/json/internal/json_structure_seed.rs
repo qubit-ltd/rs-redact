@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Serde seed that admits a JSON value before decoding its contents.
+//! Serde seed that charges shared limits while reconstructing a JSON output
+//! tree.
 
 use serde::Deserializer;
 use serde::de::DeserializeSeed;
@@ -15,9 +16,10 @@ use serde_json::Value;
 use super::JsonStructureVisitor;
 use crate::runtime::JsonStructureAdmission;
 
-/// Charges one JSON value before its contents are decoded.
+/// Charges one JSON value while the unique decoder reconstructs its output
+/// tree.
 pub(crate) struct JsonStructureSeed<'admission, 'runtime, 'rejected> {
-    /// Narrow structural ledger charged before materializing a node.
+    /// Shared structural ledger charged as a node is reconstructed.
     pub(crate) admission: &'admission mut JsonStructureAdmission<'runtime>,
     /// Root-inclusive depth assigned to the value being decoded.
     pub(crate) depth: usize,
@@ -32,13 +34,15 @@ impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_, '_> {
     /// Parsed JSON tree produced while structural admission is charged.
     type Value = Value;
 
-    /// Admits the pending node, then decodes a JSON value from `deserializer`.
+    /// Admits the pending node, then reconstructs one value from
+    /// `deserializer`.
     ///
-    /// `D` supplies the borrowed input events. Returns its decoded value or
-    /// propagates its decoding error. A rejected collection item or node sets
-    /// the shared rejection flag and returns a custom `D::Error` before
-    /// decoding. Admitted nodes consume the shared transaction's structural
-    /// allowance.
+    /// `D` supplies events from the owned tree produced by the unique decoder.
+    /// Returns the reconstructed value or propagates its decoding error. A
+    /// rejected item or node sets the shared rejection flag and returns a
+    /// custom `D::Error` before decoding. This seed is the formal
+    /// accounting pass after the read-only shared preflight; admitted nodes
+    /// consume the transaction's structural allowance exactly once.
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,

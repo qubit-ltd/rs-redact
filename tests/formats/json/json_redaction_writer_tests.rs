@@ -15,6 +15,70 @@ use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 
 #[test]
+fn test_json_text_preserves_native_numbers_with_unified_serde_json_features() {
+    for (text, expected_text) in [
+        ("1.5", "1.5"),
+        ("1e2", "100.0"),
+        ("-0.0", "-0.0"),
+        ("-9223372036854775808", "-9223372036854775808"),
+        ("18446744073709551615", "18446744073709551615"),
+        (
+            r#"{"amount":1.5,"values":[-0.0,1e2,-9223372036854775808]}"#,
+            r#"{"amount":1.5,"values":[-0.0,100.0,-9223372036854775808]}"#,
+        ),
+    ] {
+        let output = Redactor::standard().redact_json(text);
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert_eq!(output.text().as_str(), expected_text, "input: {text}");
+        Redactor::standard()
+            .inspect_json(text)
+            .expect("the same JSON numbers should be inspectable");
+    }
+}
+
+#[test]
+fn test_json_number_consumes_one_structural_node() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1);
+        })
+        .expect("the test limit draft should build")
+        .build()
+        .expect("the test policy should build");
+    let output = Redactor::new(policy).redact_json("1.5");
+
+    assert_eq!(output.text().as_str(), "1.5");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(output.summary().usage().visited_nodes(), 1);
+    assert_eq!(output.summary().usage().visited_collection_items(), 0);
+}
+
+#[test]
+fn test_json_text_preserves_literal_private_protocol_keys() {
+    for text in [
+        r#"{"$serde_json::private::Number":"1.5"}"#,
+        r#"{"$serde_json::private::RawValue":"1.5"}"#,
+    ] {
+        let output = Redactor::standard().redact_json(text);
+
+        assert_eq!(output.text().as_str(), text);
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    }
+}
+
+#[test]
+fn test_json_text_rejects_decoded_duplicate_keys_without_exposing_values() {
+    let source = r#"{"password":"first-secret","pass\u0077ord":"second-secret"}"#;
+    let redactor = Redactor::standard();
+    let output = redactor.redact_json(source);
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(!output.text().as_str().contains("first-secret"));
+    assert!(!output.text().as_str().contains("second-secret"));
+    assert!(redactor.inspect_json(source).is_err());
+}
+
+#[test]
 fn test_admitted_json_tree_covers_every_scalar_parser_representation() {
     for text in [
         "null",
@@ -100,7 +164,12 @@ fn assert_invalid_json_case(
     let output = Redactor::new(policy).redact_json("{");
 
     assert_eq!(output.text().as_str(), expected_text);
-    assert_eq!(output.summary().completion(), expected_completion);
+    assert_eq!(
+        output.summary().completion(),
+        expected_completion,
+        "mask length {}, allowance {allowance}",
+        mask.len()
+    );
     assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
     assert_eq!(
         output.summary().reasons().contains(RedactionReason::OutputLimitReached),

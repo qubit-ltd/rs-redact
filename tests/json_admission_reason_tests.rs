@@ -120,6 +120,33 @@ fn test_json_admission_succeeds_with_exact_shared_depth_budget() {
 }
 
 #[test]
+fn test_json_text_fixed_materialization_depth_remains_invalid_json() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits
+                .max_nodes(256)
+                .max_collection_items(256)
+                .max_depth(256)
+                .max_json_depth(256);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let input = format!("{}0{}", "[".repeat(128), "]".repeat(128));
+
+    let output = Redactor::new(policy).redact_json(&input);
+
+    assert!(output.summary().reasons().contains(RedactionReason::InvalidJson));
+    assert!(!output.summary().reasons().contains(RedactionReason::DepthLimitReached));
+    assert!(
+        !output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
 fn test_json_batch_items_share_the_structural_budget() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {

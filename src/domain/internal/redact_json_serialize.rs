@@ -13,6 +13,8 @@ use std::borrow::Cow;
 use qubit_budget::json::JsonDecodeLimits;
 #[cfg(feature = "json")]
 use qubit_json::decode::JsonDecoder;
+#[cfg(feature = "json")]
+use qubit_json::value::DuplicateKeyRejectingJsonValue;
 use serde::Serializer;
 use serde_json::Value;
 
@@ -93,10 +95,21 @@ where
         .max_input_bytes(policy.limits().max_input_bytes())
         .value_limits(policy.limits().json_limits())
         .build();
-    let Ok(value) = JsonDecoder::with_limits(limits).decode_str::<Value>(text) else {
+    let Some(preflight) = super::redact_serialize_scope::json_preflight() else {
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     };
+    if preflight.validate(text).is_err() {
+        let replacement = masked();
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
+    }
+    #[cfg(test)]
+    crate::formats::json::parse_counter::record_json_materialization();
+    let Ok(value) = JsonDecoder::with_limits(limits).decode_unique_str::<DuplicateKeyRejectingJsonValue>(text) else {
+        let replacement = masked();
+        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
+    };
+    let value = value.into_inner();
     if !admit_structured_json_value(&value) {
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
@@ -163,6 +176,60 @@ fn admit_structured_json_value(value: &Value) -> bool {
         }
     }
     true
+}
+
+#[cfg(all(test, feature = "json"))]
+mod tests {
+    use serde_json::to_value;
+
+    use super::RedactedJsonSerializeRef;
+    use super::serialize_json_text;
+    use crate::RedactionPolicy;
+    use crate::domain::internal::redact_serialize_scope::RedactSerializeScope;
+    use crate::formats::json::parse_counter::json_materialization_count;
+    use crate::formats::json::parse_counter::reset_json_materialization_count;
+
+    #[test]
+    fn test_preflight_serde_masks_before_entering_unique_decoder() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(1).max_input_bytes(1_000_000);
+            })
+            .expect("limits")
+            .build()
+            .expect("policy");
+        let source = format!("[{}]", "0,".repeat(10_000) + "0");
+
+        reset_json_materialization_count();
+        let output =
+            to_value(RedactedJsonSerializeRef::new(source.as_str(), &policy)).expect("opaque replacement serializes");
+
+        assert_eq!(output, "<redacted>");
+        assert_eq!(json_materialization_count(), 0);
+    }
+
+    #[test]
+    fn test_serde_preflight_rejection_does_not_poison_active_scope() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(1).max_input_bytes(1_000_000);
+            })
+            .expect("limits")
+            .build()
+            .expect("policy");
+        let source = format!("[{}]", "0,".repeat(10_000) + "0");
+        let _scope = RedactSerializeScope::new(&policy);
+        reset_json_materialization_count();
+
+        let rejected = serialize_json_text(serde_json::value::Serializer, &source, &policy)
+            .expect("opaque replacement serializes");
+        let accepted =
+            serialize_json_text(serde_json::value::Serializer, "0", &policy).expect("subsequent scalar serializes");
+
+        assert_eq!(rejected, "<redacted>");
+        assert_eq!(accepted, "0");
+        assert_eq!(json_materialization_count(), 1);
+    }
 }
 
 #[cfg(feature = "json")]

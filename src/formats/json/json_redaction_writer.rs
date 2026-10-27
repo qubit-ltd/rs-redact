@@ -44,7 +44,8 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///
 /// Returns `JsonAdmissionError::Limit` when structural or JSON-value admission
 /// is rejected, or `JsonAdmissionError::Invalid` for malformed syntax or
-/// unsupported numbers. Error values do not retain source text.
+/// unsupported numbers, or duplicate object keys. Error values do not retain
+/// source text.
 pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str) -> Result<Value, JsonAdmissionError> {
     admit_json_text_value_at_depth(session, text, 1)
 }
@@ -61,14 +62,16 @@ pub(crate) fn admit_json_text_value(session: &mut dyn RuntimeSession, text: &str
 ///
 /// # Returns
 ///
-/// The JSON tree constructed in one admitted decoding pass.
+/// The JSON tree constructed under lexical JSON limits, then admitted through
+/// the shared structural ledger using native numeric events.
 ///
 /// # Errors
 ///
 /// Returns `JsonAdmissionError::Limit` after structural or JSON-budget
 /// rejection, recording JSON-value exhaustion in the session where applicable.
-/// Returns `JsonAdmissionError::Invalid` for malformed input or unsupported
-/// numbers; error values do not retain source text.
+/// Returns `JsonAdmissionError::Invalid` for malformed input, unsupported
+/// numbers, duplicate keys, or more than 127 nested containers; error values
+/// do not retain source text.
 pub(crate) fn admit_json_text_value_at_depth(
     session: &mut dyn RuntimeSession,
     text: &str,
@@ -78,15 +81,26 @@ pub(crate) fn admit_json_text_value_at_depth(
     super::parse_counter::record_json_parse();
     let mut rejected = false;
     let (mut admission, json_budget) = session.split_json_admission();
+    let preflight = admission.json_preflight(root_depth);
+    if let Err(error) = preflight.validate(text) {
+        admission.reject_preflight(error);
+        return match error {
+            crate::runtime::JsonStructurePreflightError::Invalid => Err(JsonAdmissionError::Invalid),
+            crate::runtime::JsonStructurePreflightError::DepthLimit
+            | crate::runtime::JsonStructurePreflightError::TraversalLimit => Err(JsonAdmissionError::Limit),
+        };
+    }
+    #[cfg(test)]
+    super::parse_counter::record_json_materialization();
     let mut decoder = JsonDecoder::new(JsonDecodeSession::borrowing_value(json_budget));
-    let admitted = decoder.decode_seed_str(
+    let admitted = decoder.decode_unique_seed_utf8(
         JsonStructureSeed {
             admission: &mut admission,
             depth: root_depth,
             collection_item: false,
             rejected: &mut rejected,
         },
-        text,
+        text.as_bytes(),
     );
     match admitted {
         Ok(value) => Ok(value),

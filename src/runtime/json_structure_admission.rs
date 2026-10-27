@@ -7,6 +7,8 @@
 // =============================================================================
 //! Narrow structural accounting used while materializing admitted JSON text.
 
+use super::JsonStructurePreflight;
+use super::JsonStructurePreflightError;
 use super::StructuralBudget;
 use super::structural_entry::StructuralEntry;
 use super::summary_builder::SummaryBuilder;
@@ -33,6 +35,27 @@ pub(crate) struct JsonStructureAdmission<'runtime> {
 }
 
 impl<'runtime> JsonStructureAdmission<'runtime> {
+    /// Returns a read-only structural capacity snapshot for a nested JSON root.
+    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
+        self.structural.json_preflight(root_depth)
+    }
+
+    /// Records a preflight rejection in both transaction and active summaries.
+    pub(crate) fn reject_preflight(&mut self, reason: JsonStructurePreflightError) {
+        let reason = match reason {
+            // Invalid JSON is replaced by the JSON adapter, which records
+            // `InvalidJson` on that complete safe replacement. Recording a
+            // truncated summary here would incorrectly degrade the operation.
+            JsonStructurePreflightError::Invalid => return,
+            JsonStructurePreflightError::DepthLimit => RedactionReason::DepthLimitReached,
+            JsonStructurePreflightError::TraversalLimit => {
+                self.structural.close_traversal();
+                RedactionReason::TraversalLimitReached
+            }
+        };
+        self.record_summary(RedactionSummary::truncated(reason));
+    }
+
     /// Creates a narrow admission capability from disjoint runtime borrows.
     ///
     /// # Parameters
