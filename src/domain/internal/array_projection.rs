@@ -23,14 +23,24 @@ use crate::Sensitivity;
 
 /// Lazily serializes each borrowed array element through its redaction
 /// projection, preserving the fixed-array tuple event when admitted.
+///
+/// The projection borrows the array and does not retain a policy. Serialization
+/// obtains the active policy and shared budgets from the current redaction
+/// scope.
 pub struct ArrayProjection<'value, T, const N: usize>(&'value [T; N]);
 
 impl<T, const N: usize> RedactSerializeSource for [T; N] {
+    /// A borrowed projection that serializes the array under the active scope.
     type RedactedFields<'a>
         = ArrayProjection<'a, T, N>
     where
         Self: 'a;
 
+    /// Borrows the array without retaining the supplied policy.
+    ///
+    /// The caller must establish an active redaction scope before
+    /// serialization; serialization obtains its policy and shared budgets
+    /// from that scope.
     fn redacted_fields<'a>(&'a self, _policy: &RedactionPolicy) -> Self::RedactedFields<'a> {
         ArrayProjection(self)
     }
@@ -41,6 +51,25 @@ where
     T: RedactSerializeSource + 'value,
     T::RedactedFields<'value>: Serialize,
 {
+    /// Serializes admitted elements as a fixed-length tuple of redacted values.
+    ///
+    /// # Parameters
+    ///
+    /// * `serializer` - Serializer receiving the tuple or scalar replacement.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's result for the tuple, or for a Secret scalar
+    /// replacement when collection admission is denied.
+    ///
+    /// # Errors
+    ///
+    /// Returns a value-free error if there is no active redaction scope,
+    /// including for an empty array. Errors reported by the serializer
+    /// while writing either the tuple or its Secret scalar replacement are
+    /// propagated. Denial of the collection budget is represented by
+    /// serializing a Secret scalar replacement and does not itself
+    /// guarantee an error.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

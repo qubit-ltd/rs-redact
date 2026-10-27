@@ -4,6 +4,10 @@
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
 //! Lazy carriers used to reproject an explicitly self-recursive field.
+//!
+//! Recursive detection is syntactic and preserves the complete generic target
+//! identity. Lazy carriers support direct targets, `Option<Box<T>>`, and
+//! `Vec<Box<T>>`; this module does not resolve arbitrary wrapper aliases.
 
 use proc_macro2::TokenStream;
 use quote::format_ident;
@@ -32,11 +36,21 @@ pub(super) enum RecursiveShape {
 }
 
 /// Returns the supported self-recursive shape of a field type.
+///
+/// Recognition is based on the complete target type, including its generic
+/// arguments, and accepts only direct targets, `Option<Box<T>>`, or
+/// `Vec<Box<T>>` with the syntactically supported wrapper paths.
 pub(super) fn shape(input: &DeriveInput, ty: &Type) -> Option<RecursiveShape> {
     let target = assertions::recursive_target(input);
     shape_for_target(&target, ty)
 }
 
+/// Matches a field type against a target identity and supported storage shape.
+///
+/// Direct target types are recognized before wrapper inspection. Wrapped forms
+/// must have exactly one type argument at each level and use `Box` inside
+/// `Option` or `Vec`; arbitrary aliases and additional generic arguments are
+/// not resolved.
 pub(super) fn shape_for_target(target: &str, ty: &Type) -> Option<RecursiveShape> {
     if is_target_type(ty, target) {
         return Some(RecursiveShape::Direct);
@@ -79,6 +93,10 @@ pub(super) fn shape_for_target(target: &str, ty: &Type) -> Option<RecursiveShape
 }
 
 /// Generates the carrier helpers and factory for a recursively derived type.
+///
+/// No tokens are emitted unless the model has a supported recursive field and
+/// has no unskipped unsupported recursive field. The generated carriers borrow
+/// their source values and reproject them lazily during serialization.
 pub(super) fn expand(
     input: &DeriveInput,
     projection: &syn::Ident,
@@ -194,6 +212,10 @@ pub(super) fn expand(
 }
 
 /// Generates the recursive carrier expression for a borrowed source field.
+///
+/// The shape selects a direct value carrier, an optional boxed-value carrier,
+/// or a vector-of-boxed-values carrier; each uses the generated reprojection
+/// factory.
 pub(super) fn carrier_expression(type_name: &syn::Ident, shape: RecursiveShape, value: TokenStream) -> TokenStream {
     let type_name_string = type_name.to_string();
     let type_fragment = type_name_string.trim_start_matches("r#");
@@ -211,6 +233,12 @@ pub(super) fn carrier_expression(type_name: &syn::Ident, shape: RecursiveShape, 
     }
 }
 
+/// Replaces occurrences of `Self` in a field type with the concrete derived
+/// type.
+///
+/// Replacement follows type paths' angle-bracketed type arguments, tuples,
+/// arrays, parenthesized types, references, and raw pointers. Other type syntax
+/// is left unchanged.
 pub(super) fn concrete_field_type(input: &DeriveInput, field_type: &Type) -> TokenStream {
     let name = &input.ident;
     let (_, type_generics, _) = input.generics.split_for_impl();
@@ -220,6 +248,10 @@ pub(super) fn concrete_field_type(input: &DeriveInput, field_type: &Type) -> Tok
     quote!(#field_type)
 }
 
+/// Reports whether an unskipped nested field has a supported recursive shape.
+///
+/// Serde-skipped fields and Serde-skipped enum variants are excluded from this
+/// check; other field filtering is not performed here.
 pub(super) fn has_recursive_field(input: &DeriveInput, model: &ContainerData<'_>) -> bool {
     let recursive = |fields: &FieldsData<'_>| match fields {
         FieldsData::Named(fields) => fields.iter().any(|field| {
@@ -243,6 +275,11 @@ pub(super) fn has_recursive_field(input: &DeriveInput, model: &ContainerData<'_>
     }
 }
 
+/// Reports whether an unskipped field contains recursion the carriers cannot
+/// handle.
+///
+/// A recursive field is supported here only when it is in nested mode and has
+/// one of the recognized shapes. Serde-skipped fields and variants are ignored.
 pub(super) fn has_unsupported_recursive_field(input: &DeriveInput, model: &ContainerData<'_>) -> bool {
     let recursive = |fields: &FieldsData<'_>| match fields {
         FieldsData::Named(fields) => fields.iter().any(|field| {
@@ -268,10 +305,19 @@ pub(super) fn has_unsupported_recursive_field(input: &DeriveInput, model: &Conta
     }
 }
 
+/// Determines whether recursive carrier generation is safe for the whole model.
+///
+/// Returns true only when at least one supported recursive field exists and no
+/// unskipped unsupported recursive field exists.
 pub(super) fn supports_recursive_projection(input: &DeriveInput, model: &ContainerData<'_>) -> bool {
     has_recursive_field(input, model) && !has_unsupported_recursive_field(input, model)
 }
 
+/// Checks whether a type is `Self` or matches the complete recursive target
+/// identity.
+///
+/// `Self` is accepted directly; other types are compared using the recursive
+/// type matcher, including the target's generic arguments.
 fn is_target_type(ty: &Type, target: &str) -> bool {
     if matches!(ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident("Self")) {
         return true;
@@ -279,6 +325,10 @@ fn is_target_type(ty: &Type, target: &str) -> bool {
     assertions::matches_recursive_type(ty, target)
 }
 
+/// Accepts an unqualified wrapper path or one rooted at `std`, `alloc`, or
+/// `core`.
+///
+/// This is a syntactic path check; it does not resolve imports or aliases.
 fn supported_wrapper_path(path: &syn::Path) -> bool {
     path.segments.len() == 1
         || path
@@ -287,6 +337,10 @@ fn supported_wrapper_path(path: &syn::Path) -> bool {
             .is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "std" | "alloc" | "core"))
 }
 
+/// Replaces `Self` recursively in the type forms handled by this module.
+///
+/// It visits type arguments in paths, tuples, arrays, parentheses, references,
+/// and pointers. Other syntax is left unchanged.
 fn replace_self_type(ty: &mut Type, source: &Type) {
     match ty {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Self") => {
@@ -316,6 +370,9 @@ fn replace_self_type(ty: &mut Type, source: &Type) {
     }
 }
 
+/// Collects every declared field in the model, preserving declaration order.
+///
+/// This helper does not filter Serde-skipped fields or variants.
 fn collect_fields<'a>(model: &ContainerData<'a>) -> Vec<&'a syn::Field> {
     let mut fields = Vec::new();
     match model {
@@ -329,6 +386,8 @@ fn collect_fields<'a>(model: &ContainerData<'a>) -> Vec<&'a syn::Field> {
     fields
 }
 
+/// Collects every declared field in a field group without applying skip
+/// filters.
 fn collect_group_fields<'a>(group: &FieldsData<'a>, fields: &mut Vec<&'a syn::Field>) {
     match group {
         FieldsData::Named(items) => fields.extend(items.iter().map(|field| field.field())),

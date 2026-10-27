@@ -25,7 +25,6 @@ use crate::serde::recursive_projection;
 ///
 /// # Parameters
 ///
-/// * `mode` - Redaction mode; policy-dependent omission is handled separately.
 /// * `serde_attributes` - Validated Serde field controls.
 ///
 /// # Returns
@@ -45,6 +44,9 @@ pub(super) fn field_is_skipped(serde_attributes: &SerdeAttributes) -> bool {
 /// * `serde_attributes` - Validated Serde field controls.
 /// * `mode` - Redaction mode whose skip rule applies only under enabled policy.
 /// * `raw` - Expression accessing the unredacted field value.
+/// * `saved_predicate` - Captured predicate expression from a borrowed
+///   projection. When absent, the original attribute path is used. Ignored when
+///   the field has no `skip_serializing_if` predicate.
 ///
 /// # Returns
 ///
