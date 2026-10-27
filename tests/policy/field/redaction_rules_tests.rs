@@ -159,3 +159,67 @@ fn test_redaction_rules_allow_rule_suppresses_unknown_field_fallback() {
     assert_eq!(policy.sensitivity_for("request_diagnostic"), None);
     assert_eq!(policy.sensitivity_for("other_field"), Some(Sensitivity::Secret));
 }
+
+/// Application resolution keeps the first-match allow boundary while merging
+/// stronger sensitive candidates after the first sensitive match.
+#[test]
+fn test_redaction_rules_preserve_allow_order_and_strongest_sensitive_match() {
+    let first_allow = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .secret_sensitive("access_token")
+                .allow_suffix("openai_access_token");
+        })
+        .expect("the application rules should be valid")
+        .build()
+        .expect("the policy should be valid");
+    assert_eq!(first_allow.sensitivity_for("OPENAI_ACCESS_TOKEN"), None);
+
+    let sensitive_first = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .low_sensitive("openai_access_token")
+                .allow_suffix("access_token")
+                .secret_sensitive("access_token");
+        })
+        .expect("the overlapping rules should be valid")
+        .build()
+        .expect("the policy should be valid");
+    assert_eq!(
+        sensitive_first.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+        Some(Sensitivity::Secret),
+    );
+}
+
+/// Exact-only application rules remain exact while the independent floor
+/// continues to apply its own token-suffix matching and cannot be allowed.
+#[test]
+fn test_redaction_rules_exact_application_and_floor_matching_are_independent() {
+    let floor = RedactionFloor::builder()
+        .matching(FieldNameMatching::ExactOrTokenSuffix)
+        .raise("access_token", Sensitivity::High)
+        .expect("the access-token floor rule should be valid")
+        .raise("password", Sensitivity::Secret)
+        .expect("the floor rule should be valid")
+        .build()
+        .expect("the floor should be valid");
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .matching(FieldNameMatching::Exact)
+                .low_sensitive("access_token")
+                .allow_exact("password");
+        })
+        .expect("the application rules should be valid")
+        .build()
+        .expect("the policy should be valid")
+        .with_floor(floor);
+
+    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::High));
+    assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("openai_password"), Some(Sensitivity::Secret));
+}

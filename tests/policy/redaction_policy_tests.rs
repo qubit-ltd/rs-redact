@@ -61,6 +61,29 @@ fn test_field_builder_applies_matching_fallback_sensitivity_and_allow_removal() 
     assert!(policy.application_allow_rules().next().is_none());
 }
 
+/// Public classification keeps its first-match explanation while final
+/// sensitivity merges later sensitive matches after a sensitive first match.
+#[test]
+fn test_policy_classification_explanation_is_distinct_from_resolved_strength() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .low_sensitive("openai_access_token")
+                .secret_sensitive("access_token");
+        })
+        .expect("overlapping field rules should be valid")
+        .build()
+        .expect("the policy should build");
+
+    assert_eq!(
+        policy.classify_field("OPENAI_ACCESS_TOKEN").sensitivity(),
+        Some(Sensitivity::Low)
+    );
+    assert_eq!(policy.sensitivity_for("OPENAI_ACCESS_TOKEN"), Some(Sensitivity::Secret));
+}
+
 /// Policy inspection and snapshot methods preserve application and floor
 /// behavior while exposing rule provenance.
 #[test]

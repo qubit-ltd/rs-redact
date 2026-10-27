@@ -248,26 +248,28 @@ fn sensitivity_inner(
     matching: FieldNameMatching,
     allow: bool,
 ) -> Option<Sensitivity> {
-    match classify_inner(inner, field, matching, allow) {
-        FieldClassification::Allowed { .. } => None,
-        FieldClassification::Sensitive { .. } | FieldClassification::Unknown => {
-            strongest_sensitive_match(inner, field, matching).or_else(|| inner.unknown_field_policy.sensitivity())
-        }
-    }
-}
-
-/// Returns the strongest sensitivity among every matching field candidate.
-fn strongest_sensitive_match(
-    inner: &RedactionPolicyInner,
-    field: &str,
-    matching: FieldNameMatching,
-) -> Option<Sensitivity> {
+    let mut first_match_seen = false;
     let mut strongest: Option<Sensitivity> = None;
-    let _ = visit_canonical_field_candidates(field, matching, |_is_exact, candidate| {
+    match visit_canonical_field_candidates(field, matching, |is_exact, candidate| {
+        if !first_match_seen && allow && is_exact && inner.allow_exact.contains(candidate) {
+            return ControlFlow::Break(());
+        }
+        if !first_match_seen && allow && inner.allow_suffix.contains(candidate) {
+            return ControlFlow::Break(());
+        }
         if let Some(level) = inner.sensitive.get(candidate) {
+            first_match_seen = true;
             strongest = Some(strongest.map_or(*level, |current| current.max(*level)));
         }
         ControlFlow::<()>::Continue(())
-    });
-    strongest
+    }) {
+        ControlFlow::Break(()) => None,
+        ControlFlow::Continue(()) => strongest.or_else(|| {
+            if first_match_seen {
+                None
+            } else {
+                inner.unknown_field_policy.sensitivity()
+            }
+        }),
+    }
 }

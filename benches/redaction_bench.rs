@@ -101,6 +101,45 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.finish();
 
+    let overlapping_policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .disable_floor()
+                .matching(qubit_redact::FieldNameMatching::ExactOrTokenSuffix)
+                .high_sensitive("access_token")
+                .secret_sensitive("openai_access_token")
+                .medium_sensitive("password")
+                .low_sensitive("content_type");
+        })
+        .expect("overlapping benchmark rules should be valid")
+        .build()
+        .expect("benchmark policy should build");
+    let field_names = [
+        "password",
+        "PASSWORD",
+        "access_token",
+        "Content-Type",
+        "OPENAI_ACCESS_TOKEN",
+    ];
+    let rules = RedactionPolicy::standard().rules().clone();
+    let overlapping_rules = overlapping_policy.rules().clone();
+    let mut group = criterion.benchmark_group("field-classification");
+    group.bench_function("standard-floor/workload", |bencher| {
+        bencher.iter(|| {
+            for field in field_names {
+                black_box(rules.sensitivity_for(black_box(field)));
+            }
+        });
+    });
+    group.bench_function("explicit-overlap/workload", |bencher| {
+        bencher.iter(|| {
+            for field in field_names {
+                black_box(overlapping_rules.sensitivity_for(black_box(field)));
+            }
+        });
+    });
+    group.finish();
+
     let arguments = (0..64).map(|index| format!("argument-{index}")).collect::<Vec<_>>();
     let variables = (0..64)
         .map(|index| (format!("PUBLIC_{index}"), format!("value-{index}")))
