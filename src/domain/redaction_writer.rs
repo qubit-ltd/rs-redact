@@ -172,6 +172,8 @@ impl<'session> RedactionWriter<'session> {
 
     /// Writes a named record through a field scope.
     ///
+    /// The callback receives a [`RedactionFields`] scope.
+    ///
     /// # Type Parameters
     ///
     /// - `F`: Callback accepting the scope for any temporary writer borrow.
@@ -189,6 +191,8 @@ impl<'session> RedactionWriter<'session> {
     }
 
     /// Writes a named tuple through a field scope.
+    ///
+    /// The callback receives a [`RedactionFields`] scope.
     ///
     /// # Type Parameters
     ///
@@ -211,6 +215,7 @@ impl<'session> RedactionWriter<'session> {
     /// This is intended for transparent domain newtypes. The configured field
     /// still passes through the ordinary classified field operations and the
     /// same admission limits as a structured value.
+    /// The callback receives a [`RedactionFields`] scope.
     ///
     /// # Type Parameters
     ///
@@ -234,6 +239,8 @@ impl<'session> RedactionWriter<'session> {
 
     /// Writes a bracketed sequence through an item scope.
     ///
+    /// The callback receives a [`RedactionItems`] scope.
+    ///
     /// # Type Parameters
     ///
     /// - `F`: Callback accepting the scope for any temporary writer borrow.
@@ -250,6 +257,8 @@ impl<'session> RedactionWriter<'session> {
     }
 
     /// Writes a braced map through an entry scope.
+    ///
+    /// The callback receives a [`RedactionEntries`] scope.
     ///
     /// # Type Parameters
     ///

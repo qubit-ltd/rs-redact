@@ -56,7 +56,6 @@
 #[cfg(feature = "derive")]
 pub use qubit_redact_derive::Redact;
 
-#[doc(hidden)]
 pub mod domain;
 mod facade;
 pub mod formats;

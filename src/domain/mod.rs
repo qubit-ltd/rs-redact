@@ -6,6 +6,12 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Runtime traits and borrowed views for domain-object redaction.
+//!
+//! [`RedactionWriter`] provides scoped callbacks for structured values:
+//! [`RedactionFields`] for record, tuple, and transparent values,
+//! [`RedactionItems`] for sequences, and [`RedactionEntries`] for maps.
+//! These scopes are supplied by the writer callback; ordinary callers should
+//! not construct them directly.
 
 #[doc(hidden)]
 pub mod internal;
