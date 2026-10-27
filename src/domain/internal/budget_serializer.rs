@@ -20,6 +20,7 @@ use super::budget_serialize::BudgetSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
 use super::redact_serialize_scope::admit_payload;
+use super::redact_serialize_scope::admit_payload_or_forwarded;
 use super::redact_serialize_scope::remaining_input_bytes;
 use super::redact_serialize_scope::remaining_payload_bytes;
 
@@ -393,7 +394,12 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
     /// The downstream result after the admitted representation is serialized.
     #[inline]
     fn serialize_str(self, value: &str) -> Result<Self::Ok, Self::Error> {
-        scalar::<S::Error>(value.len())?;
+        if !admit_input(value.len()) {
+            return Err(S::Error::custom("redaction input budget exceeded"));
+        }
+        if !admit_payload_or_forwarded(value.len()) {
+            return Err(S::Error::custom("redaction scalar payload budget exceeded"));
+        }
         self.inner.serialize_str(value)
     }
     /// Charges source and logical payload bytes before forwarding this scalar.

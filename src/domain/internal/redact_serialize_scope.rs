@@ -19,6 +19,7 @@ use serde::ser::Error;
 
 use super::policy_frame::PolicyFrame;
 use super::serde_node_guard::SerdeNodeGuard;
+use super::serde_payload_guard::SerdePayloadForwardGuard;
 use super::structured_serde_budget::StructuredSerdeBudget;
 #[cfg(feature = "json")]
 use crate::runtime::JsonStructurePreflight;
@@ -100,6 +101,7 @@ impl<'policy> RedactSerializeScope<'policy> {
                 collection_items: 0,
                 input_bytes: 0,
                 payload_bytes: 0,
+                payload_forwarding: 0,
             });
             true
         });
@@ -370,6 +372,59 @@ pub(super) fn admit_payload(bytes: usize) -> bool {
     })
 }
 
+/// Admits a scalar unless it is already being forwarded by its payload owner.
+#[must_use]
+pub(super) fn admit_payload_or_forwarded(bytes: usize) -> bool {
+    if STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().last().is_some_and(|state| state.payload_forwarding > 0)) {
+        true
+    } else {
+        admit_payload(bytes)
+    }
+}
+
+/// Opens a forwarding interval for a payload already charged by its owner.
+pub(super) fn begin_payload_forwarding() -> bool {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let mut budgets = slot.borrow_mut();
+        let Some(state) = budgets.last_mut() else {
+            return false;
+        };
+        state.payload_forwarding += 1;
+        true
+    })
+}
+
+/// Closes one payload-forwarding interval.
+pub(super) fn end_payload_forwarding() {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        if let Some(state) = slot.borrow_mut().last_mut() {
+            state.payload_forwarding -= 1;
+        }
+    });
+}
+
+/// Suspends active forwarding while a new user Serialize value is invoked.
+pub(super) fn suspend_payload_forwarding() -> Option<usize> {
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        let mut budgets = slot.borrow_mut();
+        let state = budgets.last_mut()?;
+        let previous = state.payload_forwarding;
+        state.payload_forwarding = 0;
+        Some(previous)
+    })
+}
+
+/// Restores forwarding after the nested Serialize value returns or unwinds.
+pub(super) fn restore_payload_forwarding(previous: Option<usize>) {
+    if let Some(previous) = previous {
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            if let Some(state) = slot.borrow_mut().last_mut() {
+                state.payload_forwarding = previous;
+            }
+        });
+    }
+}
+
 /// Serializes a string payload after cumulative payload admission.
 ///
 /// # Errors
@@ -393,6 +448,7 @@ pub(super) fn serialize_payload<S: Serializer>(serializer: S, value: &str) -> Re
     if !admit_payload(value.len()) {
         return Err(Error::custom("redaction scalar payload budget exceeded"));
     }
+    let _forwarding = SerdePayloadForwardGuard::new();
     serializer.serialize_str(value)
 }
 

@@ -29,4 +29,6 @@ pub(super) struct StructuredSerdeBudget {
     pub(super) input_bytes: usize,
     /// Scalar payload bytes passed to the downstream serializer.
     pub(super) payload_bytes: usize,
+    /// Active downstream forwarding of a scalar already charged by its owner.
+    pub(super) payload_forwarding: usize,
 }

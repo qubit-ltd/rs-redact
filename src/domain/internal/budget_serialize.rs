@@ -14,6 +14,7 @@ use serde::ser::Error as SerdeError;
 use super::budget_serializer::BudgetSerializer;
 use super::redact_serialize_scope::admit_node;
 use super::serde_node_guard::SerdeNodeGuard;
+use super::serde_payload_guard::SerdePayloadEventGuard;
 use super::serde_raw_guard::SerdeRawGuard;
 
 /// Carries a raw value through resource admission without changing sensitivity.
@@ -74,6 +75,7 @@ impl<T: Serialize> Serialize for BudgetSerialize<T> {
         }
         let _node = SerdeNodeGuard;
         let _raw = SerdeRawGuard::new();
+        let _event = SerdePayloadEventGuard::new();
         self.value.serialize(BudgetSerializer { inner: serializer })
     }
 }

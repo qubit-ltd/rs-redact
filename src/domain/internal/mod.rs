@@ -73,6 +73,8 @@ mod serde_admission;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod serde_node_guard;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod serde_payload_guard;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod serde_raw_guard;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod structured_serde_budget;
