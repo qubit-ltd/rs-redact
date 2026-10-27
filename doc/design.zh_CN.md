@@ -149,8 +149,10 @@ handle；`finish_with_marker(self, marker)` 发布诊断视图：完整 item 保
 
 ### 5.3 Inspection
 
-inspection 复用相同策略和结构预算，只记录分类、敏感度、用量和不完整原因，不发布原始值。
-inspection error 表示结论不完整；安全决策应按敏感处理。
+inspection 复用策略和结构预算，返回策略是否禁用、完整遍历发现的最高敏感度及资源用量，
+不发布原始值，也不提供逐字段规则命中轨迹。`RedactionPolicy::classify_field` 解释首条匹配的
+应用规则；`RedactionPolicy::sensitivity_for` 才根据应用规则和匹配的 floor 求出最终等级。
+inspection error 表示结论不完整；若用于安全决策，应按敏感处理。
 
 ### 5.4 RuntimeCore
 
@@ -187,7 +189,8 @@ HTTP JSON、NDJSON 和 multipart 渲染会借用本次操作已准入的结构�
 JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 `DepthLimitReached`；共享节点/集合拒绝，以及 JSON 专属预算或事务提交拒绝仍映射为
 `TraversalLimitReached`。借用 `Value` 入口因此会保留与 JSON 文本 inspection 和渲染相同的共享深度原因，
-不会把所有失败折叠为布尔遍历结果。
+不会把所有失败折叠为布尔遍历结果。JSON 文本和 `Value` writer 的准入失败会保留已记录的原因，
+不会再额外添加 traversal 原因；安全替代无法写入时，实际输出耗尽可再增加 `OutputLimitReached`。
 
 领域对象嵌入 JSON 时，JSON 根深度等于当前领域深度加一。借用 Value 的准入与 usage
 会将每个 JSON 相对深度加到这个基数；JSON 文本的预检和 decoder seed 使用相同的绝对根深度。
@@ -234,6 +237,8 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 `max_output_bytes` 各默认 16 KiB；均允许 0，后两者不能超过 isize::MAX。
 载荷沿 Serde 事件计量：字符串/字符 UTF-8、bytes 切片、数字/bool 标量表示，none/unit 为 0，
 动态 map key 和标量形式的 unit variant 名称计入，静态字段名、标点、转义及 framing 不计入。
+每个逻辑标量载荷只计费一次；嵌套脱敏值经另一层预算 adapter 转发时也不会重复计费，
+输入和结构准入仍照常执行。
 
 旧式 `RedactSerialize` hook 在根调用时使用显式传入的策略，嵌套调用则加入活动 scope。裸的
 `RedactSerializeSource` 投影只借用字段、不保存策略；缺少活动 scope 时序列化会返回不含原值的

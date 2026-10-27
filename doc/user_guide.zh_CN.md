@@ -495,6 +495,8 @@ fn main() {
 节点或集合项拒绝会关闭本事务后续遍历；共享深度拒绝不会关闭遍历。多个检查同时失败时，
 优先级依次为输出/输入准入、共享结构预检、JSON 专属准入或物化。应通过结果 summary 中的
 completion 和 reason 了解部分结果；失败前访问的精确前缀不属于稳定契约。
+JSON 文本和 `Value` writer 的准入失败会保留已记录的原因，不额外附加 traversal 原因；如果安全
+替代无法放进输出预算，实际输出耗尽仍会增加 `OutputLimitReached`。
 Serde 没有活动 scope 时，预检拒绝沿用现有的不透明替代。
 
 非法 JSON 或遍历超限会整体安全降级为不透明替代或截断结果。借用 `Value` 的路径不会复制、转成字符串或修改调用方对象；
@@ -787,11 +789,14 @@ strict 可以分类 `redact_field`、JSON key 和 HTTP URL query 参数等运行
 
 ### 检查决策与控制策略
 
-检查 API 会报告规则匹配、敏感度和完成状态，但不会发布原始值。它适合在确定日志或序列化
-边界前解释某字段为何会被掩码。
+inspection 返回本次完整遍历是否禁用了策略、发现的最高敏感度和资源用量，不会发布原始值，
+也不包含逐字段的规则命中轨迹。想查看某字段匹配到的首条应用规则，可调用
+`RedactionPolicy::classify_field()`；这只是匹配解释，不是最终敏感度。最终等级由
+`RedactionPolicy::sensitivity_for()` 给出，它会合并匹配的应用规则与 floor。
 
-inspection 不会调用字段的 `Debug`、`Display` 或 `Serialize`。即使格式化路径配置错误会在
-渲染时 panic，inspection 仍可完成，因此适合不能泄露任何字节的安全门禁。
+inspection 不会调用字段的 `Debug`、`Display` 或 `Serialize`。即使格式化路径会在渲染时
+panic，只要 inspection 本身没有超出结构和输入预算，检查仍可完成。若遍历不完整，API 会返回
+错误；将这类结果视为结论不充分，再决定是否放行。
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -969,7 +974,7 @@ UTF-8 前缀仍计费。High/Secret 和 inspection 不执行源 formatter。disa
 Serde 逻辑载荷按 str/char 的 UTF-8 字节、bytes 切片长度及数字/bool 的标量表示计量；
 none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载荷。
 静态字段名、标点、转义和编码 framing 不计入此额度。
-嵌套事件共享账本，普通 Serialize 仅执行一次。`to_json` 的最终额度则包含所有 JSON 标签、
+嵌套事件共享账本，同一逻辑标量即使经另一层预算 adapter 转发也只计费一次，普通 Serialize 仍仅执行一次。`to_json` 的最终额度则包含所有 JSON 标签、
 引号、转义、标点和掩码。比如 `{"value":"abcd"}` 的逻辑载荷是 4 字节，最终 JSON 是 16 字节。
 任意第三方 serializer 的额外编码开销必须由调用方限制。
 

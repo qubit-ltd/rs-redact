@@ -94,8 +94,9 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// # Parameters
     ///
-    /// - `lines`: Admitted parsed lines; None preserves a blank line.
-    /// - `trailing_newline`: Whether the source ended with a line separator.
+    /// - `lines`: Admitted non-empty records with their source line indices;
+    ///   blank-line positions and the trailing line separator are retained as
+    ///   metadata.
     /// - `truncated`: Whether ingress omitted source bytes.
     /// - `output_limit`: Remaining output-byte ceiling.
     ///

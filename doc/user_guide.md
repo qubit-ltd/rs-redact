@@ -535,6 +535,9 @@ not. When several checks fail, output/input admission takes precedence, then
 shared structural preflight, then JSON-specific admission or materialization.
 Use completion and reason data in the result summary to understand a partial
 result; the exact prefix visited before failure is not a stable contract.
+JSON text and `Value` writer admission failures retain the reason already recorded by admission;
+they do not add a second traversal reason. If the safe replacement does not fit, actual output
+exhaustion can add `OutputLimitReached`.
 Serde serialization that has no active scope uses its existing opaque
 replacement when this preflight rejects the input.
 
@@ -853,13 +856,18 @@ rendering.
 
 ### Inspect decisions and control policies
 
-Inspection reports rule matches, sensitivity, and completion without publishing
-raw values. Use it to explain why a field would be masked before choosing a
-serialization or logging boundary.
+Inspection returns whether policy evaluation was disabled, the highest
+sensitivity found by the complete traversal, and resource usage, without
+publishing raw values. It does not include a per-field rule-match trace. Use
+`RedactionPolicy::classify_field()` to inspect the first matching application
+rule for a field; that explanation is not the final sensitivity. The effective
+level comes from `RedactionPolicy::sensitivity_for()`, which also combines
+matching application rules and the configured floor.
 
 Inspection never invokes `Debug`, `Display`, or `Serialize` on classified values. A formatter that
-panics during rendering would still allow inspection to complete, which makes inspection suitable
-for security gates that must not leak data even when logging is misconfigured.
+panics during rendering would still allow inspection to complete, provided inspection itself stays
+within its structural and input budgets. An incomplete inspection returns an error; treat it as
+inconclusive when making a security decision.
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -1055,7 +1063,9 @@ memory size of the original object.
 Logical Serde payload counts UTF-8 str/char bytes, byte slices, and numeric/bool scalar representations.
 None/unit counts zero; dynamic map keys and scalar unit-variant names count as payload.
 Static field names, punctuation, escaping,
-and encoder framing do not count. Nested events share the ledger, and ordinary Serialize runs once.
+and encoder framing do not count. Nested events share the ledger, and each logical scalar payload is
+charged once even when a nested redacted value forwards it through another budget adapter. Ordinary
+Serialize runs once.
 Final `to_json` bytes include all JSON labels, quotes, escapes, punctuation, and masks.
 For example, `{"value":"abcd"}` has four logical payload bytes and 16 final JSON bytes.
 The caller must bound additional encoding overhead from an arbitrary external serializer.

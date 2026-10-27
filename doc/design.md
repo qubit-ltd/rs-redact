@@ -164,10 +164,14 @@ summary.
 
 ### 5.3 Inspection
 
-Inspection reuses policy and structural budgets while recording classification,
-sensitivity, usage, and incomplete reasons without publishing raw values. An
-inspection error means the conclusion is incomplete and must be treated as
-sensitive when inspection controls a security decision.
+Inspection reuses policy and structural budgets and returns whether policy
+evaluation was disabled, the strongest sensitivity found by the complete
+traversal, and resource usage without publishing raw values. It does not expose
+per-field rule-match traces. `RedactionPolicy::classify_field` explains the first
+matching application rule; `RedactionPolicy::sensitivity_for` resolves the final
+level from application rules and matching floors. An inspection error means the
+conclusion is incomplete and must be treated as sensitive when inspection
+controls a security decision.
 
 ### 5.4 RuntimeCore
 
@@ -215,7 +219,9 @@ depth rejection becomes `DepthLimitReached`; shared node or collection rejection
 JSON-specific budget or transaction-commit rejection remain
 `TraversalLimitReached`. The `Value` entry points therefore retain the same shared-depth
 reason as inspection and rendering of JSON text instead of collapsing every failure to
-a boolean traversal reason.
+a boolean traversal reason. JSON text and `Value` writer admission failures retain
+their recorded reason rather than adding a second traversal reason; a replacement that
+cannot fit may additionally record actual `OutputLimitReached`.
 
 At a domain-to-JSON boundary, the JSON root starts at the current domain depth plus
 one. Borrowed-value admission adds each JSON-relative depth to that base for both
@@ -276,7 +282,9 @@ access. Caller-supplied post-publication markers are escaped but outside transac
 `max_output_bytes` independently default to 16 KiB. All allow zero; the latter two must fit isize::MAX.
 Payload follows Serde events: UTF-8 strings/chars, byte slices, numeric/bool scalar representations,
 zero for none/unit, dynamic map keys, and scalar unit-variant names. Static field names,
-punctuation, escaping, and framing are excluded.
+punctuation, escaping, and framing are excluded. Each logical scalar payload is
+charged once, including when a nested redacted value forwards it through another
+budget adapter. Input and structural admission remain in force.
 
 Direct Serialize(view/source) uses structure, input, and logical payload limits; the caller's
 serializer/writer controls final encoding. `to_json` uses the same projection plus an independent
