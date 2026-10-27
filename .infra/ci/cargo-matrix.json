@@ -78,6 +78,13 @@
       "features": ["derive", "http"]
     },
     {
+      "name": "json-arbitrary-precision",
+      "commands": ["test"],
+      "packages": ["qubit-redact"],
+      "defaultFeatures": false,
+      "features": ["derive", "http", "serde_json/arbitrary_precision"]
+    },
+    {
       "name": "derive-uri",
       "commands": ["check", "test", "doc", "clippy"],
       "packages": ["qubit-redact"],

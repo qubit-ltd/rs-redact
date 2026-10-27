@@ -71,7 +71,19 @@ impl Redactor {
     ///
     /// # Parameters
     ///
-    /// - `text`: Complete raw JSON input admitted before parsing.
+    /// - `text`: Complete raw JSON input, with input bytes admitted before
+    ///   structural preflight.
+    ///
+    /// JSON text is structurally preflighted before its value tree is built.
+    /// Successful preflight is followed by strict JSON decoding and formal
+    /// shared-budget admission. Repeated object keys are rejected after key
+    /// decoding. The text decoder also has a fixed limit of 127 nested
+    /// containers; increasing configured depth limits does not change it.
+    /// Negative integers must fit `i64`, non-negative integers `u64`, and
+    /// fractional or exponent numbers must be finite `f64` values.
+    /// Syntax, duplicate-key, number-contract, and fixed decoder-depth
+    /// failures produce the existing `InvalidJson` safe replacement. Shared
+    /// depth and traversal rejections retain their corresponding reasons.
     ///
     /// # Returns
     ///
@@ -92,6 +104,8 @@ impl Redactor {
     /// # Parameters
     ///
     /// - `value`: Borrowed parsed tree admitted under shared resource limits.
+    ///   Raw input-byte, duplicate-key, and text-decoder depth checks cannot be
+    ///   applied to an already parsed value.
     ///
     /// # Returns
     ///
@@ -118,6 +132,11 @@ impl Redactor {
     ///
     /// - `text`: Complete raw JSON input to classify without rendering values.
     ///
+    /// Text inspection applies the same decoded-key uniqueness, numeric, and
+    /// fixed 127-container decoder limits as text redaction. Structural
+    /// preflight does not consume shared budget; successful decoding is
+    /// admitted and charged once afterward.
+    ///
     /// # Returns
     ///
     /// A conclusive sensitivity observation when parsing and traversal
@@ -137,6 +156,8 @@ impl Redactor {
     /// or input limit prevents complete inspection. Because `value` is
     /// already parsed, the raw [`crate::RedactionLimits::max_input_bytes`]
     /// ceiling cannot be applied; JSON tree and payload limits still apply.
+    /// Text-only decoder restrictions such as duplicate-key detection and
+    /// the fixed 127-container limit do not apply to this parsed value.
     ///
     /// # Parameters
     ///

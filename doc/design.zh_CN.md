@@ -164,21 +164,35 @@ inspection error 表示结论不完整；安全决策应按敏感处理。
 ```text
 输入元数据检查
   → 预算预检
-  → 结构准入/解析一次
+  → 共享结构预检
+  → 严格 JSON 解码并物化值树
+  → 正式共享与 JSON 专属准入
   → 策略判定
   → 有界渲染与日志转义
   → 记录 usage/reason/completion
   → 父事务发布
 ```
 
-预检发生在推进不可信迭代器之前。JSON 文本在准入时解析一次并建立 admitted tree；HTTP JSON、
-NDJSON 和 multipart 的渲染复用本次操作已准入的结构，生成结果时无需再次解析。渲染直接借用
-已准入的 `Value` 节点，经有界 writer 输出；不会构造另一棵掩码树，也不修改已准入值。
+预检发生在推进不可信迭代器之前。对于 JSON 文本，只读共享结构预检会在值树物化前检查语法以及
+共享的深度、节点和集合项上限；它不计入真实账本。预检通过后，唯一 decoder 自行进行词法校验并
+严格构造值树，随后 seed 才正式计入一次共享结构用量。因此只物化一次不代表只扫描一次；
+parser-entry 测试计数器不统计 decoder 内部的词法扫描。输入字节在结构预检前通过准入时计费，
+被拒绝的树不会增加共享 `visited_nodes` 或集合项用量。节点/集合项拒绝会关闭本事务遍历，
+共享深度拒绝不会关闭。失败优先级为输出/输入准入、共享结构预检、JSON 专属准入/物化。
+
+HTTP JSON、NDJSON 和 multipart 渲染会借用本次操作已准入的结构，不再构造掩码 `Value` 树，
+也不修改源值。有界 writer 直接从借用节点序列化结果。
 
 JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 `DepthLimitReached`；共享节点/集合拒绝，以及 JSON 专属预算或事务提交拒绝仍映射为
 `TraversalLimitReached`。借用 `Value` 入口因此会保留与 JSON 文本 inspection 和渲染相同的共享深度原因，
 不会把所有失败折叠为布尔遍历结果。
+
+严格文本契约按解码后的字符串拒绝重复对象键；负整数必须装入 `i64`，非负整数必须装入 `u64`，
+小数/指数必须是有限 `f64`。文本 decoder 另有固定的 127 层嵌套容器上限，提高配置深度不会解除该限制。
+此文本构建失败按 `InvalidJson` 报告（安全输出 API 使用现有不透明替代）。借用 `Value` 没有原始文本
+构建阶段，因此没有该固定 decoder 边界。测试期间合并启用 `serde_json/arbitrary_precision` 是为了保护此契约，
+不表示支持任意精度输入。
 
 argv、环境变量列表等扁平结构格式通过同一个 runtime admission helper 计费根节点、集合项、子节点
 和源字节。composer 与 batch 保留不同发布模型，但同一输入迭代器的推进和计费规则不能各自漂移。
@@ -246,7 +260,7 @@ Serde shape 返回明确错误而不是猜测表示。
 ## 8. 格式层
 
 - argv/env/process：显式分类和受限启发式；未分类的非 UTF-8 参数项及非 UTF-8 环境变量名保守分类为 Secret；
-- JSON：一次解析、递归字段分类、显式数字范围和共享结构预算；
+- JSON：严格构造值树、递归字段分类、显式数字范围和共享结构预算；
 - URI：使用 `fluent-uri` 解析，并分别处理 identity、path、query、fragment；
 - HTTP：处理 URL、header 和 body，所有结果回到父事务。URL query 参数使用 query 规则；
   `application/x-www-form-urlencoded` body 中的 form 字段使用 body 规则。
@@ -274,7 +288,7 @@ Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入�
 嵌套 URL 渲染则把子操作的 `InvalidUri` 和 `DepthLimitReached` 原因合并到父结果。
 Multipart framing 会先由借用的 segment 游标完整校验，再逐段消费。辅助 segment 状态不随原始
 segment 数量增长；admitted slot 只为通过准入的 part 增长。顶层 form 字段使用深度 2，multipart
-part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入的 JSON 与 NDJSON 结构只解析一次并复用。
+part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入的 JSON 与 NDJSON 值会保留并在渲染时复用。
 NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空行的辅助空间保持常量；渲染通过有界 writer
 恢复换行，multipart NDJSON 也保留源行位置。
 

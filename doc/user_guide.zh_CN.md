@@ -485,8 +485,18 @@ fn main() {
 `finish_with_marker` 后，句柄选择完整项的文本或已转义的降级标记；
 `summary()` 描述整个批次。
 
-JSON 文本只解析一次，解析过程同时完成结构准入并构造 admitted tree。非法 JSON 或遍历
-超限时会整体安全降级。借用 `Value` 的路径不会复制、转成字符串或修改调用方对象；
+构造 JSON 文本的值树之前，会先做只读结构预检，检查语法以及共享的深度、节点和集合项上限。
+预检通过后，唯一 decoder 仍会自行进行词法校验并严格构造值树；随后 seed 才正式计入共享结构预算。
+预检本身不消耗预算，因此输入可能被扫描多次：只物化一棵树不等于只扫描一次，parser-entry
+测试计数器也不统计 decoder 内部的扫描次数。
+
+输入字节在结构预检前通过准入时计费。被拒绝的树不会增加共享 `visited_nodes` 或集合项用量。
+节点或集合项拒绝会关闭本事务后续遍历；共享深度拒绝不会关闭遍历。多个检查同时失败时，
+优先级依次为输出/输入准入、共享结构预检、JSON 专属准入或物化。应通过结果 summary 中的
+completion 和 reason 了解部分结果；失败前访问的精确前缀不属于稳定契约。
+Serde 没有活动 scope 时，预检拒绝沿用现有的不透明替代。
+
+非法 JSON 或遍历超限会整体安全降级为不透明替代或截断结果。借用 `Value` 的路径不会复制、转成字符串或修改调用方对象；
 领域实现可用 `fields.json_value("payload", &value)` 写入不带额外字符串引号的 JSON 值。
 序列实现则应逐项调用 `items.json_value_item(&value)`，它会执行同样的递归 JSON 策略。对于
 声明数据类型为 JSON 的下游集合，这一点尤其重要：每一项都必须按 JSON 结构遍历，不能作为
@@ -522,8 +532,13 @@ fn main() {
 ```
 
 JSON 文本采用 `qubit-json` 的明确数字契约：负整数必须装入 `i64`，非负整数必须装入 `u64`，
-小数/指数必须得到有限 `f64`。越界文本沿用安全降级的无效 JSON 路径；serde_json 旧私有
-Number 标记键是普通对象键。
+小数/指数必须得到有限 `f64`。越界文本沿用安全降级的无效 JSON 路径。重复对象键按解码后的键判断，
+因此转义拼写后相同的键也会冲突。文本 decoder 有独立的 127 层容器固定上限；提高 `max_depth` 或
+`max_json_depth` 不会解除此限制。该文本构建失败报告为 `InvalidJson`，并使用不透明安全替代。
+借用 `Value` 没有原始文本构建阶段，因此不受该固定 decoder 上限影响；解析后也无法再限制原始输入字节
+或检测重复键。`arbitrary_precision` 只在合并依赖 feature 的回归测试中启用，不代表库接受任意精度 JSON 数字。
+serde_json 旧私有 Number
+标记键仍是普通对象键。
 
 ### 在同一个批处理中处理完整 HTTP 交换
 
@@ -764,7 +779,7 @@ strict 可以分类 `redact_field`、JSON key 和 HTTP URL query 参数等运行
 `application/x-www-form-urlencoded` body 中的 form 字段则使用 HTTP body 规则。multipart part
 内嵌 form 的字段位于深度 3，因此策略至少要允许该深度；inspection 与渲染使用相同边界，不会
 自动提高配置值。处理 segment 前会验证完整 framing，辅助 segment 存储随准入 part 增长，而不随
-所有 segment 增长。已准入的 JSON 与 NDJSON part 只解析一次，渲染时复用解析结构。
+所有 segment 增长。已准入的 JSON 与 NDJSON 值会保留并在渲染时复用。
 
 ## 进阶用法
 

@@ -517,8 +517,26 @@ fn main() {
 After `finish_with_marker`, handles select complete item text or the escaped
 fallback marker; `summary()` describes the entire batch.
 
-JSON text is parsed once into an admitted tree. Invalid JSON and traversal
-limit failures fail closed as an opaque or truncated safe result. The borrowed
+Before a JSON text tree is materialized, a read-only structural preflight
+checks syntax and the shared depth/node/item ceilings. If it passes, the unique
+decoder performs its own lexical validation and strict tree construction; the
+seed then formally charges the shared structural budget once. Preflight does
+not consume that budget. This can scan the input more than once: one tree
+materialization does not mean one scan, and the parser-entry test counter does
+not count scans inside the decoder.
+
+Input bytes are charged when admitted before structural preflight. A rejected
+tree adds no shared visited-node or collection-item usage. Node or item
+rejection closes traversal for the transaction; a shared depth rejection does
+not. When several checks fail, output/input admission takes precedence, then
+shared structural preflight, then JSON-specific admission or materialization.
+Use completion and reason data in the result summary to understand a partial
+result; the exact prefix visited before failure is not a stable contract.
+Serde serialization that has no active scope uses its existing opaque
+replacement when this preflight rejects the input.
+
+Invalid JSON and traversal limit failures fail closed as an opaque or
+truncated safe result. The borrowed
 `Value` path does not clone, stringify, or mutate the caller's value. Within a
 domain implementation, `fields.json_value("payload", &value)` writes a parsed
 value as JSON rather than as a quoted JSON string. Sequence implementations use
@@ -559,8 +577,17 @@ fn main() {
 JSON text uses `qubit-json`'s explicit number contract: negative integers must
 fit `i64`, non-negative integers must fit `u64`, and fractional/exponential
 tokens must produce finite `f64`. Out-of-range text follows the same fail-closed
-invalid-JSON path. A former serde_json private Number-marker key is an ordinary
-object key.
+invalid-JSON path. Duplicate object keys are rejected after JSON string
+decoding, so escaped spellings of the same key also conflict. The text decoder
+has a fixed limit of 127 nested containers; raising `max_depth` or
+`max_json_depth` does not remove it. This text-only construction failure is
+reported as `InvalidJson` and uses the opaque safe replacement. A borrowed
+`Value` has no raw-text construction stage and therefore does not encounter
+this fixed decoder limit; original input-byte limits and duplicate-key
+detection are also unavailable after parsing. The `arbitrary_precision` feature is enabled only
+for a merged-dependency regression test; it does not mean this library accepts
+arbitrary-precision JSON numbers. A former serde_json private Number-marker
+key is an ordinary object key.
 
 ### Redact one HTTP exchange in a batch
 
@@ -815,8 +842,8 @@ bodies use the HTTP body rules instead. A form field nested inside a multipart p
 uses depth 3, so a policy must allow at least that depth; inspection and rendering
 use the same boundary and do not raise the configured limit. Multipart framing is
 validated before processing, while auxiliary segment storage grows with admitted
-parts rather than every segment. Admitted JSON and NDJSON parts are parsed once and
-their parsed structure is reused during rendering.
+parts rather than every segment. Admitted JSON and NDJSON values are retained and reused during
+rendering.
 
 ## Advanced Usage
 

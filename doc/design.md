@@ -182,19 +182,31 @@ Structured operations use one pipeline:
 ```text
 validate metadata
   → budget preflight
-  → structural admission / parse once
+  → shared structural preflight
+  → strict JSON decode and tree materialization
+  → formal shared and JSON-specific admission
   → policy resolution
   → bounded rendering and log escaping
   → record usage/reason/completion
   → publish through the parent transaction
 ```
 
-Preflight happens before advancing untrusted iterators. JSON text is parsed once
-during admission into an admitted tree. HTTP JSON, NDJSON, and multipart
-rendering reuse admitted structures within the operation, avoiding a second
-parse while rendering that result. Redaction borrows those admitted `Value` nodes and
-serializes through a bounded writer; it does not construct a second masked tree or
-mutate the admitted source values.
+Preflight happens before advancing untrusted iterators. For JSON text, a
+read-only shared structural preflight checks syntax and shared depth/node/item
+ceilings before tree materialization. It does not charge the real ledger. On
+success, the unique decoder performs its own lexical validation and strict tree
+construction, then the seed formally charges shared structure once. Thus one
+materialization does not imply one scan; the parser-entry test counter does not
+measure lexical scans internal to the decoder. Input bytes are charged when
+admitted before structural preflight, while a rejected tree adds no shared
+visited-node or collection-item usage. Node/item rejection closes transaction
+traversal; shared depth rejection does not. Failure precedence is
+output/input admission, shared structural preflight, then JSON-specific
+admission/materialization.
+
+HTTP JSON, NDJSON, and multipart rendering borrow the admitted structures
+within the operation, without rebuilding a masked `Value` tree or mutating
+source values. The bounded writer serializes directly from the borrowed nodes.
 
 The JSON visitor preserves the first structural rejection cause. Shared structural
 depth rejection becomes `DepthLimitReached`; shared node or collection rejection and
@@ -202,6 +214,16 @@ JSON-specific budget or transaction-commit rejection remain
 `TraversalLimitReached`. The `Value` entry points therefore retain the same shared-depth
 reason as inspection and rendering of JSON text instead of collapsing every failure to
 a boolean traversal reason.
+
+The strict text contract rejects duplicate object keys after decoding their
+strings, requires negative integers to fit `i64`, non-negative integers to fit
+`u64`, and fractional/exponent numbers to be finite `f64`. The text decoder has
+an independent fixed maximum of 127 nested containers; raising configured
+depth limits does not remove it. This text construction failure is reported as
+`InvalidJson` (or the existing opaque replacement in safe output APIs). A
+borrowed `Value` has no raw-text construction stage and does not have this fixed
+decoder boundary. Test-time `serde_json/arbitrary_precision` feature merging
+protects this contract; it does not make arbitrary-precision inputs supported.
 
 Flat structured formats such as argv and environment lists use one runtime
 admission helper for root nodes, collection entries, child nodes, and source
@@ -310,7 +332,7 @@ earlier layout.
 - argv/env/process: explicit classification and bounded heuristics; unclassified
   non-UTF-8 argument items and non-UTF-8 environment names are conservatively
   classified as Secret;
-- JSON: one parse, recursive field classification, explicit number ranges, and
+- JSON: strict tree construction, recursive field classification, explicit number ranges, and
   shared structural limits;
 - URI: `fluent-uri` parsing with separate identity, path, query, and fragment
   handling;
@@ -344,8 +366,8 @@ Multipart framing is validated in a complete pass through a borrowed segment
 cursor before the segments are consumed. Auxiliary segment state does not scale
 with the raw segment count; admitted slots grow only for admitted parts. Top-level
 form fields use depth 2, while form fields inside multipart parts use depth 3 in
-both inspection and rendering. Admitted JSON and NDJSON structures are parsed
-once and reused. NDJSON admission stores nonblank values with source-line indices
+both inspection and rendering. Admitted JSON and NDJSON values are retained
+and reused during rendering. NDJSON admission stores nonblank values with source-line indices
 and counts blank lines separately, keeping auxiliary storage constant for blank
 runs. Rendering restores line breaks through the bounded output writer, including
 for multipart NDJSON.
