@@ -19,7 +19,6 @@ mod internal;
 mod json_structure_admission;
 #[cfg(feature = "json")]
 mod json_structure_preflight;
-#[cfg(any(feature = "json", feature = "http"))]
 mod operation_byte_sink;
 mod operation_sink;
 mod redaction_budget;
@@ -52,7 +51,6 @@ pub(crate) use json_structure_admission::JsonStructureAdmission;
 pub(crate) use json_structure_preflight::JsonStructurePreflight;
 #[cfg(feature = "json")]
 pub(crate) use json_structure_preflight::JsonStructurePreflightError;
-#[cfg(any(feature = "json", feature = "http"))]
 pub(crate) use operation_byte_sink::OperationByteSink;
 pub(crate) use operation_sink::OperationSink;
 pub use redaction_handle::RedactionHandle;

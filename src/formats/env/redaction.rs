@@ -9,12 +9,14 @@
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::fmt::Write as _;
 
 use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::output::log_escape::escape_log_control_characters;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::OperationByteSink;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
@@ -44,29 +46,19 @@ pub(crate) fn redact_os_pairs_with_policy<'a, I>(
 where
     I: IntoIterator<Item = (&'a OsStr, &'a OsStr)>,
 {
-    let mut writer = String::from("[");
+    let mut writer = OperationByteSink::new(max_output_bytes);
+    if writer.write_char('[').is_err() {
+        return truncated_output(max_output_bytes);
+    }
     let mut has_item = false;
     let mut locally_truncated = false;
     for (name, value) in pairs {
         let (pair, truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
         locally_truncated |= truncated;
-        let separator_len = usize::from(has_item) * 2;
-        let rendered = format!("{pair:?}");
-        let rendered_len = rendered.len();
-        if writer
-            .len()
-            .saturating_add(separator_len)
-            .saturating_add(rendered_len)
-            .saturating_add(1)
-            > max_output_bytes
-        {
+        if (has_item && writer.write_str(", ").is_err()) || write!(&mut writer, "{pair:?}").is_err() {
             locally_truncated = true;
             break;
         }
-        if has_item {
-            writer.push_str(", ");
-        }
-        writer.push_str(&rendered);
         has_item = true;
     }
     if locally_truncated {
@@ -77,16 +69,23 @@ where
             OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
         };
     }
-    if writer.len().saturating_add(1) > max_output_bytes {
-        const FALLBACK: &str = "<truncated>";
-        return if FALLBACK.len() <= max_output_bytes {
-            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
-        } else {
-            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
-        };
+    if writer.write_char(']').is_err() {
+        return truncated_output(max_output_bytes);
     }
-    writer.push(']');
+    let Some(writer) = writer.into_string() else {
+        return truncated_output(max_output_bytes);
+    };
     OperationSink::complete(writer).finish()
+}
+
+/// Returns the existing output-limit fallback for an unpublished env list.
+fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
+    const FALLBACK: &str = "<truncated>";
+    if FALLBACK.len() <= max_output_bytes {
+        OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
+    } else {
+        OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
+    }
 }
 
 /// Renders one unpublished environment assignment without materializing a
@@ -98,14 +97,13 @@ fn render_pair_output(
     max_output_bytes: usize,
 ) -> RenderedOperation {
     let (rendered, locally_truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
-    if locally_truncated || rendered.len() > max_output_bytes {
-        const FALLBACK: &str = "<truncated>";
-        return if FALLBACK.len() <= max_output_bytes {
-            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
-        } else {
-            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
-        };
+    let mut writer = OperationByteSink::new(max_output_bytes);
+    if locally_truncated || writer.write_str(&rendered).is_err() {
+        return truncated_output(max_output_bytes);
     }
+    let Some(rendered) = writer.into_string() else {
+        return truncated_output(max_output_bytes);
+    };
     OperationSink::complete(rendered).finish()
 }
 
@@ -130,18 +128,15 @@ pub(super) fn redact_os_pair_bounded_with_policy(
                         policy
                             .masking()
                             .mask_bounded_with_truncation(sensitivity, value, max_mask_bytes);
-                    (masked.into_owned(), truncated)
+                    (masked, truncated)
                 }
-                ResolvedField::PassThrough => (value.to_owned(), false),
+                ResolvedField::PassThrough => (Cow::Borrowed(value), false),
             };
-            (
-                format!(
-                    "{}={}",
-                    log_safe_owned(name.to_owned()).as_str(),
-                    log_safe_owned(value).as_str()
-                ),
-                locally_truncated,
-            )
+            let mut pair = String::with_capacity(max_mask_bytes.min(1024));
+            let complete = append_log_safe_bounded(name, &mut pair, max_mask_bytes)
+                && append_log_safe_bounded("=", &mut pair, max_mask_bytes)
+                && append_log_safe_bounded(&value, &mut pair, max_mask_bytes);
+            (pair, locally_truncated || !complete)
         }
         _ if policy.is_disabled() => (
             format!(
@@ -167,6 +162,21 @@ pub(super) fn redact_os_pair_bounded_with_policy(
         }
     };
     (pair, locally_truncated)
+}
+
+/// Appends log-safe text without retaining bytes beyond the operation limit.
+fn append_log_safe_bounded(value: &str, output: &mut String, maximum: usize) -> bool {
+    let mut encoded = [0_u8; 12];
+    for character in value.chars() {
+        let Ok(piece) = crate::output::log_escape::encode_log_safe_character(character, &mut encoded) else {
+            return false;
+        };
+        if output.len().saturating_add(piece.len()) > maximum {
+            return false;
+        }
+        output.push_str(piece);
+    }
+    true
 }
 
 /// Escapes an owned string for text-log display.

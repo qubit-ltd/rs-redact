@@ -7,7 +7,9 @@
 // =============================================================================
 //! Explicit and heuristic argument-vector redaction.
 
+use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::fmt::Write as _;
 
 use super::ArgvItem;
 use super::pending_field::PendingField;
@@ -15,6 +17,7 @@ use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::runtime::OperationByteSink;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
 
@@ -57,14 +60,17 @@ fn render_direct<'a, I>(
 where
     I: IntoIterator<Item = ArgvItem<'a>>,
 {
-    let mut writer = String::from("[");
+    let mut writer = OperationByteSink::new(max_output_bytes);
+    if writer.write_char('[').is_err() {
+        return truncated_output(max_output_bytes);
+    }
     let mut has_item = false;
     let mut pending = None;
     let mut locally_truncated = false;
     for item in items {
         let (rendered, item_truncated) = if policy.is_disabled() {
             pending = None;
-            (item.value().to_string_lossy().into_owned(), false)
+            (item.value().to_string_lossy(), false)
         } else if heuristic {
             if let Some(level) = item.sensitivity() {
                 pending = None;
@@ -77,28 +83,21 @@ where
         };
         locally_truncated |= item_truncated;
         let separator = if has_item { ", " } else { "" };
-        let rendered = format!("{rendered:?}");
-        if writer
-            .len()
-            .saturating_add(separator.len())
-            .saturating_add(rendered.len())
-            .saturating_add(1)
-            > max_output_bytes
-        {
+        if writer.write_str(separator).is_err() || write!(&mut writer, "{rendered:?}").is_err() {
             locally_truncated = true;
             break;
         }
-        writer.push_str(separator);
-        writer.push_str(&rendered);
         has_item = true;
     }
     if locally_truncated {
         return truncated_output(max_output_bytes);
     }
-    if writer.len().saturating_add(1) > max_output_bytes {
+    if writer.write_char(']').is_err() {
         return truncated_output(max_output_bytes);
     }
-    writer.push(']');
+    let Some(writer) = writer.into_string() else {
+        return truncated_output(max_output_bytes);
+    };
     OperationSink::complete(writer).finish()
 }
 
@@ -114,48 +113,52 @@ fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
 }
 
 /// Renders an explicitly classified or plain argv item.
-fn render_explicit_or_plain_bounded(
+fn render_explicit_or_plain_bounded<'a>(
     policy: &RedactionPolicy,
-    item: ArgvItem<'_>,
+    item: ArgvItem<'a>,
     max_output_bytes: usize,
-) -> (String, bool) {
+) -> (Cow<'a, str>, bool) {
     match item.sensitivity() {
         Some(level) => mask_os_value_bounded(policy, item.value(), level, max_output_bytes),
-        None => (item.value().to_string_lossy().into_owned(), false),
+        None => (item.value().to_string_lossy(), false),
     }
 }
 
 /// Masks an operating-system argv value with an explicit output ceiling.
-fn mask_os_value_bounded(
+fn mask_os_value_bounded<'a>(
     policy: &RedactionPolicy,
-    value: &OsStr,
+    value: &'a OsStr,
     level: Sensitivity,
     max_output_bytes: usize,
-) -> (String, bool) {
+) -> (Cow<'a, str>, bool) {
     match value.to_str() {
         Some(value) => {
             let (masked, truncated) = policy
                 .masking()
                 .mask_bounded_with_truncation(level, value, max_output_bytes);
-            (masked.into_owned(), truncated)
+            (masked, truncated)
         }
-        None => mask_opaque_value_bounded(policy, max_output_bytes),
+        None => {
+            let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
+            (Cow::Owned(masked), truncated)
+        }
     }
 }
 
 /// Redacts one heuristically classified plain argv item.
-fn redact_plain_item_bounded(
+fn redact_plain_item_bounded<'a>(
     policy: &RedactionPolicy,
-    value: &OsStr,
+    value: &'a OsStr,
     pending_field: &mut Option<PendingField>,
     max_output_bytes: usize,
-) -> (String, bool) {
+) -> (Cow<'a, str>, bool) {
     let Some(value) = value.to_str() else {
         *pending_field = Some(PendingField {
             field: String::new(),
             exact: false,
         });
-        return mask_opaque_value_bounded(policy, max_output_bytes);
+        let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
+        return (Cow::Owned(masked), truncated);
     };
 
     let option = option_field(value);
@@ -169,7 +172,8 @@ fn redact_plain_item_bounded(
             });
         }
         if pending.field.is_empty() {
-            return mask_opaque_value_bounded(policy, max_output_bytes);
+            let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
+            return (Cow::Owned(masked), truncated);
         }
         return mask_pending_value_bounded(policy, &pending, value, max_output_bytes);
     }
@@ -190,7 +194,7 @@ fn redact_plain_item_bounded(
             exact,
         });
     }
-    (value.to_owned(), false)
+    (Cow::Borrowed(value), false)
 }
 
 /// Resolves a possible option field name and its matching mode.
@@ -209,7 +213,11 @@ fn option_is_sensitive(policy: &RedactionPolicy, field: &str, exact: bool) -> bo
 }
 
 /// Redacts a `NAME=value` assignment when its name is sensitive.
-fn redact_assignment_bounded(policy: &RedactionPolicy, value: &str, max_output_bytes: usize) -> Option<(String, bool)> {
+fn redact_assignment_bounded<'a>(
+    policy: &RedactionPolicy,
+    value: &'a str,
+    max_output_bytes: usize,
+) -> Option<(Cow<'a, str>, bool)> {
     if value.starts_with('-') {
         return None;
     }
@@ -218,55 +226,55 @@ fn redact_assignment_bounded(policy: &RedactionPolicy, value: &str, max_output_b
         return None;
     }
     let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((format!("{name}={redacted}"), truncated))
+    Some((Cow::Owned(format!("{name}={redacted}")), truncated))
 }
 
 /// Redacts a `--name=value` option when its name is sensitive.
-fn redact_inline_option_bounded(
+fn redact_inline_option_bounded<'a>(
     policy: &RedactionPolicy,
-    value: &str,
+    value: &'a str,
     max_output_bytes: usize,
-) -> Option<(String, bool)> {
+) -> Option<(Cow<'a, str>, bool)> {
     if !value.starts_with("--") {
         return None;
     }
     let (left, raw_value) = value.split_once('=')?;
     let name = option_name(left)?;
     let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((format!("{left}={redacted}"), truncated))
+    Some((Cow::Owned(format!("{left}={redacted}")), truncated))
 }
 
 /// Redacts a `-Dname=value` JVM property when its name is sensitive.
-fn redact_jvm_property_bounded(
+fn redact_jvm_property_bounded<'a>(
     policy: &RedactionPolicy,
-    value: &str,
+    value: &'a str,
     max_output_bytes: usize,
-) -> Option<(String, bool)> {
+) -> Option<(Cow<'a, str>, bool)> {
     let property = value.strip_prefix("-D")?;
     let (name, raw_value) = property.split_once('=')?;
     if name.is_empty() {
         return None;
     }
     let (redacted, truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    Some((format!("-D{name}={redacted}"), truncated))
+    Some((Cow::Owned(format!("-D{name}={redacted}")), truncated))
 }
 
 /// Masks the value following a sensitive option.
-fn mask_pending_value_bounded(
+fn mask_pending_value_bounded<'a>(
     policy: &RedactionPolicy,
     pending: &PendingField,
-    value: &str,
+    value: &'a str,
     max_output_bytes: usize,
-) -> (String, bool) {
+) -> (Cow<'a, str>, bool) {
     match pending_item_sensitivity(policy, pending, value) {
         Some(sensitivity) => {
             let (masked, truncated) =
                 policy
                     .masking()
                     .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
-            (masked.into_owned(), truncated)
+            (masked, truncated)
         }
-        None => (value.to_owned(), false),
+        None => (Cow::Borrowed(value), false),
     }
 }
 
@@ -314,19 +322,19 @@ fn pending_item_sensitivity(policy: &RedactionPolicy, pending: &PendingField, va
 }
 
 /// Masks one classified field, returning `None` for pass-through fields.
-fn mask_field_value_bounded(
+fn mask_field_value_bounded<'a>(
     policy: &RedactionPolicy,
     field: &str,
-    value: &str,
+    value: &'a str,
     max_output_bytes: usize,
-) -> Option<(String, bool)> {
+) -> Option<(Cow<'a, str>, bool)> {
     match policy.resolve_field(field) {
         ResolvedField::Sensitive { sensitivity } => {
             let (masked, truncated) =
                 policy
                     .masking()
                     .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
-            Some((masked.into_owned(), truncated))
+            Some((masked, truncated))
         }
         ResolvedField::PassThrough => None,
     }

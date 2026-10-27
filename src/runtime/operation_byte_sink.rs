@@ -7,6 +7,7 @@
 // =============================================================================
 //! Runtime-owned byte sink for incrementally serialized safe text.
 
+use std::fmt;
 use std::io;
 use std::io::Write;
 
@@ -75,6 +76,15 @@ impl Write for OperationByteSink {
     /// Returns success without external I/O; in-memory flushing cannot fail.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl fmt::Write for OperationByteSink {
+    /// Retains one complete UTF-8 fragment or rejects it when the limit is
+    /// exceeded.
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        self.write(text.as_bytes()).map_err(|_| fmt::Error)?;
         Ok(())
     }
 }
