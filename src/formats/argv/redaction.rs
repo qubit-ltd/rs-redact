@@ -15,6 +15,7 @@ use super::ArgvItem;
 use super::pending_field::PendingField;
 use crate::RedactionReason;
 use crate::Sensitivity;
+use crate::formats::internal::bounded_os_text;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
 use crate::runtime::OperationByteSink;
@@ -70,7 +71,8 @@ where
     for item in items {
         let (rendered, item_truncated) = if policy.is_disabled() {
             pending = None;
-            (item.value().to_string_lossy(), false)
+            let (text, truncated) = bounded_os_text::capture(item.value(), max_output_bytes);
+            (Cow::Owned(text), truncated)
         } else if heuristic {
             if let Some(level) = item.sensitivity() {
                 pending = None;
@@ -120,7 +122,10 @@ fn render_explicit_or_plain_bounded<'a>(
 ) -> (Cow<'a, str>, bool) {
     match item.sensitivity() {
         Some(level) => mask_os_value_bounded(policy, item.value(), level, max_output_bytes),
-        None => (item.value().to_string_lossy(), false),
+        None => {
+            let (text, truncated) = bounded_os_text::capture(item.value(), max_output_bytes);
+            (Cow::Owned(text), truncated)
+        }
     }
 }
 

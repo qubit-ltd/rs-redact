@@ -80,6 +80,18 @@ fn bounded_redactor() -> Redactor {
     Redactor::new(policy)
 }
 
+fn bounded_disabled_redactor() -> Redactor {
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_output_bytes(16);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("disabled policy should build");
+    Redactor::new(policy)
+}
+
 #[test]
 fn test_large_public_utf8_argv_does_not_drive_intermediate_allocation() {
     let _ = Redactor::standard().redact_argv([ArgvItem::plain(OsStr::new("warmup"))]);
@@ -126,6 +138,71 @@ fn test_large_public_utf8_env_value_does_not_drive_intermediate_allocation() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn test_non_utf8_argv_and_env_capture_allocation_is_output_bounded() {
+    let enabled = Redactor::standard();
+    let disabled = bounded_disabled_redactor();
+    let _ = enabled.redact_argv([ArgvItem::plain(OsStr::new("warmup"))]);
+    let _ = disabled.redact_argv([ArgvItem::plain(OsStr::new("warmup"))]);
+    let _ = enabled.redact_env_pairs([(OsStr::new("N"), OsStr::new("v"))]);
+    let _ = disabled.redact_env_pairs([(OsStr::new("N"), OsStr::new("v"))]);
+    let redactor = bounded_redactor();
+    let small = OsString::from_vec([vec![b'x'; 4 * 1024], vec![0xff]].concat());
+    let large = OsString::from_vec([vec![b'x'; 48 * 1024], vec![0xff]].concat());
+    let small_name = OsString::from_vec([vec![b'N'; 4 * 1024], vec![0xff]].concat());
+    let large_name = OsString::from_vec([vec![b'N'; 48 * 1024], vec![0xff]].concat());
+
+    let (small_argv_max, small_argv) = measure(|| redactor.redact_argv([ArgvItem::plain(&small)]));
+    let (large_argv_max, large_argv) = measure(|| redactor.redact_argv([ArgvItem::plain(&large)]));
+    let (small_disabled_max, small_disabled) = measure(|| disabled.redact_argv([ArgvItem::plain(&small)]));
+    let (large_disabled_max, large_disabled) = measure(|| disabled.redact_argv([ArgvItem::plain(&large)]));
+    let (small_name_max, small_name_output) =
+        measure(|| redactor.redact_env_pairs([(small_name.as_os_str(), OsStr::new("v"))]));
+    let (large_name_max, large_name_output) =
+        measure(|| redactor.redact_env_pairs([(large_name.as_os_str(), OsStr::new("v"))]));
+    let (small_value_max, small_value_output) =
+        measure(|| disabled.redact_env_pairs([(OsStr::new("N"), small.as_os_str())]));
+    let (large_value_max, large_value_output) =
+        measure(|| disabled.redact_env_pairs([(OsStr::new("N"), large.as_os_str())]));
+
+    for (label, maximum) in [
+        ("small argv", small_argv_max),
+        ("large argv", large_argv_max),
+        ("small disabled argv", small_disabled_max),
+        ("large disabled argv", large_disabled_max),
+        ("small env name", small_name_max),
+        ("large env name", large_name_max),
+        ("small env value", small_value_max),
+        ("large env value", large_value_max),
+    ] {
+        assert!(maximum < 4 * 1024, "{label} requested {maximum} bytes");
+    }
+    for (small, large) in [
+        (small_argv_max, large_argv_max),
+        (small_disabled_max, large_disabled_max),
+        (small_name_max, large_name_max),
+        (small_value_max, large_value_max),
+    ] {
+        assert!(large <= small, "48 KiB request {large} exceeded 4 KiB request {small}");
+    }
+    for output in [
+        small_argv,
+        large_argv,
+        small_disabled,
+        large_disabled,
+        small_name_output,
+        large_name_output,
+        small_value_output,
+        large_value_output,
+    ] {
+        assert_eq!(output.text().as_str(), "<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        assert!(!output.summary().reasons().contains(RedactionReason::InputLimitReached));
+    }
+}
+
 #[test]
 fn test_repeated_escaping_stays_bounded_before_publishing_truncated_output() {
     let _ = Redactor::standard().redact_env("PUBLIC_VALUE", "warmup");
@@ -161,6 +238,24 @@ fn test_argv_and_env_keep_complete_unicode_and_debug_escaping() {
     assert_eq!(argv.text().as_str(), format!("[{:?}]", env_value));
     assert_eq!(env.text().as_str(), "PUBLIC_VALUE=a\"\\\\n e\u{301}雪");
     assert_eq!(argv.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(env.summary().completion(), RedactionCompletion::Complete);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_small_non_utf8_process_text_matches_lossy_legacy_representation() {
+    let redactor = Redactor::new(RedactionPolicy::disabled());
+    let bytes = b"quote\"\\\n e\xcc\x81 \xe9\x9b\xaa \xf0\x9f\x92\xff\xfe";
+    let value = OsString::from_vec(bytes.to_vec());
+    let lossy = value.to_string_lossy();
+
+    let argv = redactor.redact_argv([ArgvItem::plain(&value)]);
+    assert_eq!(argv.text().as_str(), format!("[{lossy:?}]"));
+    assert_eq!(argv.summary().completion(), RedactionCompletion::Complete);
+
+    let env_value = OsString::from_vec(vec![b'o', b'k', 0xff]);
+    let env = redactor.redact_env_pairs([(OsStr::new("PUBLIC"), env_value.as_os_str())]);
+    assert_eq!(env.text().as_str(), "[\"PUBLIC=ok�\"]");
     assert_eq!(env.summary().completion(), RedactionCompletion::Complete);
 }
 

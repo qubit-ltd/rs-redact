@@ -13,7 +13,7 @@ use std::fmt::Write as _;
 
 use crate::RedactionReason;
 use crate::Sensitivity;
-use crate::output::log_escape::escape_log_control_characters;
+use crate::formats::internal::bounded_os_text;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
 use crate::runtime::OperationByteSink;
@@ -138,27 +138,32 @@ pub(super) fn redact_os_pair_bounded_with_policy(
                 && append_log_safe_bounded(&value, &mut pair, max_mask_bytes);
             (pair, locally_truncated || !complete)
         }
-        _ if policy.is_disabled() => (
-            format!(
-                "{}={}",
-                log_safe_owned(name.to_string_lossy().into_owned()).as_str(),
-                log_safe_owned(value.to_string_lossy().into_owned()).as_str(),
-            ),
-            false,
-        ),
+        _ if policy.is_disabled() => {
+            let (name, name_truncated) = bounded_os_text::capture(name, max_mask_bytes);
+            if name_truncated {
+                return (String::new(), true);
+            }
+            let value_limit = max_mask_bytes.saturating_sub(name.len()).saturating_sub(1);
+            let (value, value_truncated) = bounded_os_text::capture(value, value_limit);
+            let mut pair = String::with_capacity(max_mask_bytes.min(1024));
+            let complete = !value_truncated
+                && append_log_safe_bounded(&name, &mut pair, max_mask_bytes)
+                && append_log_safe_bounded("=", &mut pair, max_mask_bytes)
+                && append_log_safe_bounded(&value, &mut pair, max_mask_bytes);
+            (pair, !complete)
+        }
         _ => {
             let masking = policy.masking();
             let complete_len = masking.mask_opaque(Sensitivity::Secret).len();
             let masked = masking.mask_opaque_bounded(Sensitivity::Secret, max_mask_bytes);
             let locally_truncated = masked.len() < complete_len;
-            (
-                format!(
-                    "{}={}",
-                    log_safe_owned(name.to_string_lossy().into_owned()).as_str(),
-                    log_safe_owned(masked).as_str(),
-                ),
-                locally_truncated,
-            )
+            let (name, name_truncated) = bounded_os_text::capture(name, max_mask_bytes);
+            let mut pair = String::with_capacity(max_mask_bytes.min(1024));
+            let complete = !name_truncated
+                && append_log_safe_bounded(&name, &mut pair, max_mask_bytes)
+                && append_log_safe_bounded("=", &mut pair, max_mask_bytes)
+                && append_log_safe_bounded(&masked, &mut pair, max_mask_bytes);
+            (pair, locally_truncated || !complete)
         }
     };
     (pair, locally_truncated)
@@ -177,21 +182,6 @@ fn append_log_safe_bounded(value: &str, output: &mut String, maximum: usize) -> 
         output.push_str(piece);
     }
     true
-}
-
-/// Escapes an owned string for text-log display.
-///
-/// # Parameters
-///
-/// * `value` - Owned text to escape.
-///
-/// # Returns
-///
-/// An owned string with log-control characters escaped.
-#[inline(always)]
-#[must_use]
-fn log_safe_owned(value: String) -> String {
-    escape_log_control_characters(Cow::Owned(value)).into_owned()
 }
 
 #[cfg(test)]

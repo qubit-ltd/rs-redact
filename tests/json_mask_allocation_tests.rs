@@ -13,6 +13,7 @@ use std::alloc::System;
 use std::cell::Cell;
 
 use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
@@ -102,6 +103,18 @@ fn fixture() -> (Redactor, Value, String) {
     fixture_with_mask_size(128 * 1024)
 }
 
+fn disabled_json_redactor_with_output_limit(max_output_bytes: usize) -> Redactor {
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes(1_000_000).max_output_bytes(max_output_bytes);
+        })
+        .expect("limit draft should build")
+        .build()
+        .expect("disabled policy should build");
+    Redactor::new(policy)
+}
+
 fn assert_bounded_redaction(max_request: usize, output: &qubit_redact::RedactionTextOutput) {
     assert!(
         max_request < 65_536,
@@ -134,6 +147,90 @@ fn test_json_text_masking_does_not_allocate_the_full_mask() {
     let _ = redactor.redact_json(&text);
     let (max_request, output) = measure(|| redactor.redact_json(&text));
     assert_bounded_redaction(max_request, &output);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_disabled_json_passthrough_allocation_is_bounded_by_output_limit() {
+    let redactor = disabled_json_redactor_with_output_limit(16);
+    let _ = redactor.redact_json("\"warmup\"");
+    let ordinary_small = format!("\"{}\"", "x".repeat(4 * 1024 - 2));
+    let ordinary_large = format!("\"{}\"", "x".repeat(48 * 1024 - 2));
+    let controls_small = "\n\u{202e}".repeat(4 * 1024 / 4);
+    let controls_large = "\n\u{202e}".repeat(48 * 1024 / 4);
+
+    let (ordinary_small_max, ordinary_small_output) = measure(|| redactor.redact_json(&ordinary_small));
+    let (ordinary_large_max, ordinary_large_output) = measure(|| redactor.redact_json(&ordinary_large));
+    let (controls_small_max, controls_small_output) = measure(|| redactor.redact_json(&controls_small));
+    let (controls_large_max, controls_large_output) = measure(|| redactor.redact_json(&controls_large));
+    eprintln!(
+        "T4 max alloc bytes: ordinary={ordinary_small_max}/{ordinary_large_max}, controls={controls_small_max}/{controls_large_max}"
+    );
+
+    for (label, maximum) in [
+        ("4 KiB JSON", ordinary_small_max),
+        ("48 KiB JSON", ordinary_large_max),
+        ("4 KiB controls", controls_small_max),
+        ("48 KiB controls", controls_large_max),
+    ] {
+        assert!(maximum < 4 * 1024, "{label} requested {maximum} bytes");
+    }
+    assert!(ordinary_large_max <= ordinary_small_max);
+    assert!(controls_large_max <= controls_small_max);
+    for (text, output) in [
+        (&ordinary_small, ordinary_small_output),
+        (&ordinary_large, ordinary_large_output),
+        (&controls_small, controls_small_output),
+        (&controls_large, controls_large_output),
+    ] {
+        assert_eq!(output.text().as_str(), "<truncated>");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        assert!(!output.summary().reasons().contains(RedactionReason::InputLimitReached));
+        assert_eq!(output.summary().usage().inspected_input_bytes(), text.len());
+    }
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_disabled_json_passthrough_keeps_output_boundary_semantics() {
+    let long_input = "this input is long";
+    for (limit, expected, completion) in [
+        (0, "", RedactionCompletion::Exhausted),
+        (10, "", RedactionCompletion::Exhausted),
+        (11, "<truncated>", RedactionCompletion::Truncated),
+        (12, "<truncated>", RedactionCompletion::Truncated),
+    ] {
+        let output = disabled_json_redactor_with_output_limit(limit).redact_json(long_input);
+        assert_eq!(output.text().as_str(), expected, "limit={limit}");
+        assert_eq!(output.summary().completion(), completion, "limit={limit}");
+        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        assert_eq!(
+            output.summary().usage().inspected_input_bytes(),
+            if limit == 0 { 0 } else { long_input.len() }
+        );
+    }
+
+    let redactor = disabled_json_redactor_with_output_limit(64);
+    let text = "{\"value\":\"雪\n\u{202e}\"}";
+    let expected = "{\"value\":\"雪\\n\\u{202e}\"}";
+    let output = redactor.redact_json(text);
+    assert_eq!(output.text().as_str(), expected);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+
+    let mut batch = redactor.diagnostic_batch();
+    let handle = batch.redact_json(text);
+    let batch = batch.finish_with_marker("");
+    assert_eq!(batch.text(handle).as_str(), expected);
+
+    let composed = redactor
+        .text_composer()
+        .json(|writer| {
+            writer.text(text);
+        })
+        .finish();
+    assert_eq!(composed.text().as_str(), expected);
+    assert_eq!(composed.summary().completion(), RedactionCompletion::Complete);
 }
 
 #[cfg(feature = "json")]

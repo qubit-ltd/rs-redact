@@ -11,6 +11,7 @@ pub mod argv;
 pub mod env;
 #[cfg(feature = "http")]
 pub mod http;
+mod internal;
 #[cfg(feature = "json")]
 pub mod json;
 pub mod process;
