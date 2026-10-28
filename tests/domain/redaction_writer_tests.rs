@@ -152,6 +152,118 @@ fn test_disabled_collection_inspection_has_no_sensitivity() {
     assert_eq!(inspection.max_sensitivity(), None);
 }
 
+struct DisabledBudgetCollections;
+
+impl Redact for DisabledBudgetCollections {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            items.sensitive_item(Sensitivity::Low, || "sequence-secret");
+        });
+        writer.map(|entries| {
+            entries.sensitive_entry_at_least(Sensitivity::Low, "", || "map-secret");
+        });
+        writer.record("BudgetRecord", |fields| {
+            fields.sensitive_at_least(Sensitivity::Low, "", || "record-secret");
+        });
+    }
+}
+
+#[test]
+fn test_disabled_sensitive_collections_still_admit_input_budget() {
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes(0).max_output_bytes(1000);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+
+    let output = Redactor::new(policy).redact_text(&DisabledBudgetCollections);
+
+    assert_eq!(output.summary().usage().inspected_input_bytes(), 0);
+    assert!(output.summary().reasons().contains(RedactionReason::InputLimitReached));
+    assert_ne!(output.summary().completion(), RedactionCompletion::Complete);
+    assert!(!output.text().as_str().contains("sequence-secret"));
+    assert!(!output.text().as_str().contains("map-secret"));
+    assert!(!output.text().as_str().contains("record-secret"));
+}
+
+struct DisabledBudgetSequence<'counter>(&'counter Cell<usize>);
+
+impl Redact for DisabledBudgetSequence<'_> {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.sequence(|items| {
+            items.sensitive_item(Sensitivity::Low, || {
+                self.0.set(self.0.get() + 1);
+                "x"
+            });
+            items.sensitive_item(Sensitivity::Low, || {
+                self.0.set(self.0.get() + 1);
+                "y"
+            });
+        });
+    }
+}
+
+#[test]
+fn test_disabled_sensitive_collection_exact_and_cumulative_input_budget() {
+    let exact_calls = Cell::new(0);
+    let exact_policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes(3).max_output_bytes(1000);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let exact = Redactor::new(exact_policy).redact_text(&DisabledBudgetSequence(&exact_calls));
+    assert_eq!(exact_calls.get(), 2);
+    assert_eq!(exact.summary().usage().inspected_input_bytes(), 3);
+    assert!(exact.summary().reasons().contains(RedactionReason::InputLimitReached));
+    assert!(!exact.text().as_str().contains("y"));
+
+    let cumulative_calls = Cell::new(0);
+    let cumulative_policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes(6).max_output_bytes(1000);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let cumulative = Redactor::new(cumulative_policy).redact_text(&DisabledBudgetSequence(&cumulative_calls));
+    assert_eq!(cumulative_calls.get(), 2);
+    assert_eq!(cumulative.summary().usage().inspected_input_bytes(), 6);
+    assert_eq!(cumulative.summary().completion(), RedactionCompletion::Complete);
+    assert!(cumulative.text().as_str().contains("\"x\""));
+    assert!(cumulative.text().as_str().contains("\"y\""));
+}
+
+#[test]
+fn test_sensitive_collection_accessors_remain_lazy_for_inspection_and_secret_masks() {
+    let calls = Cell::new(0);
+    struct Lazy<'counter>(&'counter Cell<usize>);
+    impl Redact for Lazy<'_> {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.sequence(|items| {
+                items.sensitive_item(Sensitivity::Secret, || {
+                    self.0.set(self.0.get() + 1);
+                    "secret"
+                });
+            });
+        }
+    }
+
+    let value = Lazy(&calls);
+    Redactor::new(RedactionPolicy::disabled())
+        .inspect(&value)
+        .expect("disabled inspection");
+    assert_eq!(calls.get(), 0);
+    let _ = Redactor::standard().redact_text(&value);
+    assert_eq!(calls.get(), 0);
+}
+
 #[cfg(feature = "derive")]
 #[derive(Redact)]
 struct ExplicitLevel {

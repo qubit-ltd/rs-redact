@@ -152,9 +152,6 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if self.writer.session.policy().is_disabled() {
-            return self.unredacted_item(access);
-        }
         if !self.admit_item() {
             self.write_truncated();
             return self;
@@ -163,7 +160,9 @@ impl<'writer, 'session> RedactionItems<'writer, 'session> {
             self.writer.session.observe_sensitivity(level);
             return self;
         }
-        if matches!(level, Sensitivity::High | Sensitivity::Secret) {
+        if self.writer.session.policy().is_disabled() {
+            self.writer.write_level_scalar(level, &access());
+        } else if matches!(level, Sensitivity::High | Sensitivity::Secret) {
             let value = self
                 .writer
                 .session

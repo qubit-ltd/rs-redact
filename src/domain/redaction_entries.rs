@@ -157,9 +157,6 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         T: Debug,
         F: FnOnce() -> T,
     {
-        if self.writer.session.policy().is_disabled() {
-            return self.unredacted_entry(name, access);
-        }
         if !self.admit_entry() || !self.writer.session.admit_domain_key(name) {
             self.write_truncated();
             return self;
@@ -178,7 +175,9 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
         if !self.writer.can_write() {
             return self;
         }
-        if matches!(effective_level, Sensitivity::High | Sensitivity::Secret) {
+        if self.writer.session.policy().is_disabled() {
+            self.writer.write_level_scalar(effective_level, &access());
+        } else if matches!(effective_level, Sensitivity::High | Sensitivity::Secret) {
             let value = self
                 .writer
                 .session
