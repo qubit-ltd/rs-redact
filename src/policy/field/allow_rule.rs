@@ -72,7 +72,10 @@ impl<'a> AllowRule<'a> {
     /// # Returns
     ///
     /// [`FieldNameMatching::Exact`] for an exact-only allow rule or
-    /// [`FieldNameMatching::ExactOrTokenSuffix`] for a suffix allow rule.
+    /// [`FieldNameMatching::ExactOrTokenSuffix`] for a rule declared to allow
+    /// token-suffix candidates. The application's matching mode still
+    /// controls which candidates are visited, so this value does not make a
+    /// suffix rule effective under [`FieldNameMatching::Exact`].
     #[must_use]
     #[inline(always)]
     pub const fn matching(&self) -> FieldNameMatching {

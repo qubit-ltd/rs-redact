@@ -135,7 +135,14 @@ impl FieldsBuilder<'_> {
         self
     }
 
-    /// Adds a suffix exception to the base redaction rules.
+    /// Adds an allow rule declared for exact and token-suffix candidates.
+    ///
+    /// Whether token-suffix candidates are considered is still controlled by
+    /// the application's [`FieldNameMatching`] mode. With
+    /// [`FieldNameMatching::Exact`], this rule can allow only the complete
+    /// normalized name; use [`Self::matching`] with
+    /// [`FieldNameMatching::ExactOrTokenSuffix`] to allow names such as
+    /// `request_diagnostic` through an `allow_suffix("diagnostic")` rule.
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.

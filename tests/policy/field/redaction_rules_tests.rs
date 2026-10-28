@@ -160,6 +160,63 @@ fn test_redaction_rules_allow_rule_suppresses_unknown_field_fallback() {
     assert_eq!(policy.sensitivity_for("other_field"), Some(Sensitivity::Secret));
 }
 
+/// Application matching controls whether an allow rule's suffix candidate is
+/// considered, while the rule view retains the breadth declared by its builder.
+#[test]
+fn test_redaction_rules_allow_breadth_is_limited_by_application_matching() {
+    for (matching, allow_suffix, request_allowed) in [
+        (FieldNameMatching::Exact, false, false),
+        (FieldNameMatching::Exact, true, false),
+        (FieldNameMatching::ExactOrTokenSuffix, false, false),
+        (FieldNameMatching::ExactOrTokenSuffix, true, true),
+    ] {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .disable_floor()
+                    .matching(matching)
+                    .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret));
+                if allow_suffix {
+                    fields.allow_suffix("diagnostic");
+                } else {
+                    fields.allow_exact("diagnostic");
+                }
+            })
+            .expect("the policy draft should be valid")
+            .build()
+            .expect("the policy should build");
+
+        let diagnostic = policy.classify_field("diagnostic");
+        assert!(matches!(diagnostic, FieldClassification::Allowed { .. }));
+        assert_eq!(policy.sensitivity_for("diagnostic"), None);
+
+        let request_diagnostic = policy.classify_field("request_diagnostic");
+        if request_allowed {
+            assert!(matches!(
+                request_diagnostic,
+                FieldClassification::Allowed {
+                    match_kind: FieldMatchKind::TokenSuffix,
+                    ..
+                }
+            ));
+            assert_eq!(policy.sensitivity_for("request_diagnostic"), None);
+        } else {
+            assert_eq!(request_diagnostic, FieldClassification::Unknown);
+            assert_eq!(policy.sensitivity_for("request_diagnostic"), Some(Sensitivity::Secret));
+        }
+
+        let rule = policy.application_allow_rules().next().expect("one allow rule");
+        assert_eq!(
+            rule.matching(),
+            if allow_suffix {
+                FieldNameMatching::ExactOrTokenSuffix
+            } else {
+                FieldNameMatching::Exact
+            }
+        );
+    }
+}
+
 /// Application resolution keeps the first-match allow boundary while merging
 /// stronger sensitive candidates after the first sensitive match.
 #[test]
