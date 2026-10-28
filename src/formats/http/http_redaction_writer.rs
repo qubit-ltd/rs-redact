@@ -79,14 +79,13 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         if !self.session.admit_format_node(1) {
             self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
+                OperationSink::complete("<truncated>").finish(),
             );
             return self;
         }
         if !admit_url_structure(self.session, value) {
-            self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         }
         let result = self.redact_url_str_direct(value);
@@ -215,9 +214,8 @@ impl<'session> HttpRedactionWriter<'session> {
         }
         let Some(admitted) = admit_body_structure(self.session, capture, content_type.map(|value| value.as_bytes()))
         else {
-            self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         };
         let remaining = self.session.remaining_output_bytes();
@@ -257,9 +255,8 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         let Some(admitted) = admit_body_structure(self.session, capture, content_type.map(str::as_bytes)) else {
-            self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         };
         let remaining = self.session.remaining_output_bytes();

@@ -72,9 +72,8 @@ impl<'session> UriRedactionWriter<'session> {
             return self;
         }
         if !self.admit_uri_structure(value) {
-            self.session.append_rendered_operation(
-                OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         }
         let result = self.redact_uri_direct(value);

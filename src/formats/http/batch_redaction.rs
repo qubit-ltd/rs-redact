@@ -35,9 +35,7 @@ pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHa
         );
     }
     if !session.admit_format_node(1) {
-        return session.stage_rendered_operation(
-            OperationSink::truncated("<truncated>", crate::RedactionReason::TraversalLimitReached).finish(),
-        );
+        return session.stage_accounted_text("<truncated>");
     }
     if !admit_url_structure(session, value) {
         return session.stage_accounted_text("<truncated>");
