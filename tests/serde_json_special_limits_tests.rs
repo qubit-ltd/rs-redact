@@ -190,6 +190,17 @@ fn test_general_serde_payload_still_accumulates_across_json_fields() {
 }
 
 #[test]
+fn test_json_tree_check_does_not_double_charge_general_serde_payload() {
+    let source = ValueField { data: json!("x") };
+    let policy = json_policy(|limits| {
+        limits.max_serde_payload_bytes(1);
+    });
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
+        .expect("one logical scalar byte fits the shared Serde payload budget");
+    assert_eq!(actual, json!({"data":"x"}));
+}
+
+#[test]
 fn test_rejected_value_fallback_obeys_payload_budget_and_new_scope_recovers() {
     let source = ValueField {
         data: json!({"x":"too long"}),
