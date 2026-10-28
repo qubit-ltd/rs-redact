@@ -310,7 +310,9 @@ impl JsonTreeVisitor for JsonUsageVisitor<'_> {
         match self.structural.admit_format_node(depth) {
             StructuralEntry::Entered => {}
             StructuralEntry::DepthLimitReached => return Err(RedactionReason::DepthLimitReached),
-            StructuralEntry::TraversalLimitReached => return Err(RedactionReason::TraversalLimitReached),
+            StructuralEntry::TraversalLimitReached => {
+                return Err(RedactionReason::TraversalLimitReached);
+            }
         }
         *self.usage = self.usage.with_domain_node(depth);
         if let Some(usage) = self.active_operation_usage.as_mut() {

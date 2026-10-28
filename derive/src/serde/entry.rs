@@ -1084,7 +1084,9 @@ fn adapter_helper(
     let params = &helper_generics.params;
     let (impl_generics, type_generics, where_clause) = helper_generics.split_for_impl();
     let carrier_arguments = helper_generics.params.iter().map(|parameter| match parameter {
-        GenericParam::Lifetime(parameter) if parameter.lifetime == lifetime => quote!(#lifetime),
+        GenericParam::Lifetime(parameter) if parameter.lifetime == lifetime => {
+            quote!(#lifetime)
+        }
         GenericParam::Lifetime(parameter) => {
             let name = &parameter.lifetime;
             quote!(#name)
