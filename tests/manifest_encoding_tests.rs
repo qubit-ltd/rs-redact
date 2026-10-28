@@ -9,14 +9,10 @@
 
 mod support;
 
-use std::io::Write;
-use std::process::Command;
-use std::process::Stdio;
-
 use support::manifest::toml_string;
 
 #[test]
-fn test_encoded_manifest_paths_round_trip_through_tomllib() {
+fn test_encoded_manifest_paths_round_trip_through_toml_parser() {
     let values = [
         r"C:\work\qubit",
         "a\"b",
@@ -26,27 +22,14 @@ fn test_encoded_manifest_paths_round_trip_through_tomllib() {
     ];
     for value in values {
         let manifest = format!("[dependencies]\nfixture = {{ path = {} }}\n", toml_string(value),);
-        let script = "import json, sys, tomllib\ndata = tomllib.loads(sys.stdin.read())\nprint(json.dumps(data['dependencies']['fixture']['path'], ensure_ascii=False))\n";
-        let mut child = Command::new("python3")
-            .args(["-c", script])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("python3 should be available for tomllib manifest parsing");
-        child
-            .stdin
-            .as_mut()
-            .expect("python stdin should be piped")
-            .write_all(manifest.as_bytes())
-            .expect("manifest should be sent to python stdin");
-        let output = child.wait_with_output().expect("python should finish parsing");
-        assert!(
-            output.status.success(),
-            "tomllib rejected manifest {manifest:?}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let actual: String = serde_json::from_slice(&output.stdout).expect("python should return JSON string");
+        let parsed: toml::Value = toml::from_str(&manifest)
+            .unwrap_or_else(|error| panic!("TOML parser rejected manifest {manifest:?}: {error}"));
+        let actual = parsed
+            .get("dependencies")
+            .and_then(|dependencies| dependencies.get("fixture"))
+            .and_then(|fixture| fixture.get("path"))
+            .and_then(toml::Value::as_str)
+            .expect("fixture path should be a TOML string");
         assert_eq!(actual, value);
     }
 }
