@@ -32,6 +32,7 @@ use super::field::adapter_helper_name;
 use super::field::field_context;
 use super::recursive_projection;
 use super::source_function_path::SourceTypeContext;
+use super::source_function_path::path_has_self_type_argument;
 use super::source_function_path::source_function_path;
 use super::r#struct::struct_body;
 use crate::attributes::SerdeAttributes;
@@ -1058,7 +1059,9 @@ fn adapter_helper(
     let field_type = &field.ty;
     let lifetime = assertions::fresh_lifetime(generics);
     let adapter_tokens = source_function_path(source_context, adapter);
-    let mut helper_generics = if adapter.segments.first().is_some_and(|segment| segment.ident == "Self") {
+    let mut helper_generics = if adapter.segments.first().is_some_and(|segment| segment.ident == "Self")
+        || path_has_self_type_argument(adapter)
+    {
         source_context.generics.clone()
     } else {
         assertions::generics_for_field_and_adapter(generics, field_type, adapter)

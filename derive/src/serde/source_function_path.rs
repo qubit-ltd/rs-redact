@@ -47,6 +47,42 @@ pub(super) fn source_function_path(context: &SourceTypeContext<'_>, path: &Path)
     }
 }
 
+/// Checks whether a path's generic type arguments use `Self`.
+pub(super) fn path_has_self_type_argument(path: &Path) -> bool {
+    path.segments.iter().any(|segment| {
+        let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+            return false;
+        };
+        arguments.args.iter().any(|argument| match argument {
+            GenericArgument::Type(ty) => type_uses_self(ty),
+            GenericArgument::AssocType(associated) => type_uses_self(&associated.ty),
+            _ => false,
+        })
+    })
+}
+
+fn type_uses_self(ty: &Type) -> bool {
+    match ty {
+        Type::Reference(value) => type_uses_self(&value.elem),
+        Type::Tuple(value) => value.elems.iter().any(type_uses_self),
+        Type::Array(value) => type_uses_self(&value.elem),
+        Type::Slice(value) => type_uses_self(&value.elem),
+        Type::Ptr(value) => type_uses_self(&value.elem),
+        Type::Paren(value) => type_uses_self(&value.elem),
+        Type::Group(value) => type_uses_self(&value.elem),
+        Type::Path(type_path) => {
+            type_path.qself.as_ref().is_some_and(|qself| type_uses_self(&qself.ty))
+                || type_path
+                    .path
+                    .segments
+                    .first()
+                    .is_some_and(|segment| segment.ident == "Self")
+                || path_has_self_type_argument(&type_path.path)
+        }
+        _ => false,
+    }
+}
+
 fn replace_self_in_path_arguments(path: &mut Path, source: &Ident, generics: &Generics) {
     for segment in &mut path.segments {
         if let PathArguments::AngleBracketed(arguments) = &mut segment.arguments {
