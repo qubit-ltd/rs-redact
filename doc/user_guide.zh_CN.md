@@ -966,7 +966,8 @@ Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
 派生类型的 `#[redact(json)]` 字段若存储为 `serde_json::Value`，会针对该字段完整值树检查
 JSON 专属限制（`max_json_depth`、节点数、集合项、key/string/number 字节和 JSON 载荷字节）。
 这些限制按字段检查，不跨 JSON 字段累计；通用 Serde 结构与载荷限制仍在活动 Serde scope
-中跨整个序列化结果累计。JSON `String` 字段在线路上仍是字符串，`Value` 字段保留 JSON 结构。
+中跨整个序列化结果累计。策略 disabled 时跳过这项新增 JSON 专属检查；既有通用 Serde scope
+计量和最终输出限制仍照常生效。JSON `String` 字段在线路上仍是字符串，`Value` 字段保留 JSON 结构。
 `to_json` 还限制最终编码字节；直接序列化 view 或源对象时，最终编码大小由外部 serializer
 和 writer 控制。借用的 `Value` 无法恢复原输入字节，也无法发现解析时已丢失的重复键。
 

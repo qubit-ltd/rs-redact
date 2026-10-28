@@ -242,10 +242,11 @@ it does not make arbitrary-precision inputs supported.
 For each derived `#[redact(json)]` field backed by `serde_json::Value`, JSON-specific
 limits are checked against that field's complete tree and are not accumulated across
 fields. General Serde structure and payload limits continue to accumulate in the active
-Serde scope. The `String` and `Value` forms retain distinct wire types: the former
-serializes as a string, while the latter serializes as JSON structure. `to_json` applies
-its final encoded-byte limit; direct view/source serialization leaves final encoding size
-to the caller's serializer and writer.
+Serde scope. Disabled policy skips this added JSON-specific check; existing Serde scope
+accounting and final output limits still apply. The `String` and `Value` forms retain distinct
+wire types: the former serializes as a string, while the latter serializes as JSON structure.
+`to_json` applies its final encoded-byte limit; direct view/source serialization leaves
+final encoding size to the caller's serializer and writer.
 
 Flat structured formats such as argv and environment lists use one runtime
 admission helper for root nodes, collection entries, child nodes, and source

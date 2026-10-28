@@ -204,6 +204,7 @@ JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 
 派生类型中每个由 `serde_json::Value` 承载的 `#[redact(json)]` 字段，分别针对完整值树检查
 JSON 专属限制，不跨字段累计。通用 Serde 结构与载荷限制仍在活动 Serde scope 中累计。
+策略 disabled 时跳过这项新增 JSON 专属检查；既有 Serde scope 计量和最终输出限制仍照常生效。
 `String` 与 `Value` 保留不同线路类型：前者序列化为字符串，后者序列化为 JSON 结构。`to_json`
 限制最终编码字节；直接序列化 view/源对象时，最终编码大小由调用方 serializer 和 writer 控制。
 

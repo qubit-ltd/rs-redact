@@ -1052,8 +1052,10 @@ Migrate 0.6 configurations that limited direct Serde payloads with `max_output_b
 For a derived `#[redact(json)]` field stored as `serde_json::Value`, JSON-specific limits
 (`max_json_depth`, nodes, collection items, key/string/number bytes, and JSON payload bytes)
 are checked against that field's complete tree. They are not accumulated across JSON fields.
-General Serde structure and payload limits still accumulate in the active Serde scope across
-the serialized value. A JSON `String` field is serialized as a string; a `Value` field keeps
+When the policy is disabled, this added JSON-specific check is skipped; the existing general
+Serde scope accounting and final output limits still apply.
+These general limits accumulate in the active Serde scope across the serialized value. A
+JSON `String` field is serialized as a string; a `Value` field keeps
 its JSON wire structure. `to_json` also enforces the final encoded-byte limit. Directly
 serializing a view or source object leaves final encoding size to the external serializer and
 writer. A borrowed `Value` has no recoverable original input bytes and cannot reveal duplicate
