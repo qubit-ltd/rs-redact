@@ -9,6 +9,8 @@
 use qubit_redact_derive::Redact;
 use serde::Serialize;
 
+trait Marker {}
+
 #[derive(Redact)]
 #[redact(serde)]
 struct Source<'a, T, const N: usize> {
@@ -59,6 +61,24 @@ impl TupleSource {
 
 #[derive(Redact)]
 #[redact(serde)]
+struct NestedSelfSource {
+    #[serde(serialize_with = "Self::encode::<&Self, _>")]
+    reference: String,
+}
+
+impl Marker for &NestedSelfSource {}
+
+impl NestedSelfSource {
+    fn encode<U: Marker, S>(value: &String, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(value)
+    }
+}
+
+#[derive(Redact)]
+#[redact(serde)]
 enum EnumSource {
     Named {
         #[serde(serialize_with = "Self::encode")]
@@ -87,6 +107,9 @@ fn main() {
         marker: [0; 3],
     };
     let _ = TupleSource("tuple".to_owned());
+    let _ = NestedSelfSource {
+        reference: "nested".to_owned(),
+    };
     let _ = EnumSource::Named {
         value: "named".to_owned(),
     };

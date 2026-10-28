@@ -66,9 +66,26 @@ fn replace_self_in_arguments(arguments: &mut AngleBracketedGenericArguments, sou
 }
 
 fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
+    match ty {
+        Type::Reference(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::Tuple(value) => {
+            for element in &mut value.elems {
+                replace_self_in_type(element, source, generics);
+            }
+        }
+        Type::Array(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::Slice(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::Ptr(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::Paren(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::Group(value) => replace_self_in_type(&mut value.elem, source, generics),
+        _ => {}
+    }
     let Type::Path(type_path) = ty else {
         return;
     };
+    if let Some(qself) = &mut type_path.qself {
+        replace_self_in_type(&mut qself.ty, source, generics);
+    }
     let (_, type_generics, _) = generics.split_for_impl();
     let source_type: Type = parse_quote!(#source #type_generics);
     if let Some(first) = type_path.path.segments.first()
@@ -95,6 +112,7 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
                 as_token: None,
                 gt_token: Default::default(),
             });
+            type_path.path.leading_colon = Some(Default::default());
             type_path.path.segments = remaining;
         }
         return;

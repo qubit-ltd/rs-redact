@@ -208,6 +208,62 @@ fn test_generic_custom_adapter_keeps_its_source_bounds() {
     );
 }
 
+/// Nested `Self` adapter type arguments keep the derived source identity.
+#[test]
+fn test_adapter_nested_self_uses_source_identity() {
+    trait HasAssoc {
+        type Assoc;
+    }
+
+    #[derive(Debug, Redact)]
+    #[redact(serde)]
+    struct Source<T> {
+        #[serde(serialize_with = "Self::serialize_type_name::<&Self, _>")]
+        reference: String,
+        #[serde(serialize_with = "Self::serialize_type_name::<(Self,), _>")]
+        tuple: String,
+        #[serde(serialize_with = "Self::serialize_type_name::<Option<&Self>, _>")]
+        nested_reference: String,
+        #[serde(serialize_with = "Self::serialize_type_name::<<Self as HasAssoc>::Assoc, _>")]
+        qualified_associated: String,
+        #[serde(serialize_with = "Self::serialize_type_name::<Option<&String>, _>")]
+        non_self: String,
+        #[serde(skip)]
+        marker: PhantomData<T>,
+    }
+
+    impl<T> HasAssoc for Source<T> {
+        type Assoc = String;
+    }
+
+    impl<T> Source<T> {
+        fn serialize_type_name<U, S: Serializer>(_: &String, serializer: S) -> Result<S::Ok, S::Error> {
+            serializer.serialize_str(std::any::type_name::<U>())
+        }
+    }
+
+    let value = Source::<u32> {
+        reference: String::new(),
+        tuple: String::new(),
+        nested_reference: String::new(),
+        qualified_associated: String::new(),
+        non_self: String::new(),
+        marker: PhantomData,
+    };
+    let expected = json!({
+        "reference": std::any::type_name::<&Source<u32>>(),
+        "tuple": std::any::type_name::<(Source<u32>,)>(),
+        "nested_reference": std::any::type_name::<Option<&Source<u32>>>(),
+        "qualified_associated": std::any::type_name::<String>(),
+        "non_self": std::any::type_name::<Option<&String>>(),
+    });
+    let redacted = to_value(Redactor::standard().redact_view(&value)).expect("adapter view serialization");
+    let source = to_value(&value).expect("source serialization");
+
+    assert_eq!(redacted, expected);
+    assert_eq!(source, expected);
+}
+
 /// Predicates work in tuple and enum fields with the same concrete generic
 /// shape.
 #[test]
