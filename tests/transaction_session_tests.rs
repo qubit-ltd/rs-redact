@@ -7,6 +7,7 @@
 // =============================================================================
 //! Transactional publication contracts for composer and batch.
 
+use std::cell::Cell;
 use std::ffi::OsStr;
 use std::panic::AssertUnwindSafe;
 
@@ -34,6 +35,113 @@ impl Redact for PanickingValue {
     fn write_redacted(&self, _: &mut RedactionWriter<'_>) {
         panic!("test-only redaction panic");
     }
+}
+
+struct FieldAfterRejectedKey<'counter>(&'counter Cell<usize>);
+
+impl Redact for FieldAfterRejectedKey<'_> {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.record("Record", |fields| {
+            fields.unredacted("12345", || "safe");
+            fields.unredacted("MODE", || {
+                self.0.set(self.0.get() + 1);
+                "safe"
+            });
+        });
+    }
+}
+
+fn closed_key_policy() -> RedactionPolicy {
+    RedactionPolicy::builder()
+        .limits(|limits| {
+            limits
+                .max_key_bytes(4)
+                .max_nodes(100)
+                .max_collection_items(100)
+                .max_input_bytes(1_000)
+                .max_output_bytes(1_000);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy")
+}
+
+#[test]
+fn test_composer_stops_appended_process_iterators_after_key_rejection() {
+    let argument_calls = Cell::new(0);
+    let environment_calls = Cell::new(0);
+    let arguments = std::iter::from_fn(|| {
+        let previous = argument_calls.replace(argument_calls.get() + 1);
+        assert_eq!(previous, 0, "unexpected repeated argv access");
+        Some(ArgvItem::plain(OsStr::new("--safe=value")))
+    });
+    let environment = std::iter::from_fn(|| {
+        let previous = environment_calls.replace(environment_calls.get() + 1);
+        assert_eq!(previous, 0, "unexpected repeated environment access");
+        Some((OsStr::new("MODE"), OsStr::new("safe")))
+    });
+    let output = Redactor::new(closed_key_policy())
+        .text_composer()
+        .field("12345", "safe")
+        .process(|process| {
+            process.command(OsStr::new("client"), arguments, environment);
+        })
+        .finish();
+
+    assert_eq!(argument_calls.get(), 0);
+    assert_eq!(environment_calls.get(), 0);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
+fn test_batch_stops_appended_process_iterators_after_key_rejection() {
+    let argument_calls = Cell::new(0);
+    let environment_calls = Cell::new(0);
+    let arguments = std::iter::from_fn(|| {
+        let previous = argument_calls.replace(argument_calls.get() + 1);
+        assert_eq!(previous, 0, "unexpected repeated argv access");
+        Some(ArgvItem::plain(OsStr::new("--safe=value")))
+    });
+    let environment = std::iter::from_fn(|| {
+        let previous = environment_calls.replace(environment_calls.get() + 1);
+        assert_eq!(previous, 0, "unexpected repeated environment access");
+        Some((OsStr::new("MODE"), OsStr::new("safe")))
+    });
+    let mut batch = Redactor::new(closed_key_policy()).diagnostic_batch();
+    let _rejected = batch.redact_field("12345", "safe");
+    let _process = batch.redact_process(OsStr::new("client"), arguments, environment);
+    let output = batch.finish_with_marker("<truncated>");
+
+    assert_eq!(argument_calls.get(), 0);
+    assert_eq!(environment_calls.get(), 0);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
+fn test_domain_scope_skips_later_field_accessor_after_key_rejection() {
+    let access_calls = Cell::new(0);
+    let output = Redactor::new(closed_key_policy()).redact_text(&FieldAfterRejectedKey(&access_calls));
+
+    assert_eq!(access_calls.get(), 0);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
 }
 
 #[test]
