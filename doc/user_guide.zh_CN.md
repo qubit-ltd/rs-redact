@@ -823,8 +823,8 @@ JSON 相对深度也计入共享 `max_depth`。例如领域深度 2 加 JSON 深
 inspection 会以 `DepthLimitReached` 拒绝。需要保留更深输出时，应提高共享上限。
 JSON 专属的 `max_json_depth` 仍以 JSON 根为基准，并报告 `TraversalLimitReached`。
 
-建议构造一份不可变策略，再共享生成的 `Redactor`。builder closure 具有事务语义：字段规则
-无效时，原 builder 不会受到部分修改。
+建议构造一份不可变策略，再共享生成的 `Redactor`。接收配置 closure 的 builder 方法会消耗
+builder。字段规则无效时，方法返回 `PolicyError`，不会返回替代 builder，也不会发布无效策略。
 
 <!-- redact-example: kind=run features=none -->
 ```rust

@@ -106,7 +106,7 @@ impl RedactionPolicyBuilder {
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
             disabled: policy.is_disabled(),
-            rules: RedactionRulesBuilder::from_inner(&policy.rules().clone_application(), PolicyLocation::Rules),
+            rules: RedactionRulesBuilder::from_owned(policy.rules().clone_application(), PolicyLocation::Rules),
             masking: policy.masking().clone(),
             floor: policy.rules().floor().cloned(),
             limits: *policy.limits(),
@@ -137,12 +137,13 @@ impl RedactionPolicyBuilder {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when a field name is empty after
-    /// canonicalization. The builder remains unchanged on error.
+    /// canonicalization. This consuming call returns the error without a
+    /// replacement builder, so the draft is not published.
     pub fn fields<F>(self, configure: F) -> Result<Self, PolicyError>
     where
         F: FnOnce(&mut FieldsBuilder<'_>),
     {
-        let mut draft = self.clone();
+        let mut draft = self;
         let error = {
             let mut fields = FieldsBuilder {
                 builder: &mut draft,
@@ -160,7 +161,7 @@ impl RedactionPolicyBuilder {
     /// Configures HTTP policy through an isolated draft.
     ///
     /// The draft replaces this namespace only after the closure returns, so a
-    /// failed build never partially updates the caller's builder.
+    /// failed configuration never publishes a partially updated builder.
     ///
     /// # Type Parameters
     ///
@@ -173,13 +174,14 @@ impl RedactionPolicyBuilder {
     /// # Errors
     ///
     /// Returns [`PolicyError`] when the HTTP view records an invalid field
-    /// rule. The original builder remains unchanged.
+    /// rule. This consuming call returns the error without a replacement
+    /// builder, so the draft is not published.
     #[cfg(feature = "http")]
     pub fn http<F>(self, configure: F) -> Result<Self, PolicyError>
     where
         F: FnOnce(&mut HttpPolicyBuilderView<'_>),
     {
-        let mut draft = self.clone();
+        let mut draft = self;
         let error = {
             let mut view = HttpPolicyBuilderView {
                 builder: &mut draft,
@@ -213,7 +215,7 @@ impl RedactionPolicyBuilder {
     where
         F: FnOnce(&mut UriPolicyBuilderView<'_>),
     {
-        let mut draft = self.clone();
+        let mut draft = self;
         let mut view = UriPolicyBuilderView {
             builder: &mut draft.uri,
         };

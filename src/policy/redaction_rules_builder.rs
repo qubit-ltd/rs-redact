@@ -64,10 +64,22 @@ impl RedactionRulesBuilder {
     #[must_use]
     #[inline(always)]
     pub(crate) fn from_inner(inner: &RedactionPolicyInner, location: PolicyLocation) -> Self {
+        Self::from_owned(inner.clone(), location)
+    }
+
+    /// Moves rule configuration from an owned immutable policy snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// * `inner` - Owned immutable rule state to move into the builder.
+    /// * `location` - Policy location used for later validation errors.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn from_owned(inner: RedactionPolicyInner, location: PolicyLocation) -> Self {
         Self {
-            sensitive: inner.sensitive.clone(),
-            allow_exact: inner.allow_exact.clone(),
-            allow_suffix: inner.allow_suffix.clone(),
+            sensitive: inner.sensitive,
+            allow_exact: inner.allow_exact,
+            allow_suffix: inner.allow_suffix,
             matching: inner.matching,
             unknown_field_policy: inner.unknown_field_policy,
             location,

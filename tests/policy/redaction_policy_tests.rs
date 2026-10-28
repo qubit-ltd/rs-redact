@@ -489,6 +489,78 @@ fn test_builder_from_copies_complete_policy_snapshot() {
     );
 }
 
+/// Verifies that editing one owned snapshot preserves its other namespaces
+/// while cloned builders and the source policy remain independent.
+#[test]
+fn test_owned_builder_edit_preserves_snapshot_and_clone() {
+    let base = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .matching(FieldNameMatching::Exact)
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
+                .secret_sensitive("api_token")
+                .allow_exact("public_token");
+        })
+        .expect("the field rules should be valid")
+        .build()
+        .expect("the base policy should build");
+    #[cfg(feature = "http")]
+    let base = base
+        .to_builder()
+        .http(|http| {
+            http.url_path(qubit_redact::formats::http::UrlPathPolicy::Redact);
+        })
+        .expect("the HTTP policy should be valid")
+        .build()
+        .expect("the HTTP policy should build");
+    #[cfg(feature = "uri")]
+    let base = base
+        .to_builder()
+        .uri(|uri| {
+            uri.path(qubit_redact::formats::uri::UriPathPolicy::Redact);
+        })
+        .expect("the URI policy should be valid")
+        .build()
+        .expect("the URI policy should build");
+    let builder = base.to_builder();
+    let cloned_builder = builder.clone();
+    let edited = builder
+        .fields(|fields| {
+            fields.high_sensitive("edited_field");
+        })
+        .expect("editing fields should preserve a valid policy");
+    let edited = edited.build().expect("the edited policy should build");
+    let cloned = cloned_builder.build().expect("the cloned builder should build");
+
+    for policy in [&base, &cloned, &edited] {
+        assert!(policy.floor().is_some());
+        assert_eq!(policy.matching(), FieldNameMatching::Exact);
+        assert_eq!(
+            policy.unknown_field_policy(),
+            UnknownFieldPolicy::Redact(Sensitivity::Low)
+        );
+        assert_eq!(policy.sensitivity_for("api_token"), Some(Sensitivity::Secret));
+        assert_eq!(policy.classify_field("public_token").sensitivity(), None);
+    }
+    assert_eq!(base.classify_field("edited_field").sensitivity(), None);
+    assert_eq!(cloned.classify_field("edited_field").sensitivity(), None);
+    assert_eq!(edited.sensitivity_for("edited_field"), Some(Sensitivity::High));
+    #[cfg(feature = "http")]
+    for policy in [&base, &cloned, &edited] {
+        assert_eq!(
+            policy.http().url_path_policy(),
+            qubit_redact::formats::http::UrlPathPolicy::Redact
+        );
+    }
+    #[cfg(feature = "uri")]
+    for policy in [&base, &cloned, &edited] {
+        assert_eq!(
+            policy.uri().path_policy(),
+            qubit_redact::formats::uri::UriPathPolicy::Redact
+        );
+    }
+}
+
 /// Verifies that raising never weakens a rule while overriding replaces it.
 #[test]
 fn test_raise_and_override_have_distinct_strength_semantics() {

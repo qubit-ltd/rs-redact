@@ -899,8 +899,10 @@ depth 4; a limit of 3 rejects inspection with `DepthLimitReached`. Raising the
 shared limit restores the previous output depth. JSON-specific `max_json_depth`
 remains relative to the JSON root and rejects with `TraversalLimitReached`.
 
-Build one immutable policy and share the resulting `Redactor`. Builder closures
-are transactional: an invalid field rule leaves the prior builder unchanged.
+Build one immutable policy and share the resulting `Redactor`. Builder methods
+that accept configuration closures consume the builder. If a field rule is
+invalid, they return `PolicyError` without returning a replacement builder or
+publishing an invalid policy.
 
 <!-- redact-example: kind=run features=none -->
 ```rust
