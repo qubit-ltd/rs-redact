@@ -934,8 +934,8 @@ Common builder actions include:
 | --- | --- |
 | `secret_sensitive(name)` | Classify a field as secret using the policy's current matching mode; the default is `ExactOrTokenSuffix` |
 | `raise(name, level)` | Raise runtime classification to at least the given level |
-| `allow_exact(name)` | Permit only the normalized complete name to stay unclassified |
-| `allow_suffix(name)` | Explicitly permit the normalized name and semantic token-suffix matches to stay unclassified |
+| `allow_exact(name)` | Declare an exact-name exception for the normalized complete name |
+| `allow_suffix(name)` | Declare an exception that can match exact and semantic token-suffix candidates |
 | `floor(floor)` | Install a minimum redaction floor for matching names |
 
 A floor can raise sensitivity above an allow rule when both match the same name. Floors are useful
@@ -947,8 +947,13 @@ which takes the strongest matching application and floor sensitivity.
 `FieldNameMatching::Exact` compares the complete normalized name: matching trims surrounding
 whitespace, ignores case, and removes supported separators, so it does not mean byte-for-byte
 equality. The default `ExactOrTokenSuffix` also checks semantic token suffixes (such as `pin` in
-`user_pin` and `userPin`), not arbitrary string endings. `allow_exact` always limits the allow rule
-to the normalized complete name; `allow_suffix` explicitly opts into semantic token-suffix matches.
+`user_pin` and `userPin`), not arbitrary string endings. The application's `matching` mode controls
+which candidates are visited for both sensitivity and allow rules. Thus `allow_suffix("diagnostic")`
+allows `diagnostic` in either mode, but allows `request_diagnostic` only with `ExactOrTokenSuffix`;
+with `Exact`, the unknown-field fallback still applies. `allow_exact` never allows a prefixed name.
+`AllowRule::matching()` reports the breadth declared by the rule, not an override of the application's
+candidate mode. `classify_field()` reports the matching application rule (or `Unknown` when only the
+unknown-field fallback applies), while `sensitivity_for()` reports the final effective sensitivity.
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -1179,7 +1184,7 @@ transaction `output_bytes`.
 | `complete_text()` fails | Output was truncated or exhausted | It checks completion; use `reasons()` or inspection to assess source validity |
 | Domain field not masked | Derive level, sibling keyed_by field, or manual `Redact` rules | Runtime does not infer business semantics from Rust types |
 | Sensitive JSON field value remains visible | Check whether the input uses `redact_json` / `redact_json_value` or a domain `Redact` implementation | Both JSON entry points preserve keys and classify values by key; domain objects rely on annotations or a manual implementation |
-| Inspection panics in tests but not production | Inspection must not format values | Ensure production logging does not bypass redaction entry points |
+| Inspection does not panic in tests, but production logs still expose raw values | Inspection does not invoke value formatters | Ensure production logging does not bypass redaction entry points |
 | URI accepted when it should be rejected | Use `inspect_uri`, not only `redact_uri` | Redaction produces safe text; inspection drives admission |
 | HTTP body shows source truncation | `RedactionReason::SourceTruncated` vs output limits | Use the correct `BodyCapture` constructor for partial bodies |
 

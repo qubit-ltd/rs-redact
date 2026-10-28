@@ -857,8 +857,8 @@ fn main() {
 | --- | --- |
 | `secret_sensitive(name)` | 按当前 matching 模式将字段分类为 secret；默认是 `ExactOrTokenSuffix` |
 | `raise(name, level)` | 把运行时分类至少提升到给定等级 |
-| `allow_exact(name)` | 仅允许规范化后的完整名称保持未分类 |
-| `allow_suffix(name)` | 显式允许规范化名称及其语义 token 后缀匹配保持未分类 |
+| `allow_exact(name)` | 声明仅针对规范化完整名称的例外 |
+| `allow_suffix(name)` | 声明可匹配完整名称及语义 token 后缀候选项的例外 |
 | `floor(floor)` | 为匹配名称安装最低脱敏 floor |
 
 当 floor 与 allow 规则同时匹配同名字段时，floor 可以把敏感度提高到 allow 之上。floor 适合
@@ -866,8 +866,12 @@ fn main() {
 
 `FieldNameMatching::Exact` 比较完整的规范化名称：匹配前会去除首尾空白、忽略大小写并移除支持的分隔符，
 所以它不等于逐字节完全相同。默认的 `ExactOrTokenSuffix` 还会检查语义 token 后缀，例如 `pin` 可匹配
-`user_pin` 和 `userPin`，但不匹配任意以相同字符结尾的字符串。`allow_exact` 始终只针对规范化后的完整名称；
-`allow_suffix` 则显式启用语义 token 后缀匹配。
+`user_pin` 和 `userPin`，但不匹配任意以相同字符结尾的字符串。应用层的 `matching` 模式控制敏感规则和
+allow 规则共同遍历哪些候选项。因此 `allow_suffix("diagnostic")` 在两种模式下都会放行 `diagnostic`，但只有
+`ExactOrTokenSuffix` 会让它放行 `request_diagnostic`；在 `Exact` 下仍应用 unknown 字段回退策略。`allow_exact`
+不会放行带前缀的名称。`AllowRule::matching()` 表示规则声明的匹配宽度，不会覆盖应用层候选模式。
+`classify_field()` 解释匹配到的应用规则；若仅应用 unknown 字段回退，则返回 `Unknown`；`sensitivity_for()`
+则给出最终有效敏感度。
 
 <!-- redact-example: kind=run features=none -->
 ```rust
