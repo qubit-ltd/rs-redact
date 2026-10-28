@@ -11,6 +11,7 @@ use crate::RedactionInspection;
 use crate::RedactionInspectionError;
 use crate::RedactionPolicy;
 use crate::RedactionTextOutput;
+use crate::Redactor;
 
 /// Applies application URI rules while retaining the standard URI safety
 /// floor and standard masks.
@@ -27,9 +28,8 @@ use crate::RedactionTextOutput;
 /// ```
 #[derive(Debug, Clone)]
 pub struct UriRedactionBoundary {
-    /// Effective immutable snapshot with confidentiality enabled and the
-    /// standard floor.
-    policy: RedactionPolicy,
+    /// Reusable executor with confidentiality enabled and the standard floor.
+    redactor: Redactor,
 }
 
 impl UriRedactionBoundary {
@@ -39,20 +39,23 @@ impl UriRedactionBoundary {
         let mut policy = application.clone();
         let _ = policy.set_disabled(false);
         policy = policy.add_floor(crate::policy::RedactionFloor::standard());
-        policy = policy.with_masking(RedactionPolicy::standard().masking().clone());
-        Self { policy }
+        let standard = RedactionPolicy::standard();
+        policy = policy.with_masking(standard.masking());
+        Self {
+            redactor: Redactor::new(policy),
+        }
     }
 
     /// Returns the effective boundary policy.
     #[inline(always)]
     pub fn policy(&self) -> &RedactionPolicy {
-        &self.policy
+        self.redactor.policy()
     }
 
     /// Redacts one URI while preserving safe URI structure.
     #[must_use]
     pub fn redact_uri(&self, text: &str) -> RedactionTextOutput {
-        crate::Redactor::new(self.policy.clone()).redact_uri(text)
+        self.redactor.redact_uri(text)
     }
 
     /// Inspects one URI under the same mandatory floor.
@@ -62,6 +65,6 @@ impl UriRedactionBoundary {
     /// Returns an inconclusive inspection on malformed input or budget
     /// rejection.
     pub fn inspect_uri(&self, text: &str) -> Result<RedactionInspection, RedactionInspectionError> {
-        crate::Redactor::new(self.policy.clone()).inspect_uri(text)
+        self.redactor.inspect_uri(text)
     }
 }

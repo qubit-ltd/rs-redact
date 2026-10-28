@@ -12,6 +12,7 @@ use crate::policy::RedactionFloor;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
 use crate::policy::Sensitivity;
+use crate::policy::UnknownFieldPolicy;
 
 /// Exact resolution applies application rules and the configured floor.
 #[test]
@@ -65,4 +66,34 @@ fn test_resolve_field_exact_keeps_floor_matching_independent() {
     assert_eq!(policy.sensitivity_for_exact("service_token"), None);
     assert_eq!(policy.sensitivity_for_exact("service_pin"), None);
     assert_eq!(policy.sensitivity_for("service_pin"), Some(Sensitivity::Low));
+}
+
+/// Adding a floor preserves each layer's matching and unknown-field behavior.
+#[test]
+fn test_add_floor_preserves_matching_and_unknown_fallback() {
+    let application_floor = RedactionFloor::builder()
+        .matching(FieldNameMatching::Exact)
+        .raise("qz_floor_marker", Sensitivity::High)
+        .expect("application floor rule should be valid")
+        .build()
+        .expect("application floor should be valid");
+    let policy = RedactionPolicy::standard()
+        .with_floor(application_floor)
+        .add_floor(RedactionFloor::standard());
+
+    assert_eq!(policy.sensitivity_for("qz_floor_marker"), Some(Sensitivity::High));
+    assert_eq!(policy.sensitivity_for("service_qz_floor_marker"), None);
+    assert_eq!(policy.sensitivity_for("service_password"), Some(Sensitivity::Secret));
+
+    let fallback_floor = RedactionFloor::builder()
+        .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Medium))
+        .build()
+        .expect("fallback floor should be valid");
+    let fallback_policy = RedactionPolicy::standard()
+        .with_floor(fallback_floor)
+        .add_floor(RedactionFloor::standard());
+    assert_eq!(
+        fallback_policy.sensitivity_for("unclassified_qz_field"),
+        Some(Sensitivity::Medium)
+    );
 }

@@ -462,8 +462,10 @@ impl RedactionPolicy {
     #[doc(hidden)]
     #[cfg(feature = "uri")]
     #[inline(always)]
-    pub(crate) fn with_masking(mut self, masking: MaskingPolicy) -> Self {
-        self.masking = Arc::new(masking);
+    pub(crate) fn with_masking(mut self, masking: &MaskingPolicy) -> Self {
+        if self.masking.as_ref() != masking {
+            self.masking = Arc::new(masking.clone());
+        }
         self
     }
 
@@ -472,6 +474,32 @@ impl RedactionPolicy {
     #[must_use]
     pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field(field)
+    }
+}
+
+#[cfg(all(test, feature = "uri"))]
+mod tests {
+    use std::sync::Arc;
+
+    use super::MaskingPolicy;
+    use super::RedactionPolicy;
+    use crate::policy::MaskPolicy;
+
+    /// Reusing an equal mask preserves its allocation; a different mask
+    /// replaces it.
+    #[test]
+    fn test_with_masking_reuses_equal_policy() {
+        let policy = RedactionPolicy::standard();
+        let original = Arc::clone(&policy.masking);
+        let equal = policy.clone().with_masking(policy.masking());
+        assert!(Arc::ptr_eq(&original, &equal.masking));
+
+        let mut replacement_builder = MaskingPolicy::builder();
+        replacement_builder.secret(MaskPolicy::fixed("custom"));
+        let replacement = replacement_builder.build();
+        let changed = policy.with_masking(&replacement);
+        assert!(!Arc::ptr_eq(&original, &changed.masking));
+        assert_eq!(changed.masking(), &replacement);
     }
 }
 

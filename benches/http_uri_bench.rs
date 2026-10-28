@@ -15,8 +15,10 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use http::HeaderMap;
 use http::HeaderValue;
+use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
+use qubit_redact::formats::uri::UriRedactionBoundary;
 
 /// Benchmarks URL, URI, header, and structured HTTP body redaction.
 fn benchmark_http_uri(criterion: &mut Criterion) {
@@ -91,6 +93,30 @@ fn benchmark_http_uri(criterion: &mut Criterion) {
         });
         group.finish();
     }
+
+    let uri = "https://example.test/?password=raw-secret";
+    let standard_policy = RedactionPolicy::standard();
+    let boundary = UriRedactionBoundary::new(&standard_policy);
+    let redacted = boundary.redact_uri(uri);
+    assert!(!redacted.text().as_str().contains("raw-secret"));
+    let inspected = boundary.inspect_uri(uri).expect("benchmark URI is valid");
+    assert!(inspected.contains_sensitive());
+
+    let mut group = criterion.benchmark_group("uri-boundary");
+    group.throughput(Throughput::Bytes(uri.len() as u64));
+    group.bench_function("new-standard", |bencher| {
+        bencher.iter(|| black_box(UriRedactionBoundary::new(black_box(&standard_policy))));
+    });
+    group.bench_function("new-and-redact", |bencher| {
+        bencher.iter(|| black_box(UriRedactionBoundary::new(black_box(&standard_policy))).redact_uri(black_box(uri)));
+    });
+    group.bench_function("reuse-redact", |bencher| {
+        bencher.iter(|| boundary.redact_uri(black_box(uri)));
+    });
+    group.bench_function("reuse-inspect", |bencher| {
+        bencher.iter(|| boundary.inspect_uri(black_box(uri)));
+    });
+    group.finish();
 }
 
 criterion_group!(benches, benchmark_http_uri);

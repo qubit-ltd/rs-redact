@@ -7,6 +7,7 @@
 // =============================================================================
 //! Mandatory URI boundary protection under application policy overrides.
 
+use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
@@ -96,10 +97,11 @@ fn test_boundary_adds_standard_floor_without_weakening_custom_fallback() {
         .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Secret))
         .build()
         .expect("valid custom floor");
-    let application = RedactionPolicy::disabled()
+    let application = RedactionPolicy::standard()
         .to_builder()
         .fields(|fields| {
             fields.floor(custom_floor);
+            fields.mask(Sensitivity::Secret, MaskPolicy::fixed("custom-mask"));
         })
         .expect("valid fields")
         .build()
@@ -118,4 +120,18 @@ fn test_boundary_adds_standard_floor_without_weakening_custom_fallback() {
         "https://example.test/?license_key=%3Credacted%3E"
     );
     assert!(!output.text().as_str().contains("full-license-secret"));
+
+    let cloned = boundary.clone();
+    assert_eq!(cloned.redact_uri(uri).text().as_str(), output.text().as_str());
+    assert_eq!(
+        cloned
+            .inspect_uri(uri)
+            .expect("clone inspection is valid")
+            .contains_sensitive(),
+        boundary
+            .inspect_uri(uri)
+            .expect("boundary inspection is valid")
+            .contains_sensitive(),
+    );
+    assert!(!output.text().as_str().contains("custom-mask"));
 }
