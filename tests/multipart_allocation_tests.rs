@@ -85,6 +85,73 @@ fn policy(max_collection_items: usize) -> RedactionPolicy {
         .expect("policy should build")
 }
 
+fn pass_through_policy() -> RedactionPolicy {
+    RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(2 * 1024 * 1024).max_output_bytes(64);
+        })
+        .expect("limits should be valid")
+        .http(|http| {
+            http.text_body(qubit_redact::formats::http::TextBodyPolicy::PassThrough);
+        })
+        .expect("HTTP policy should be valid")
+        .build()
+        .expect("policy should build")
+}
+
+fn large_text_part(size: usize, content_type: Option<&str>) -> Vec<u8> {
+    let mut body = "--b\r\nContent-Disposition: form-data; name=\"a\\tb\"\r\n"
+        .to_owned()
+        .into_bytes();
+    if let Some(content_type) = content_type {
+        body.extend_from_slice(format!("Content-Type: {content_type}\r\n").as_bytes());
+    }
+    body.extend_from_slice(b"\r\n");
+    let mut value = String::with_capacity(size);
+    while value.len().saturating_add("界".len()) <= size {
+        value.push('界');
+    }
+    value.extend(std::iter::repeat_n('x', size.saturating_sub(value.len())));
+    body.extend_from_slice(value.as_bytes());
+    body.extend_from_slice(b"\r\n--b--\r\n");
+    body
+}
+
+#[test]
+fn test_multipart_pass_through_allocations_do_not_scale_with_body_size() {
+    for content_type in [Some("text/plain"), None] {
+        let small = large_text_part(64 * 1024, content_type);
+        let large = large_text_part(1024 * 1024, content_type);
+        let redactor = Redactor::new(pass_through_policy());
+        for body in [&small, &large] {
+            let _ = redactor.redact_http_body_with_content_type_text(
+                BodyCapture::complete(body),
+                Some("multipart/form-data; boundary=b"),
+            );
+        }
+        let measure_body = |body: &[u8]| {
+            measure(|| {
+                redactor.redact_http_body_with_content_type_text(
+                    BodyCapture::complete(body),
+                    Some("multipart/form-data; boundary=b"),
+                )
+            })
+        };
+        let (small_allocated, small_result) = measure_body(&small);
+        let (large_allocated, large_result) = measure_body(&large);
+        for result in [small_result, large_result] {
+            assert!(result.summary().reasons().contains(RedactionReason::OutputLimitReached));
+            assert!(result.text().as_str().len() <= 64);
+        }
+        // The 64-byte output ceiling bounds the line allocation; a full body copy would
+        // add nearly 1 MiB.
+        assert!(
+            large_allocated <= small_allocated + 16 * 1024,
+            "content_type={content_type:?}: 64 KiB allocated {small_allocated}, 1 MiB allocated {large_allocated}"
+        );
+    }
+}
+
 #[test]
 fn test_multipart_auxiliary_allocations_do_not_scale_with_unadmitted_parts() {
     let small = multipart(4_096);
