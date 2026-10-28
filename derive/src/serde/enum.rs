@@ -17,6 +17,7 @@ use super::internal::adjacent_variant_arm;
 use super::internal::external_variant_arm;
 use super::internal::internal_variant_arm;
 use super::internal::untagged_variant_arm;
+use super::source_function_path::SourceTypeContext;
 use crate::attributes::SerdeContainerAttributes;
 use crate::attributes::SerdeEnumRepresentation;
 use crate::model::FieldsData;
@@ -43,7 +44,7 @@ use crate::model::VariantData;
 /// variant shape or serialized field name.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn enum_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variants: &[VariantData<'_>],
     runtime: &Path,
@@ -61,7 +62,7 @@ pub(super) fn enum_body(
             }
             match container_attributes.representation() {
                 SerdeEnumRepresentation::ExternallyTagged => external_variant_arm(
-                    type_name,
+                    source_context,
                     recursive_target,
                     variant,
                     runtime,
@@ -70,7 +71,7 @@ pub(super) fn enum_body(
                     legacy_nested,
                 ),
                 SerdeEnumRepresentation::InternallyTagged { tag } => internal_variant_arm(
-                    type_name,
+                    source_context,
                     recursive_target,
                     variant,
                     runtime,
@@ -80,7 +81,7 @@ pub(super) fn enum_body(
                     legacy_nested,
                 ),
                 SerdeEnumRepresentation::AdjacentlyTagged { tag, content } => adjacent_variant_arm(
-                    type_name,
+                    source_context,
                     recursive_target,
                     variant,
                     runtime,
@@ -91,7 +92,7 @@ pub(super) fn enum_body(
                     legacy_nested,
                 ),
                 SerdeEnumRepresentation::Untagged => untagged_variant_arm(
-                    type_name,
+                    source_context,
                     recursive_target,
                     variant,
                     runtime,

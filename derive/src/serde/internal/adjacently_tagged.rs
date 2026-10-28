@@ -10,10 +10,10 @@
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
-use syn::Ident;
 use syn::Path;
 use syn::Result;
 
+use super::super::source_function_path::SourceTypeContext;
 use super::variant_fields::enum_named_parts;
 use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
@@ -44,7 +44,7 @@ use crate::serde::naming::tuple_content_proxy;
 /// the representation-dispatch interface.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::serde) fn adjacent_variant_arm(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
@@ -61,7 +61,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, _conditions, names, carriers) = enum_named_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 fields,
@@ -100,7 +100,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 variant.index(),
@@ -158,7 +158,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
         }
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 variant.index(),

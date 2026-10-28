@@ -31,6 +31,8 @@ use super::r#enum::enum_body;
 use super::field::adapter_helper_name;
 use super::field::field_context;
 use super::recursive_projection;
+use super::source_function_path::SourceTypeContext;
+use super::source_function_path::source_function_path;
 use super::r#struct::struct_body;
 use crate::attributes::SerdeAttributes;
 use crate::attributes::SerdeContainerAttributes;
@@ -74,6 +76,10 @@ pub(crate) fn expand(
         return Ok(TokenStream::new());
     };
     let name = &input.ident;
+    let source_context = SourceTypeContext {
+        ident: name,
+        generics: &input.generics,
+    };
     let unsupported_recursive_fields = recursive_projection::has_unsupported_recursive_field(input, model);
     let recursive_target = if unsupported_recursive_fields {
         String::new()
@@ -99,7 +105,7 @@ pub(crate) fn expand(
     let serializer = assertions::fresh_identifier(&input.generics, "__QubitRedactSerializer");
     let body = match model {
         ContainerData::Struct(fields) => struct_body(
-            name,
+            &source_context,
             &recursive_target,
             fields,
             runtime,
@@ -108,7 +114,7 @@ pub(crate) fn expand(
             false,
         ),
         ContainerData::Enum(variants) => enum_body(
-            name,
+            &source_context,
             &recursive_target,
             variants,
             runtime,
@@ -122,7 +128,7 @@ pub(crate) fn expand(
     let legacy_body = if generate_serialize {
         Some(match model {
             ContainerData::Struct(fields) => struct_body(
-                name,
+                &source_context,
                 &recursive_target,
                 fields,
                 runtime,
@@ -131,7 +137,7 @@ pub(crate) fn expand(
                 true,
             ),
             ContainerData::Enum(variants) => enum_body(
-                name,
+                &source_context,
                 &recursive_target,
                 variants,
                 runtime,
@@ -154,7 +160,7 @@ pub(crate) fn expand(
             .iter()
             .map(|parameter| -> GenericParam { parse_quote!(#parameter: ?Sized) }),
     );
-    let adapters = serialization_adapter_helpers(name, &projection_generics, model, serde);
+    let adapters = serialization_adapter_helpers(&source_context, &projection_generics, model, serde);
     let (projection_impl_generics, projection_type_generics, _) = projection_generics.split_for_impl();
     let declaration = projection_declaration(
         input,
@@ -946,17 +952,17 @@ fn projection_member_value(attributes: &SerdeAttributes, raw: TokenStream) -> To
 /// Local helper declarations for fields with custom serialization adapters.
 #[must_use]
 fn serialization_adapter_helpers(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     generics: &Generics,
     model: &ContainerData<'_>,
     serde: &Path,
 ) -> Vec<TokenStream> {
     match model {
-        ContainerData::Struct(fields) => helpers_for_group(type_name, generics, fields, None, serde),
+        ContainerData::Struct(fields) => helpers_for_group(source_context, generics, fields, None, serde),
         ContainerData::Enum(variants) => variants
             .iter()
             .filter(|variant| !variant.serde_attributes().skip())
-            .flat_map(|variant| helpers_for_group(type_name, generics, variant.fields(), Some(variant), serde))
+            .flat_map(|variant| helpers_for_group(source_context, generics, variant.fields(), Some(variant), serde))
             .collect(),
     }
 }
@@ -976,7 +982,7 @@ fn serialization_adapter_helpers(
 /// Helper declarations only for fields with a serialization adapter.
 #[must_use]
 fn helpers_for_group(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     generics: &Generics,
     fields: &FieldsData<'_>,
     variant: Option<&VariantData<'_>>,
@@ -988,7 +994,7 @@ fn helpers_for_group(
             .filter(|field| !field.serde_attributes().skip())
             .filter_map(|field| {
                 adapter_helper(
-                    type_name,
+                    source_context,
                     generics,
                     field.field(),
                     &field_context(
@@ -1006,7 +1012,7 @@ fn helpers_for_group(
             .filter(|field| !field.serde_attributes().skip())
             .filter_map(|field| {
                 adapter_helper(
-                    type_name,
+                    source_context,
                     generics,
                     field.field(),
                     &field_context(
@@ -1039,7 +1045,7 @@ fn helpers_for_group(
 /// Some carrier and helper declarations when an adapter exists, otherwise None.
 #[must_use]
 fn adapter_helper(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     generics: &Generics,
     field: &Field,
     context: &str,
@@ -1047,11 +1053,16 @@ fn adapter_helper(
     serde: &Path,
 ) -> Option<TokenStream> {
     let adapter = adapter?;
-    let helper = adapter_helper_name(type_name, field, context);
+    let helper = adapter_helper_name(source_context.ident, field, context);
     let wrapper = format_ident!("{helper}_carrier", span = field.span());
     let field_type = &field.ty;
     let lifetime = assertions::fresh_lifetime(generics);
-    let mut helper_generics = assertions::generics_for_field_and_adapter(generics, field_type, adapter);
+    let adapter_tokens = source_function_path(source_context, adapter);
+    let mut helper_generics = if adapter.segments.first().is_some_and(|segment| segment.ident == "Self") {
+        source_context.generics.clone()
+    } else {
+        assertions::generics_for_field_and_adapter(generics, field_type, adapter)
+    };
     helper_generics
         .params
         .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
@@ -1086,7 +1097,7 @@ fn adapter_helper(
     });
     Some(quote_spanned! {field.span()=>
         #[allow(non_camel_case_types)] struct #wrapper<#params>(&#lifetime #field_type, ::core::marker::PhantomData<(#(#marker_types,)*)>) #where_clause;
-        impl #impl_generics #serde::Serialize for #wrapper #type_generics #where_clause { fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error> where #serializer: #serde::Serializer { #adapter(self.0, serializer) } }
+        impl #impl_generics #serde::Serialize for #wrapper #type_generics #where_clause { fn serialize<#serializer>(&self, serializer: #serializer) -> ::core::result::Result<#serializer::Ok, #serializer::Error> where #serializer: #serde::Serializer { #adapter_tokens(self.0, serializer) } }
         #[allow(non_snake_case)] let #helper: for<#lifetime> fn(&#lifetime #field_type) -> #wrapper<#(#carrier_arguments),*> = |value| #wrapper(value, ::core::marker::PhantomData);
     })
 }

@@ -9,10 +9,10 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Ident;
 use syn::Path;
 use syn::Result;
 
+use super::super::source_function_path::SourceTypeContext;
 use super::variant_fields::enum_named_parts;
 use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
@@ -37,7 +37,7 @@ use crate::model::VariantData;
 /// This function currently produces no direct error; the result type matches
 /// the representation-dispatch interface.
 pub(in crate::serde) fn untagged_variant_arm(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
@@ -50,7 +50,7 @@ pub(in crate::serde) fn untagged_variant_arm(
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) = enum_named_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 fields,
@@ -97,7 +97,7 @@ pub(in crate::serde) fn untagged_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 variant.index(),
@@ -127,7 +127,7 @@ pub(in crate::serde) fn untagged_variant_arm(
         }
         FieldsData::Unnamed(fields) => {
             let (pattern, setups, conditions, carriers) = enum_unnamed_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 variant.index(),

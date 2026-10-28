@@ -50,6 +50,65 @@ struct KeyedPair {
     value: Option<String>,
 }
 
+#[derive(Redact)]
+#[redact(serde)]
+struct SelfAdapterRecord {
+    #[serde(serialize_with = "Self::encode")]
+    value: String,
+}
+
+impl SelfAdapterRecord {
+    fn encode<S>(value: &String, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("encoded:{value}"))
+    }
+}
+
+#[derive(Redact)]
+#[redact(serde)]
+struct SelfPredicateRecord {
+    #[serde(serialize_with = "serialize_optional", skip_serializing_if = "Self::is_none")]
+    value: Option<String>,
+}
+
+impl SelfPredicateRecord {
+    fn is_none(value: &Option<String>) -> bool {
+        value.is_none()
+    }
+}
+
+fn serialize_optional<S>(value: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match value {
+        Some(value) => serializer.serialize_str(value),
+        None => serializer.serialize_none(),
+    }
+}
+
+#[test]
+fn test_serde_self_adapter_and_predicate_use_source_type() {
+    let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");
+    let adapter = SelfAdapterRecord {
+        value: "payload".to_owned(),
+    };
+    let encoded = serde_json::to_value(&adapter).expect("source adapter serialization");
+    assert_eq!(encoded["value"], "encoded:payload");
+
+    let empty = SelfPredicateRecord { value: None };
+    let empty = serde_json::to_value(&empty).expect("predicate serialization");
+    assert!(empty.get("value").is_none());
+
+    let populated = SelfPredicateRecord {
+        value: Some("payload".to_owned()),
+    };
+    let populated = serde_json::to_value(&populated).expect("adapter serialization");
+    assert_eq!(populated["value"], "payload");
+}
+
 #[test]
 fn test_serde_nested_and_map_modes_redact_structured_values() {
     let _guard = APPLICATION_DEFAULT_LOCK.lock().expect("default lock");

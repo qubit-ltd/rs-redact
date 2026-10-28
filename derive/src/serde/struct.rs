@@ -11,7 +11,6 @@ use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
 use quote::quote_spanned;
-use syn::Ident;
 use syn::Path;
 use syn::spanned::Spanned;
 
@@ -23,6 +22,7 @@ use super::field::raw_identifier;
 use super::field::serialization_condition;
 use super::field::serialized_carrier;
 use super::field_access::FieldAccess;
+use super::source_function_path::SourceTypeContext;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldMode;
 use crate::model::FieldsData;
@@ -48,7 +48,7 @@ use crate::model::UnnamedField;
 /// map-level or keyed-field validation.
 #[must_use]
 pub(super) fn struct_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     fields: &FieldsData<'_>,
     runtime: &Path,
@@ -58,7 +58,7 @@ pub(super) fn struct_body(
 ) -> TokenStream {
     match fields {
         FieldsData::Named(fields) if container_attributes.transparent() => transparent_named_struct_body(
-            type_name,
+            source_context,
             recursive_target,
             &fields[0],
             runtime,
@@ -67,7 +67,7 @@ pub(super) fn struct_body(
             legacy_nested,
         ),
         FieldsData::Named(fields) => named_struct_body(
-            type_name,
+            source_context,
             recursive_target,
             fields,
             runtime,
@@ -76,7 +76,7 @@ pub(super) fn struct_body(
             legacy_nested,
         ),
         FieldsData::Unnamed(fields) if fields.len() == 1 && container_attributes.transparent() => newtype_struct_body(
-            type_name,
+            source_context,
             recursive_target,
             &fields[0],
             runtime,
@@ -86,7 +86,7 @@ pub(super) fn struct_body(
             true,
         ),
         FieldsData::Unnamed(fields) if fields.len() == 1 => newtype_struct_body(
-            type_name,
+            source_context,
             recursive_target,
             &fields[0],
             runtime,
@@ -96,7 +96,7 @@ pub(super) fn struct_body(
             false,
         ),
         FieldsData::Unnamed(fields) => tuple_struct_body(
-            type_name,
+            source_context,
             recursive_target,
             fields,
             runtime,
@@ -138,7 +138,7 @@ pub(super) fn struct_body(
 /// Panics if map-level controls bypassed key-sensitivity validation.
 #[must_use]
 fn transparent_named_struct_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     parsed: &NamedField<'_>,
     runtime: &Path,
@@ -146,6 +146,7 @@ fn transparent_named_struct_body(
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
 ) -> TokenStream {
+    let type_name = source_context.ident;
     let serialized_name = container_attributes.name();
     if field_is_skipped(parsed.serde_attributes()) {
         return quote! {
@@ -182,7 +183,13 @@ fn transparent_named_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+    let condition = serialization_condition(
+        source_context,
+        parsed.serde_attributes(),
+        parsed.attributes().mode(),
+        raw,
+        predicate,
+    );
     quote! {
         if #condition {
             let __qubit_redact_serialized_0 = #value;
@@ -212,7 +219,7 @@ fn transparent_named_struct_body(
 /// Panics if map-level controls bypassed key-sensitivity validation.
 #[must_use]
 fn named_struct_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     fields: &[NamedField<'_>],
     runtime: &Path,
@@ -220,6 +227,7 @@ fn named_struct_body(
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
 ) -> TokenStream {
+    let type_name = source_context.ident;
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
     let mut serialized_names = Vec::new();
@@ -274,7 +282,13 @@ fn named_struct_body(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+        let condition = serialization_condition(
+            source_context,
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+            raw,
+            predicate,
+        );
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)
@@ -345,7 +359,7 @@ fn named_struct_body(
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 fn newtype_struct_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     parsed: &UnnamedField<'_>,
     runtime: &Path,
@@ -354,6 +368,7 @@ fn newtype_struct_body(
     legacy_nested: bool,
     transparent: bool,
 ) -> TokenStream {
+    let type_name = source_context.ident;
     let serialized_name = container_attributes.name();
     if field_is_skipped(parsed.serde_attributes()) {
         return quote! {
@@ -385,7 +400,13 @@ fn newtype_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+    let condition = serialization_condition(
+        source_context,
+        parsed.serde_attributes(),
+        parsed.attributes().mode(),
+        raw,
+        predicate,
+    );
     if transparent {
         quote! {
             if #condition {
@@ -431,7 +452,7 @@ fn newtype_struct_body(
 /// mode without a key sensitivity.
 #[must_use]
 fn tuple_struct_body(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     fields: &[UnnamedField<'_>],
     runtime: &Path,
@@ -439,6 +460,7 @@ fn tuple_struct_body(
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
 ) -> TokenStream {
+    let type_name = source_context.ident;
     let mut setups = Vec::new();
     let mut conditions = Vec::new();
     let mut carriers = Vec::new();
@@ -472,7 +494,13 @@ fn tuple_struct_body(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+        let condition = serialization_condition(
+            source_context,
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+            raw,
+            predicate,
+        );
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)

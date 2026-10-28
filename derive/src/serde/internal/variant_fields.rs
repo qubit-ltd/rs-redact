@@ -28,6 +28,7 @@ use crate::serde::field::raw_identifier;
 use crate::serde::field::serialization_condition;
 use crate::serde::field::serialized_carrier;
 use crate::serde::field_access::FieldAccess;
+use crate::serde::source_function_path::SourceTypeContext;
 /// Builds bindings, carriers, names, and conditions for named enum fields.
 ///
 /// # Parameters
@@ -51,7 +52,7 @@ use crate::serde::field_access::FieldAccess;
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn enum_named_parts(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant_name: &Ident,
     fields: &[NamedField<'_>],
@@ -60,6 +61,7 @@ pub(super) fn enum_named_parts(
     variant: &VariantData<'_>,
     legacy_nested: bool,
 ) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<String>, Vec<Ident>) {
+    let type_name = source_context.ident;
     let bindings = fields
         .iter()
         .enumerate()
@@ -131,7 +133,13 @@ pub(super) fn enum_named_parts(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+        let condition = serialization_condition(
+            source_context,
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+            raw,
+            predicate,
+        );
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)
@@ -167,7 +175,7 @@ pub(super) fn enum_named_parts(
 /// mode without a key sensitivity.
 #[must_use]
 pub(super) fn enum_unnamed_parts(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant_name: &Ident,
     variant_index: u32,
@@ -175,6 +183,7 @@ pub(super) fn enum_unnamed_parts(
     runtime: &Path,
     legacy_nested: bool,
 ) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<Ident>) {
+    let type_name = source_context.ident;
     let bindings = fields
         .iter()
         .map(|parsed| {
@@ -220,7 +229,13 @@ pub(super) fn enum_unnamed_parts(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(parsed.serde_attributes(), parsed.attributes().mode(), raw, predicate);
+        let condition = serialization_condition(
+            source_context,
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+            raw,
+            predicate,
+        );
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)

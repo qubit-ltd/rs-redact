@@ -20,6 +20,8 @@ use crate::attributes::SerdeAttributes;
 use crate::model::FieldMode;
 use crate::serde::field_access::FieldAccess;
 use crate::serde::recursive_projection;
+use crate::serde::source_function_path::SourceTypeContext;
+use crate::serde::source_function_path::source_function_path;
 
 /// Returns whether Serde unconditionally omits a field.
 ///
@@ -56,6 +58,7 @@ pub(super) fn field_is_skipped(serde_attributes: &SerdeAttributes) -> bool {
 #[must_use]
 #[inline]
 pub(super) fn serialization_condition(
+    source_context: &SourceTypeContext<'_>,
     serde_attributes: &SerdeAttributes,
     mode: &FieldMode,
     raw: TokenStream,
@@ -64,7 +67,13 @@ pub(super) fn serialization_condition(
     let predicate = serde_attributes.skip_serializing_if().map_or_else(
         || quote!(true),
         |predicate| {
-            let predicate = saved_predicate.unwrap_or_else(|| quote!(#predicate));
+            let predicate = saved_predicate.unwrap_or_else(|| {
+                if serde_attributes.serialize_with().is_some() {
+                    source_function_path(source_context, predicate)
+                } else {
+                    quote!(#predicate)
+                }
+            });
             quote!(!(#predicate)(#raw))
         },
     );

@@ -10,10 +10,10 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Error;
-use syn::Ident;
 use syn::Path;
 use syn::Result;
 
+use super::super::source_function_path::SourceTypeContext;
 use super::variant_fields::enum_named_parts;
 use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
@@ -42,7 +42,7 @@ use crate::serde::naming::serialized_variant_name;
 /// internally tagged tuple variant does not contain exactly one field.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::serde) fn internal_variant_arm(
-    type_name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant: &VariantData<'_>,
     runtime: &Path,
@@ -51,13 +51,14 @@ pub(in crate::serde) fn internal_variant_arm(
     tag: &str,
     legacy_nested: bool,
 ) -> Result<TokenStream> {
+    let type_name = source_context.ident;
     let rust_name = &variant.variant().ident;
     let variant_name = serialized_variant_name(variant, container_attributes);
     let enum_name = container_attributes.name();
     match variant.fields() {
         FieldsData::Named(fields) => {
             let (pattern, setups, conditions, names, carriers) = enum_named_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 fields,
@@ -122,7 +123,7 @@ pub(in crate::serde) fn internal_variant_arm(
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
             let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
-                type_name,
+                source_context,
                 recursive_target,
                 rust_name,
                 variant.index(),
