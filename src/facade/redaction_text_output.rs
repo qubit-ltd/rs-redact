@@ -16,7 +16,10 @@ use crate::RedactionCompletion;
 /// Published policy-transformed text and completion metadata from one
 /// operation.
 ///
-/// Incomplete output retains the selected policy's confidentiality guarantees.
+/// A complete safe replacement can carry a parsing reason even when the
+/// source format was invalid. Completion describes the published
+/// representation, not source validity. Incomplete output retains the
+/// selected policy's confidentiality guarantees.
 /// `Truncated` and `Exhausted` describe incomplete diagnostics; they do not
 /// authorize disclosure of fields protected by that policy. As with
 /// [`RedactedText`], disabled policies and explicitly unredacted operations can
@@ -80,13 +83,16 @@ impl RedactionTextOutput {
     }
 
     /// Borrows the final text when the operation completed without truncation
-    /// or exhaustion.
+    /// or exhaustion. This does not validate the source format: a complete
+    /// safe replacement can carry a parsing reason.
     ///
     /// # Errors
     ///
     /// Returns the execution summary when the safe output was truncated or
     /// exhausted. The error reports completeness; it does not imply that the
-    /// published text is unsafe for diagnostics.
+    /// published text is unsafe for diagnostics. A complete result may still
+    /// contain a parsing reason; inspect the summary or use format inspection
+    /// when source validity matters.
     ///
     /// # Returns
     ///
@@ -102,7 +108,7 @@ impl RedactionTextOutput {
     }
 
     /// Borrows the final text or returns an escaped caller-selected marker
-    /// when the operation was incomplete.
+    /// when completion is `Truncated` or `Exhausted`.
     ///
     /// The complete path does not allocate. An incomplete marker is escaped
     /// before publication so control characters cannot forge diagnostic log
@@ -129,13 +135,18 @@ impl RedactionTextOutput {
         )
     }
 
-    /// Consumes a complete output and returns its final text.
+    /// Consumes a `Complete` output and returns its final text.
+    ///
+    /// This checks completion only; a complete safe replacement can carry a
+    /// parsing reason and does not prove that the source format was valid.
     ///
     /// # Errors
     ///
     /// Returns the execution summary when the safe output was truncated or
     /// exhausted. The error reports completeness; it does not imply that the
-    /// published text is unsafe for diagnostics.
+    /// published text is unsafe for diagnostics. A complete result may still
+    /// contain a parsing reason; inspect the summary or use format inspection
+    /// when source validity matters.
     ///
     /// # Returns
     ///
@@ -149,8 +160,8 @@ impl RedactionTextOutput {
         }
     }
 
-    /// Consumes the output and returns a caller-selected marker when it is
-    /// incomplete.
+    /// Consumes the output and returns a caller-selected marker when its
+    /// completion is `Truncated` or `Exhausted`.
     ///
     /// The marker is escaped before becoming [`RedactedText`], so it remains
     /// safe for diagnostic presentation.

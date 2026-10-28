@@ -202,12 +202,21 @@ JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 借用 `Value` 跳过原始文本校验，因此无法还原源输入字节或检测源文本中的重复键。
 测试期间合并启用 `serde_json/arbitrary_precision` 是为了保护数字契约，不表示支持任意精度输入。
 
+派生类型中每个由 `serde_json::Value` 承载的 `#[redact(json)]` 字段，分别针对完整值树检查
+JSON 专属限制，不跨字段累计。通用 Serde 结构与载荷限制仍在活动 Serde scope 中累计。
+`String` 与 `Value` 保留不同线路类型：前者序列化为字符串，后者序列化为 JSON 结构。`to_json`
+限制最终编码字节；直接序列化 view/源对象时，最终编码大小由调用方 serializer 和 writer 控制。
+
 argv、环境变量列表等扁平结构格式通过同一个 runtime admission helper 计费根节点、集合项、子节点
 和源字节。composer 与 batch 保留不同发布模型，但同一输入迭代器的推进和计费规则不能各自漂移。
 
 输出不足时只保留完整 UTF-8 前缀和安全标记。`Truncated` 表示仍有安全但不完整的表示，
 `Exhausted` 表示预算无法容纳完整替代。调用方应读取 `RedactionSummary`，不能通过解析标记文本
 推断原因。
+
+`Complete` 只表示输出完整，不证明源格式有效，也不表示没有 reason：完整安全解析错误替代可以带有
+`InvalidUri`。`complete_text` 和 marker helper 按完成状态选择；要求输入有效的调用方应使用
+inspection 或检查对应解析原因。
 
 ### 6.1 标量准入、失败事实与输出关闭
 

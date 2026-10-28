@@ -1036,8 +1036,8 @@ already own; replacement does not retroactively toggle in-flight work.
 | Entry point | Structure and input limits | Logical Serde payload | Final encoded bytes |
 | --- | --- | --- | --- |
 | Fields, domain text, composer, batch | Shared transaction admission per entry point | Not applicable | `max_output_bytes` |
-| View or derived source `Serialize` | Shared Serde scope | `max_serde_payload_bytes` | Caller-owned writer |
-| `to_json` | Shared Serde scope | `max_serde_payload_bytes` | `max_output_bytes` |
+| View or derived source `Serialize` | Shared Serde scope; JSON-specific limits checked per `#[redact(json)]` `Value` field | `max_serde_payload_bytes` | Caller-owned writer |
+| `to_json` | Shared Serde scope; JSON-specific limits checked per `#[redact(json)]` `Value` field | `max_serde_payload_bytes` | `max_output_bytes` |
 | `redact_json` / `redact_json_value` | Text transaction and JSON-specific limits | Not applicable | `max_output_bytes` |
 
 `max_input_bytes` defaults to 64 KiB; each output-related limit defaults to 16 KiB.
@@ -1048,6 +1048,16 @@ Enable `bigdecimal` explicitly when using BigDecimal; enabling `serde` alone no 
 
 Migrate 0.6 configurations that limited direct Serde payloads with `max_output_bytes` to
 `max_serde_payload_bytes`. Set both when `to_json` must obey both ceilings; they are never implicitly linked.
+
+For a derived `#[redact(json)]` field stored as `serde_json::Value`, JSON-specific limits
+(`max_json_depth`, nodes, collection items, key/string/number bytes, and JSON payload bytes)
+are checked against that field's complete tree. They are not accumulated across JSON fields.
+General Serde structure and payload limits still accumulate in the active Serde scope across
+the serialized value. A JSON `String` field is serialized as a string; a `Value` field keeps
+its JSON wire structure. `to_json` also enforces the final encoded-byte limit. Directly
+serializing a view or source object leaves final encoding size to the external serializer and
+writer. A borrowed `Value` has no recoverable original input bytes and cannot reveal duplicate
+keys that were discarded while parsing it.
 
 Scalar entry points admit the root node, key length, and key UTF-8 bytes before classification
 or value formatting. With redaction enabled, High/Secret charges only key bytes and does not invoke value Display.
@@ -1094,20 +1104,42 @@ allocations made before calling the library.
 ## Errors and Diagnostics
 
 Use `summary().completion()`, `summary().reasons()`, and `summary().usage()`
-when the caller needs to distinguish a complete result from a budget or parser
-degradation. Do not infer that state by parsing displayed text. For strict
-presentation, `complete_text()` and `into_complete_text()` reject an incomplete
-result; for diagnostic presentation, `text_or_marker()` and
+when the caller needs completeness, observed causes, or resource use. A
+`Complete` result can carry a parsing reason when a complete safe replacement
+was produced; `complete_text()` does not certify that the source syntax was
+valid. Do not infer state by parsing displayed text. For strict presentation,
+`complete_text()` and `into_complete_text()` reject only `Truncated` or
+`Exhausted`; for diagnostic presentation, `text_or_marker()` and
 `into_text_or_marker()` select an explicit fallback. An inspection error means
 classification was inconclusive and should be treated as sensitive when the
 result controls a security decision.
 
 ## Handle Incomplete Results
 
-`RedactionCompletion` distinguishes complete rendering from budget or parser degradation.
-Diagnostic callers usually log `text()` or `text_or_marker(fallback)` and inspect
-`summary().reasons()` afterward. Audit or storage paths that require completeness should call
-`complete_text()` or `into_complete_text()` and handle the error explicitly.
+`RedactionCompletion` reports whether the safe representation is complete. It does not report
+whether the source syntax was valid: a complete safe replacement can carry `InvalidUri` or
+another parsing reason. Diagnostic callers can inspect both `completion()` and `reasons()`.
+Audit or storage paths that require complete output should call `complete_text()` or
+`into_complete_text()` and handle the error explicitly; callers that require valid input should
+use format inspection or check the relevant parsing reason.
+
+The following executable example documents existing behavior for an invalid URI. It does not
+add parsing behavior: the safe replacement is complete, while inspection rejects the input.
+
+<!-- redact-example: kind=run features=uri -->
+```rust
+use qubit_redact::{RedactionCompletion, RedactionReason, Redactor};
+
+fn main() {
+    let r = Redactor::standard();
+    let invalid = r.redact_uri("");
+    assert_eq!(invalid.summary().completion(), RedactionCompletion::Complete);
+    assert!(invalid.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert_eq!(invalid.complete_text().unwrap().as_str(), "<invalid URI>");
+    assert_eq!(invalid.text_or_marker("FALLBACK"), "<invalid URI>");
+    assert!(r.inspect_uri("").is_err());
+}
+```
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -1142,7 +1174,7 @@ transaction `output_bytes`.
 | Unknown field over-masked under strict policy | Add `allow_exact` / `allow_suffix` or use standard policy | Strict mode defaults unknown scalars to secret |
 | Truncated or empty batch item | `completion()`, `reasons()`, `usage()` | Earlier batch items consume shared limits |
 | Handle shows fallback marker | Handle belongs to a different batch | Handles do not cross batches |
-| `complete_text()` fails | Output was truncated or exhausted | Expected for audit paths; use `text_or_marker` for logs |
+| `complete_text()` fails | Output was truncated or exhausted | It checks completion; use `reasons()` or inspection to assess source validity |
 | Domain field not masked | Derive level, sibling keyed_by field, or manual `Redact` rules | Runtime does not infer business semantics from Rust types |
 | Sensitive JSON field value remains visible | Check whether the input uses `redact_json` / `redact_json_value` or a domain `Redact` implementation | Both JSON entry points preserve keys and classify values by key; domain objects rely on annotations or a manual implementation |
 | Inspection panics in tests but not production | Inspection must not format values | Ensure production logging does not bypass redaction entry points |

@@ -9,6 +9,10 @@
 
 /// Describes whether a redaction operation produced all required safe output.
 ///
+/// Completion records whether the safe representation is complete; it does
+/// not certify that the source format was valid. A complete safe replacement
+/// may carry a parsing reason such as `InvalidUri`.
+///
 /// # Examples
 ///
 /// ```
@@ -21,9 +25,11 @@
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedactionCompletion {
-    /// All input was processed and its complete safe output fit the budget.
+    /// The operation produced a complete safe representation within budget.
     ///
-    /// An ordinary sensitivity mask is a complete result, not truncation.
+    /// An ordinary sensitivity mask or a complete safe parse-error
+    /// replacement is a complete result, not truncation. Inspect reasons or
+    /// use a format inspection API when source validity matters.
     Complete,
     /// Input or output was omitted, but non-empty safe substitute text was
     /// emitted.

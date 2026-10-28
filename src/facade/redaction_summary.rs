@@ -14,6 +14,11 @@ use crate::output::RedactionCompletion;
 
 /// Machine-readable summary of one redaction operation.
 ///
+/// Completion describes whether the safe representation is complete;
+/// reasons record observed causes independently. A `Complete` summary can
+/// carry a parsing reason when the operation produced a complete safe
+/// replacement for invalid source data.
+///
 /// # Examples
 ///
 /// ```
@@ -30,7 +35,7 @@ pub struct RedactionSummary {
     redaction_disabled: bool,
     /// Final completion state of the operation.
     completion: RedactionCompletion,
-    /// Reasons explaining degraded completion.
+    /// Reasons recorded by the operation, which may also accompany Complete.
     reasons: RedactionReasons,
     /// Resource accounting captured by the operation.
     usage: RedactionUsage,
@@ -124,11 +129,13 @@ impl RedactionSummary {
         self.redaction_disabled
     }
 
-    /// Returns accumulated reasons.
+    /// Returns all accumulated reasons, including reasons that do not make
+    /// the safe representation incomplete.
     ///
     /// # Returns
     ///
-    /// All machine-readable causes retained by the operation.
+    /// All machine-readable causes retained by the operation; inspect
+    /// [`Self::completion`] separately to determine whether output is complete.
     #[must_use]
     #[inline(always)]
     pub const fn reasons(self) -> RedactionReasons {

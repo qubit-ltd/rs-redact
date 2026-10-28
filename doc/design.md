@@ -239,6 +239,14 @@ recover the original input bytes or detect duplicate source keys. Test-time
 `serde_json/arbitrary_precision` feature merging protects the number contract;
 it does not make arbitrary-precision inputs supported.
 
+For each derived `#[redact(json)]` field backed by `serde_json::Value`, JSON-specific
+limits are checked against that field's complete tree and are not accumulated across
+fields. General Serde structure and payload limits continue to accumulate in the active
+Serde scope. The `String` and `Value` forms retain distinct wire types: the former
+serializes as a string, while the latter serializes as JSON structure. `to_json` applies
+its final encoded-byte limit; direct view/source serialization leaves final encoding size
+to the caller's serializer and writer.
+
 Flat structured formats such as argv and environment lists use one runtime
 admission helper for root nodes, collection entries, child nodes, and source
 bytes. Composer and batch retain different publication models, but cannot
@@ -249,6 +257,12 @@ prefixes and safe markers. `Truncated` means a safe but incomplete
 representation remains; `Exhausted` means the budget could not retain a full
 replacement. Callers read `RedactionSummary` and must not infer reasons by
 parsing marker text.
+
+`Complete` describes output completeness, not source validity or the absence
+of reasons: a complete safe parse-error replacement can carry `InvalidUri`.
+`complete_text` and marker helpers select by completion state; callers that
+require valid input use format inspection or check the relevant parsing
+reason.
 
 ### 6.1 Scalar admission, failure facts, and output closure
 

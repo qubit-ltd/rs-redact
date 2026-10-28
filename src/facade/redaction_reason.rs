@@ -5,9 +5,13 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Reasons why a safe representation is degraded.
+//! Reasons recorded while producing a safe representation.
 
-/// Reason why a policy-transformed representation is degraded.
+/// Reason recorded during a policy-transformed operation.
+///
+/// A reason describes an observed cause and does not always mean the safe
+/// representation is incomplete. For example, an invalid URI can produce a
+/// complete safe replacement with [`RedactionReason::InvalidUri`].
 ///
 /// # Examples
 ///

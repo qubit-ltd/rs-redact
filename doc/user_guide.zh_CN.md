@@ -950,8 +950,8 @@ fn main() {
 | 入口 | 结构与输入限制 | Serde 逻辑载荷 | 最终编码字节 |
 | --- | --- | --- | --- |
 | 字段、领域文本、composer、batch | 各入口共享事务准入 | 不适用 | `max_output_bytes` |
-| view 或派生源对象的 `Serialize` | 共享 Serde scope | `max_serde_payload_bytes` | 调用方 writer 控制 |
-| `to_json` | 共享 Serde scope | `max_serde_payload_bytes` | `max_output_bytes` |
+| view 或派生源对象 `Serialize` | 共享 Serde scope；每个 `#[redact(json)]` 的 `Value` 字段分别检查 JSON 专属限制 | `max_serde_payload_bytes` | 调用方 writer 控制 |
+| `to_json` | 共享 Serde scope；每个 `#[redact(json)]` 的 `Value` 字段分别检查 JSON 专属限制 | `max_serde_payload_bytes` | `max_output_bytes` |
 | `redact_json` / `redact_json_value` | 文本事务与 JSON 专有限制 | 不适用 | `max_output_bytes` |
 
 `max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
@@ -962,6 +962,13 @@ Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
 
 0.6 中用于限制直接 Serde 载荷的 `max_output_bytes` 配置须迁移到
 `max_serde_payload_bytes`；需要同时限制 `to_json` 时设置两个值，二者不会自动联动。
+
+派生类型的 `#[redact(json)]` 字段若存储为 `serde_json::Value`，会针对该字段完整值树检查
+JSON 专属限制（`max_json_depth`、节点数、集合项、key/string/number 字节和 JSON 载荷字节）。
+这些限制按字段检查，不跨 JSON 字段累计；通用 Serde 结构与载荷限制仍在活动 Serde scope
+中跨整个序列化结果累计。JSON `String` 字段在线路上仍是字符串，`Value` 字段保留 JSON 结构。
+`to_json` 还限制最终编码字节；直接序列化 view 或源对象时，最终编码大小由外部 serializer
+和 writer 控制。借用的 `Value` 无法恢复原输入字节，也无法发现解析时已丢失的重复键。
 
 字段入口先检查根节点、key 长度，再准入字段名 UTF-8 字节，随后才分类和格式化值。
 脱敏启用时，High/Secret 只计字段名字节，不调用值的 Display。capture 按完整写入片段准入：拒绝片段
@@ -998,17 +1005,37 @@ none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载
 
 ## 错误与诊断
 
-当调用方需要区分完整结果与预算或解析降级时，检查 `summary().completion()`、
-`summary().reasons()` 和 `summary().usage()`；不要解析展示文本来推断状态。严格的展示路径可用
-`complete_text()` 和 `into_complete_text()` 拒绝不完整结果；诊断展示可用 `text_or_marker()` 和
+当调用方需要完整性、已观察原因或资源用量时，检查 `summary().completion()`、
+`summary().reasons()` 和 `summary().usage()`。完整安全替代可以带有解析原因；`complete_text()`
+不证明源语法有效。不要解析展示文本来推断状态。严格展示路径的 `complete_text()` 和
+`into_complete_text()` 只拒绝 `Truncated` 或 `Exhausted`；诊断展示可用 `text_or_marker()` 和
 `into_text_or_marker()` 选择明确的降级标记。若检查结果用于安全判断，任何检查错误都意味着
 分类不完整，应按敏感结果处理。
 
 ## 处理不完整结果
 
-`RedactionCompletion` 区分完整渲染与预算或解析降级。诊断场景通常直接记录 `text()` 或
-`text_or_marker(fallback)`，事后再看 `summary().reasons()`。审计或存储路径若要求完整性，
-应调用 `complete_text()` / `into_complete_text()` 并显式处理错误。
+`RedactionCompletion` 表示安全结果是否完整，不表示源语法是否有效：完整安全替代仍可带有
+`InvalidUri` 等解析原因。诊断场景应分别检查 `completion()` 和 `reasons()`。审计或存储路径若
+要求输出完整，应调用 `complete_text()` / `into_complete_text()` 并显式处理错误；若要求输入有效，
+应使用格式 inspection，或检查对应解析原因。
+
+下面的可执行示例说明已有非法 URI 行为，不新增解析能力：安全替代是完整结果，但 inspection
+仍会拒绝该输入。
+
+<!-- redact-example: kind=run features=uri -->
+```rust
+use qubit_redact::{RedactionCompletion, RedactionReason, Redactor};
+
+fn main() {
+    let r = Redactor::standard();
+    let invalid = r.redact_uri("");
+    assert_eq!(invalid.summary().completion(), RedactionCompletion::Complete);
+    assert!(invalid.summary().reasons().contains(RedactionReason::InvalidUri));
+    assert_eq!(invalid.complete_text().unwrap().as_str(), "<invalid URI>");
+    assert_eq!(invalid.text_or_marker("FALLBACK"), "<invalid URI>");
+    assert!(r.inspect_uri("").is_err());
+}
+```
 
 <!-- redact-example: kind=run features=none -->
 ```rust
@@ -1042,7 +1069,7 @@ marker，而不是半截 secret。传给 `text_or_marker` 或 `finish_with_marke
 | strict 下未知字段被过度掩码 | 添加 `allow_exact` / `allow_suffix` 或改用 standard | strict 默认把未知标量当 secret |
 | batch 某项被截断或为空 | `completion()`、`reasons()`、`usage()` | 较早的 batch 项会消耗共享额度 |
 | 句柄显示降级 marker | 句柄是否属于当前 batch | 句柄不能跨 batch 使用 |
-| `complete_text()` 失败 | 输出被截断或耗尽 | 审计路径的预期行为；日志可用 `text_or_marker` |
+| `complete_text()` 失败 | 输出被截断或耗尽 | 它只检查完成状态；源语法需检查 `reasons()` 或使用 inspection |
 | 领域字段未命中 | derive 等级、keyed_by 兄弟字段、手写 `Redact` | 运行时不会从 Rust 类型推断业务语义 |
 | JSON 敏感字段值仍可见 | 检查输入走的是 `redact_json` / `redact_json_value` 还是领域 `Redact` 实现 | 两种 JSON 入口都会保留 key，并按 key 对 value 分类；领域对象依赖标注或手写实现 |
 | 测试里 inspection 不 panic 但日志泄露 | 生产日志是否绕开脱敏入口 | inspection 本身不渲染值 |
