@@ -16,6 +16,7 @@ use std::process;
 use std::process::Output;
 
 use support::compile_diagnostics::source_error_matches;
+use support::manifest::toml_path;
 
 /// Verifies that a separately compiled no-feature dependent crate cannot use
 /// a format entry point that is unavailable without its feature.
@@ -23,8 +24,8 @@ fn assert_format_api_is_feature_gated(method: &str) {
     let directory = env::temp_dir().join(format!("qubit-redact-feature-gate-{}-{method}", process::id()));
     fs::create_dir_all(directory.join("src")).expect("the temporary dependent crate directory should be creatable");
     let manifest = format!(
-        "[package]\nname = \"qubit-redact-feature-gate-{method}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\", default-features = false }}\n",
-        env!("CARGO_MANIFEST_DIR")
+        "[package]\nname = \"qubit-redact-feature-gate-{method}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = {}, default-features = false }}\n",
+        toml_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
     );
     fs::write(directory.join("Cargo.toml"), manifest).expect("the temporary manifest should be writable");
     fs::write(
@@ -66,8 +67,8 @@ fn check_derive_dependency(case: &str, dependency_options: &str) -> Output {
     fs::write(
         directory.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"qubit-redact-derive-feature-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\"{dependency_options} }}\n",
-            env!("CARGO_MANIFEST_DIR"),
+            "[package]\nname = \"qubit-redact-derive-feature-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = {}{dependency_options} }}\n",
+            toml_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))),
         ),
     )
     .expect("the temporary manifest should be writable");

@@ -11,3 +11,7 @@ pub mod assertions;
 #[allow(dead_code)]
 pub mod compile_diagnostics;
 pub mod isolated_cargo;
+// This helper is included by each integration target, but only some generate
+// manifests.
+#[allow(dead_code)]
+pub mod manifest;

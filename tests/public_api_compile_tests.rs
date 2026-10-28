@@ -17,6 +17,7 @@ use std::process::Output;
 
 use serde_json::Value;
 use support::compile_diagnostics::source_error_matches;
+use support::manifest::toml_path;
 
 /// Compiles one isolated dependent crate against the current source tree.
 ///
@@ -30,8 +31,8 @@ fn check_dependent(case: &str, source: &str, features: &[&str]) -> Output {
     fs::write(
         directory.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"qubit-redact-public-api-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\", features = {} }}\n",
-            env!("CARGO_MANIFEST_DIR"),
+            "[package]\nname = \"qubit-redact-public-api-{case}\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = {}, features = {} }}\n",
+            toml_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))),
             serde_json::to_string(features).expect("feature list serialization"),
         ),
     )

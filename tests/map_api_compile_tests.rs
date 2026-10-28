@@ -15,6 +15,7 @@ use std::fs;
 use std::process;
 
 use support::compile_diagnostics::source_error_matches;
+use support::manifest::toml_path;
 
 /// Verifies arbitrary pair iterators cannot bypass `RedactMapValue`.
 #[test]
@@ -24,8 +25,8 @@ fn test_vec_pairs_are_not_accepted_as_redaction_maps() {
     fs::write(
         directory.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"qubit-redact-map-api\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = \"{}\" }}\n",
-            env!("CARGO_MANIFEST_DIR"),
+            "[package]\nname = \"qubit-redact-map-api\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n\n[dependencies]\nqubit-redact = {{ path = {} }}\n",
+            toml_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))),
         ),
     )
     .expect("temporary manifest");
