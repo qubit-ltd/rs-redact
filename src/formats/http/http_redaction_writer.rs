@@ -334,23 +334,17 @@ pub(crate) fn admit_body_structure(
         },
         None => (false, None),
     };
+    if capture.is_source_truncated() {
+        // An incomplete body cannot provide trustworthy structure. Admit
+        // only its enclosing format node and let the renderer publish the
+        // source provenance without scanning the captured prefix.
+        return session.admit_format_node(1).then_some(AdmittedBody::Other);
+    }
     let inferred_json = !has_content_type
         && matches!(
             capture.bytes().iter().copied().find(|byte| !byte.is_ascii_whitespace()),
             Some(b'{') | Some(b'[')
         );
-    if capture.is_source_truncated()
-        && (matches!(
-            &content_type,
-            Some(super::internal::content_type::ContentType::Json)
-                | Some(super::internal::content_type::ContentType::Ndjson)
-        ) || inferred_json)
-    {
-        // A captured prefix is intentionally incomplete JSON. Admit only
-        // the enclosing format node and let the renderer publish the
-        // invalid/truncated provenance without attempting a partial parse.
-        return session.admit_format_node(1).then_some(AdmittedBody::Other);
-    }
     if matches!(&content_type, Some(super::internal::content_type::ContentType::Json)) || inferred_json {
         let Ok(text) = std::str::from_utf8(capture.bytes()) else {
             return session.admit_format_node(1).then_some(AdmittedBody::InvalidJson);
@@ -426,6 +420,11 @@ pub(crate) fn admit_body_input(
     capture: BodyCapture<'_>,
     content_type_len: Option<usize>,
 ) -> bool {
+    if capture.is_source_truncated() {
+        session.record_summary(crate::RedactionSummary::truncated(
+            crate::RedactionReason::SourceTruncated,
+        ));
+    }
     let content_type_len = content_type_len.unwrap_or(0);
     let inspectable = capture.bytes().len().saturating_add(content_type_len);
     let total = capture

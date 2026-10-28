@@ -67,6 +67,239 @@ fn test_form_empty_segments_do_not_consume_structure_budget() {
 }
 
 #[test]
+fn test_source_truncated_form_skips_collection_admission() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_collection_items(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let capture = BodyCapture::truncated(b"a=1", 4).expect("source metadata");
+    let output = Redactor::new(policy)
+        .redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
+
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(
+        !output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert!(!output.text().as_str().contains("a=1"));
+}
+
+#[test]
+fn test_source_truncated_multipart_skips_collection_admission() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_collection_items(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let prefix = b"--b\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n";
+    let capture = BodyCapture::truncated(prefix, prefix.len() + 8).expect("source metadata");
+    let output =
+        Redactor::new(policy).redact_http_body_with_content_type_text(capture, Some("multipart/form-data; boundary=b"));
+
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(
+        !output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
+fn test_source_truncated_multipart_skips_embedded_json_admission() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_json_nodes(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let prefix = b"--b\r\nContent-Disposition: form-data; name=\"json\"\r\nContent-Type: application/json\r\n\r\n{\"password\":\"raw\"}\r\n";
+    let capture = BodyCapture::truncated(prefix, prefix.len() + 8).expect("source metadata");
+    let output =
+        Redactor::new(policy).redact_http_body_with_content_type_text(capture, Some("multipart/form-data; boundary=b"));
+
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(
+        !output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
+fn test_source_truncated_body_header_value_records_source_reason() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_collection_items(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let capture = BodyCapture::truncated(b"a=1", 4).expect("source metadata");
+    let content_type = http::HeaderValue::from_static("application/x-www-form-urlencoded");
+    let output = Redactor::new(policy).redact_http_body(capture, Some(&content_type));
+
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert!(
+        !output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[test]
+fn test_source_truncated_batch_item_does_not_consume_collection_admission() {
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+    let mut batch = redactor.diagnostic_batch();
+    let truncated = batch.redact_http_body_with_content_type_text(
+        BodyCapture::truncated(b"a=1", 4).expect("source metadata"),
+        Some("application/x-www-form-urlencoded"),
+    );
+    let complete = batch.redact_http_body_with_content_type_text(
+        BodyCapture::complete(b"b=2"),
+        Some("application/x-www-form-urlencoded"),
+    );
+    let output = batch.finish();
+
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    assert_eq!(output.summary().usage().visited_collection_items(), 1);
+    assert_eq!(output.text(truncated).as_str(), "<redaction incomplete>");
+    assert!(output.text(complete).as_str().contains("b=2"));
+}
+
+#[test]
+fn test_source_truncated_reason_coexists_with_applicable_budget_reasons() {
+    let capture = || BodyCapture::truncated(b"a=1", 4).expect("source metadata");
+    let content_type = Some("application/x-www-form-urlencoded");
+
+    let input_limited = Redactor::new(
+        RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_input_bytes(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy"),
+    )
+    .redact_http_body_with_content_type_text(capture(), content_type);
+    assert!(
+        input_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::SourceTruncated)
+    );
+    assert!(
+        input_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InputLimitReached)
+    );
+
+    let node_limited = Redactor::new(
+        RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_nodes(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy"),
+    )
+    .redact_http_body_with_content_type_text(capture(), content_type);
+    assert!(
+        node_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::SourceTruncated)
+    );
+    assert!(
+        node_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let output_limited = Redactor::new(
+        RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_output_bytes(1);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy"),
+    )
+    .redact_http_body_with_content_type_text(capture(), content_type);
+    assert!(
+        output_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::SourceTruncated)
+    );
+    assert!(
+        output_limited
+            .summary()
+            .reasons()
+            .contains(RedactionReason::OutputLimitReached)
+    );
+}
+
+#[test]
+fn test_complete_form_and_multipart_still_consume_collection_admission() {
+    let redactor = Redactor::new(
+        RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_collection_items(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy"),
+    );
+    let form = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(b"a=1"),
+        Some("application/x-www-form-urlencoded"),
+    );
+    let multipart = redactor.redact_http_body_with_content_type_text(
+        BodyCapture::complete(b"--b\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1\r\n--b--\r\n"),
+        Some("multipart/form-data; boundary=b"),
+    );
+
+    for output in [form, multipart] {
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(!output.summary().reasons().contains(RedactionReason::SourceTruncated));
+    }
+}
+
+#[test]
 fn test_form_empty_segments_match_one_field_across_public_entries() {
     let policy = RedactionPolicy::standard()
         .to_builder()
