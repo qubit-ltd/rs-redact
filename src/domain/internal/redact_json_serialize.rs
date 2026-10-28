@@ -384,13 +384,15 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
 }
 
 impl RedactJsonSerialize for Value {
-    /// Checks JSON-specific limits for this complete value before serialization.
+    /// Checks JSON-specific limits for this complete value before
+    /// serialization.
     ///
     /// Each Value field is checked independently against the policy's JSON
     /// limits. When enabled redaction rejects any part of the tree, the whole
-    /// field is replaced with the configured Secret opaque mask. The replacement
-    /// still passes through the active shared Serde scope and destination
-    /// serializer. Disabled policies skip only this JSON-specific check.
+    /// field is replaced with the configured Secret opaque mask. The
+    /// replacement still passes through the active shared Serde scope and
+    /// destination serializer. Disabled policies skip only this
+    /// JSON-specific check.
     ///
     /// # Errors
     ///

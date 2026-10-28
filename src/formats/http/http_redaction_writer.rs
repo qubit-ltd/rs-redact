@@ -78,9 +78,8 @@ impl<'session> HttpRedactionWriter<'session> {
             return self;
         }
         if !self.session.admit_format_node(1) {
-            self.session.append_rendered_operation(
-                OperationSink::complete("<truncated>").finish(),
-            );
+            self.session
+                .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
         }
         if !admit_url_structure(self.session, value) {

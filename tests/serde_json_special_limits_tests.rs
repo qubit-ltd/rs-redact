@@ -1,3 +1,10 @@
+// =============================================================================
+//    Copyright (c) 2026 Haixing Hu.
+//
+//    SPDX-License-Identifier: Apache-2.0
+//
+//    Licensed under the Apache License, Version 2.0.
+// =============================================================================
 #![cfg(all(feature = "derive", feature = "json"))]
 
 use qubit_redact::MaskPolicy;
@@ -54,9 +61,7 @@ fn test_json_special_limits_apply_to_parsed_fields() {
             .expect("policy");
         let redactor = Redactor::new(policy.clone());
         let value: Value = serde_json::from_str(raw).expect("valid source JSON");
-        let source = Parsed {
-            data: value.clone(),
-        };
+        let source = Parsed { data: value.clone() };
         let encoded = redactor.to_json(&source).expect("JSON view serializes");
         let viewed = serde_json::to_value(redactor.redact_view(&source)).expect("view serializes");
         assert_eq!(
@@ -76,9 +81,7 @@ fn test_json_special_limits_apply_to_parsed_fields() {
     }
 }
 
-fn json_policy(
-    configure: impl FnOnce(&mut qubit_redact::RedactionLimitsBuilder),
-) -> RedactionPolicy {
+fn json_policy(configure: impl FnOnce(&mut qubit_redact::RedactionLimitsBuilder)) -> RedactionPolicy {
     RedactionPolicy::builder()
         .limits(configure)
         .expect("limits")
@@ -122,13 +125,8 @@ fn test_json_string_number_key_depth_node_and_collection_boundaries() {
                     limits.max_json_collection_items(limit);
                 }
             });
-            let actual = serde_json::to_value(RedactedSerializeRef::new(
-                &ValueField {
-                    data: value.clone(),
-                },
-                &policy,
-            ))
-            .expect("field serializes");
+            let actual = serde_json::to_value(RedactedSerializeRef::new(&ValueField { data: value.clone() }, &policy))
+                .expect("field serializes");
             if limit == low {
                 assert_eq!(actual["data"], "<redacted>", "case {index}");
             } else {
@@ -147,8 +145,7 @@ fn test_json_payload_limit_uses_key_and_scalar_payload_bytes() {
         let policy = json_policy(|limits| {
             limits.max_json_payload_bytes(maximum);
         });
-        let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
-            .expect("value serializes");
+        let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy)).expect("value serializes");
         assert_eq!(actual["data"], expected, "payload limit {maximum}");
     }
 }
@@ -172,8 +169,8 @@ fn test_json_special_node_limit_is_per_field() {
     let policy = json_policy(|limits| {
         limits.max_json_nodes(2);
     });
-    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
-        .expect("both fields fit individually");
+    let actual =
+        serde_json::to_value(RedactedSerializeRef::new(&source, &policy)).expect("both fields fit individually");
     assert_eq!(actual, json!({"first":{"x":1},"second":{"x":1}}));
 }
 
@@ -213,8 +210,7 @@ fn test_rejected_value_fallback_obeys_payload_budget_and_new_scope_recovers() {
     let good_policy = json_policy(|limits| {
         limits.max_json_string_bytes(1);
     });
-    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &good_policy))
-        .expect("new scope succeeds");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &good_policy)).expect("new scope succeeds");
     assert_eq!(actual["data"], "<redacted>");
 }
 
@@ -231,8 +227,7 @@ fn test_disabled_skips_json_special_limit_but_keeps_original_tree() {
         .expect("limits")
         .build()
         .expect("policy");
-    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
-        .expect("disabled value serializes");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy)).expect("disabled value serializes");
     assert_eq!(actual["data"], source.data);
 }
 
@@ -281,8 +276,7 @@ fn test_option_and_borrowed_value_adapters_preserve_shape_and_source() {
     let policy = json_policy(|limits| {
         limits.max_json_string_bytes(1);
     });
-    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
-        .expect("adapted values serialize");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy)).expect("adapted values serialize");
     assert_eq!(actual["optional"], "<redacted>");
     assert_eq!(actual["borrowed"], "<redacted>");
     assert_eq!(borrowed, json!({"x":"long"}));
@@ -291,8 +285,7 @@ fn test_option_and_borrowed_value_adapters_preserve_shape_and_source() {
         optional: None,
         borrowed: &absent_borrowed,
     };
-    let actual =
-        serde_json::to_value(RedactedSerializeRef::new(&absent, &policy)).expect("none serializes");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&absent, &policy)).expect("none serializes");
     assert_eq!(actual["optional"], Value::Null);
 }
 
@@ -311,8 +304,7 @@ fn test_serde_derived_source_uses_json_special_limits() {
     let policy = json_policy(|limits| {
         limits.max_json_string_bytes(1);
     });
-    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy))
-        .expect("source serializes");
+    let actual = serde_json::to_value(RedactedSerializeRef::new(&source, &policy)).expect("source serializes");
     assert_eq!(actual["data"], "<redacted>");
 }
 
@@ -323,10 +315,7 @@ fn test_masked_fallback_payload_must_fit() {
     };
     let policy = RedactionPolicy::builder()
         .fields(|fields| {
-            fields.mask(
-                Sensitivity::Secret,
-                MaskPolicy::fixed("mask-that-is-too-long"),
-            );
+            fields.mask(Sensitivity::Secret, MaskPolicy::fixed("mask-that-is-too-long"));
         })
         .expect("mask")
         .limits(|limits| {
