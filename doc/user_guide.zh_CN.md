@@ -1061,9 +1061,11 @@ fn main() {
 }
 ```
 
-即使 `completion()` 不是 `Complete`，已发布文本仍保持保密安全：库输出掩码或调用方指定的
-marker，而不是半截 secret。传给 `text_or_marker` 或 `finish_with_marker` 的 marker 会被转义，
-且不计入原事务的 `output_bytes`。
+启用脱敏时，结果不完整本身不会让所选策略要求隐藏的字段回退为未经处理的原值。输出仍可能
+包含策略明确允许的内容，也可能保留自定义 mask 留下的边缘。disabled 模式下，完整或截断输出
+都可能包含原值。`completion()` 只描述完成度，不能单独证明保密性；请检查
+`is_redaction_disabled()`，并确保所选策略符合业务要求。传给 `text_or_marker` 或
+`finish_with_marker` 的 marker 会被转义，且不计入原事务的 `output_bytes`。
 
 ## 排障
 

@@ -1167,10 +1167,13 @@ fn main() {
 }
 ```
 
-Even when `completion()` is not `Complete`, published text remains confidentiality-safe: the
-library emits masks or caller-selected markers instead of partial secrets. Markers passed to
-`text_or_marker` or `finish_with_marker` are escaped and are not counted toward the original
-transaction `output_bytes`.
+When redaction is enabled, fields the selected policy requires hiding do not fall back to their
+untreated original values solely because a result is incomplete. Output may still contain content
+the policy allows, including edges retained by a custom mask. Disabled mode may expose original
+values in complete or truncated output. `completion()` describes completion, not confidentiality;
+check `is_redaction_disabled()` and make sure the selected policy meets your requirements. Markers
+passed to `text_or_marker` or `finish_with_marker` are escaped and are not counted toward the
+original transaction `output_bytes`.
 
 ## Troubleshooting
 

@@ -5,7 +5,7 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Sealed capability for fields using the `level` mode.
+//! Supported values for fields using the `level` mode.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -27,10 +27,20 @@ use super::RedactionItems;
 use super::RedactionWriter;
 use crate::Sensitivity;
 
-/// Seals the supported capability set against downstream implementations.
+/// Marker trait used by the `Redact` derive macro to bound values supported by
+/// `level` mode.
+///
+/// The hidden `domain::LevelValueSealed` re-export supports generated code.
+/// This is an internal support contract for the derive macro; Rust visibility
+/// does not make manual downstream implementations impossible. Users should use
+/// `RedactScalar` to add supported scalar values.
 #[doc(hidden)]
 pub mod private {
-    /// Prevents downstream implementations outside the supported value set.
+    /// Marker used by the `Redact` derive macro for its supported `level` value
+    /// set.
+    ///
+    /// This supports generated code but is not an absolute barrier to manual
+    /// downstream implementations.
     pub trait Sealed {
         // empty
     }
