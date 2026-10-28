@@ -15,6 +15,8 @@ use qubit_budget::json::JsonDecodeLimits;
 use qubit_json::decode::JsonDecoder;
 #[cfg(feature = "json")]
 use qubit_json::value::DuplicateKeyRejectingJsonValue;
+#[cfg(feature = "json")]
+use qubit_json::value::traverse::JsonTreeBudgetTracker;
 use serde::Serializer;
 use serde_json::Value;
 
@@ -382,8 +384,13 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
 }
 
 impl RedactJsonSerialize for Value {
-    /// Delegates JSON representation through the active policy and shared
-    /// scope.
+    /// Checks JSON-specific limits for this complete value before serialization.
+    ///
+    /// Each Value field is checked independently against the policy's JSON
+    /// limits. When enabled redaction rejects any part of the tree, the whole
+    /// field is replaced with the configured Secret opaque mask. The replacement
+    /// still passes through the active shared Serde scope and destination
+    /// serializer. Disabled policies skip only this JSON-specific check.
     ///
     /// # Errors
     ///
@@ -406,6 +413,17 @@ impl RedactJsonSerialize for Value {
     where
         S: Serializer,
     {
+        #[cfg(feature = "json")]
+        if !policy.is_disabled()
+            && JsonTreeBudgetTracker::new(policy.limits().json_limits())
+                .account(self)
+                .is_err()
+        {
+            return super::redact_serialize_scope::serialize_payload(
+                serializer,
+                policy.masking().mask_opaque(crate::Sensitivity::Secret),
+            );
+        }
         crate::formats::json::serialize_redacted_value(self, serializer, policy)
     }
 }
