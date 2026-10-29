@@ -79,6 +79,7 @@ The source need not implement `Serialize`: view serialization and `to_json()` re
 a serializable redacted projection.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 Derived Serde output follows Serde's effective representation events and names for transparent types and tagged or untagged enums; JSON shape remains unchanged.
+For internally tagged variants, the payload must emit a map/struct event. A regular tuple newtype wrapper may emit `serialize_newtype_struct` and be rejected; see the [Serde representation guide](../doc/user_guide.md#internally-tagged-variants-and-newtype-payloads) for a runnable comparison and the direct-struct alternative.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
 ## Scalar Value Objects

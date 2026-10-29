@@ -345,6 +345,60 @@ adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型�
 格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
 其中 `Option<Map>::Some` 会以 `Some` 事件包住 map。库不会自动解码旧事件布局。
 
+### 内部标签枚举与 newtype 载荷
+
+内部标签变体需要把载荷序列化成 map 或 struct，才能把标签写入同一个对象。嵌套值的生成投影
+如果本身是 struct，就可以直接使用。普通 tuple newtype 包装器则可能发出 Serde 的
+`serialize_newtype_struct` 事件；内部标签 adapter 收到的不是 map/struct 事件，因此会拒绝。
+这里限制的是普通 newtype 包装。`transparent` 包装会委托字段的表示，属于另一种表示选择。只有当
+这种 wire 表示符合应用协议时，才改用直接载荷或 `transparent`。
+
+下面的完整程序先展示普通包装器被拒绝，再展示直接使用 struct 载荷的写法。第一次
+`to_json()` 必须返回错误；第二次保留内部标签，并掩码敏感字段。
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+struct Payload {
+    #[redact(level = "secret")]
+    password: String,
+}
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+struct Wrapper(#[redact(nested)] Payload);
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+#[serde(tag = "kind")]
+enum WrappedEvent {
+    V(#[redact(nested)] Wrapper),
+}
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+#[serde(tag = "kind")]
+enum DirectEvent {
+    V(#[redact(nested)] Payload),
+}
+
+fn main() {
+    let redactor = Redactor::standard();
+    let wrapped = WrappedEvent::V(Wrapper(Payload { password: "raw-secret".into() }));
+    assert!(redactor.to_json(&wrapped).is_err());
+
+    let direct = DirectEvent::V(Payload { password: "raw-secret".into() });
+    let json = redactor.to_json(&direct).expect("direct struct payload");
+    let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(value["kind"], "V");
+    assert_eq!(value["password"], "<redacted>");
+    assert!(!json.contains("raw-secret"));
+}
+```
+
 ### 标量 newtype
 
 <!-- redact-example: kind=run features=derive,serde,json -->

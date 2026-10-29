@@ -375,6 +375,63 @@ with the corrected one; do not assume the new event layout decodes old data auto
 In particular, `Option<Map>::Some` now emits `Some` containing the map. The library does not
 automatically decode the earlier layout.
 
+### Internally Tagged Variants and Newtype Payloads
+
+An internally tagged variant must serialize its payload as a map or struct so the tag can be
+added to that object. A nested value whose generated projection is a struct works directly. A
+regular tuple newtype wrapper can instead emit Serde's `serialize_newtype_struct` event, which
+the internally tagged adapter rejects because it is not itself a map/struct event. This limit
+applies to ordinary newtype wrappers; a `transparent` wrapper delegates its field's
+representation and is a different representation choice. Use a direct payload or `transparent`
+only when that wire representation matches the application's protocol.
+
+The complete example below contrasts the rejected wrapper with a direct struct payload. The
+first `to_json()` call must return an error; the second keeps the internal tag and masks the
+secret field.
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+struct Payload {
+    #[redact(level = "secret")]
+    password: String,
+}
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+struct Wrapper(#[redact(nested)] Payload);
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+#[serde(tag = "kind")]
+enum WrappedEvent {
+    V(#[redact(nested)] Wrapper),
+}
+
+#[derive(Debug, Redact)]
+#[redact(serde)]
+#[serde(tag = "kind")]
+enum DirectEvent {
+    V(#[redact(nested)] Payload),
+}
+
+fn main() {
+    let redactor = Redactor::standard();
+    let wrapped = WrappedEvent::V(Wrapper(Payload { password: "raw-secret".into() }));
+    assert!(redactor.to_json(&wrapped).is_err());
+
+    let direct = DirectEvent::V(Payload { password: "raw-secret".into() });
+    let json = redactor.to_json(&direct).expect("direct struct payload");
+    let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(value["kind"], "V");
+    assert_eq!(value["password"], "<redacted>");
+    assert!(!json.contains("raw-secret"));
+}
+```
+
 ### Scalar Newtypes
 
 <!-- redact-example: kind=run features=derive,serde,json -->
