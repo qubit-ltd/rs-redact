@@ -49,7 +49,7 @@ fn test_plain_argv_preserves_windows_lossy_representation() {
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
         assert_eq!(output.summary().usage().output_bytes(), expected.len());
 
-        let standard_env = Redactor::standard().redact_env("VISIBLE", &value);
+        let standard_env = Redactor::standard().redact_env_pairs([(OsStr::new("VISIBLE"), value.as_os_str())]);
         assert_eq!(standard_env.text().as_str(), env_expected);
 
         let disabled = Redactor::new(RedactionPolicy::disabled());
@@ -61,7 +61,7 @@ fn test_plain_argv_preserves_windows_lossy_representation() {
                 .as_str()
                 .is_char_boundary(disabled_argv.text().as_str().len())
         );
-        let disabled_env = disabled.redact_env("VISIBLE", &value);
+        let disabled_env = disabled.redact_env_pairs([(OsStr::new("VISIBLE"), value.as_os_str())]);
         assert!(disabled_env.summary().is_redaction_disabled());
         assert_eq!(disabled_env.text().as_str(), env_expected);
     }
@@ -161,7 +161,9 @@ fn test_windows_os_string_composer_batch_and_process_paths() {
 
     let composed = Redactor::standard()
         .text_composer()
-        .argv(|argv| argv.items([ArgvItem::sensitive(value.as_os_str(), Sensitivity::Secret)]))
+        .argv(|argv| {
+            let _ = argv.items([ArgvItem::sensitive(value.as_os_str(), Sensitivity::Secret)]);
+        })
         .finish();
     assert!(!composed.text().as_str().contains(SENTINEL));
     assert_eq!(
