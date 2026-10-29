@@ -54,6 +54,16 @@ pub(crate) fn parse<'a>(input: &'a DeriveInput, derive_name: &str, serde_enabled
                 .iter()
                 .enumerate()
                 .map(|(index, variant)| {
+                    if let Some(attribute) = variant
+                        .attrs
+                        .iter()
+                        .find(|attribute| attribute.path().is_ident("redact"))
+                    {
+                        return Err(Error::new_spanned(
+                            attribute,
+                            "Redact does not support #[redact(...)] on enum variants; annotate the variant fields instead",
+                        ));
+                    }
                     let serde_attributes = SerdeVariantAttributes::parse(variant, &input.ident, serde_enabled)?;
                     let fields = parse_fields(&variant.fields, &input.ident, serde_enabled)?;
                     Ok(VariantData::new(variant, index as u32, fields, serde_attributes))

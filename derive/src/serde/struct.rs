@@ -161,7 +161,6 @@ fn transparent_named_struct_body(
     } else {
         quote_spanned!(field.span()=> self.#identifier)
     };
-    let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
     let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
     let key_raw = match parsed.attributes().mode() {
         FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
@@ -183,13 +182,11 @@ fn transparent_named_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(
-        source_context,
-        parsed.serde_attributes(),
-        parsed.attributes().mode(),
-        raw,
-        predicate,
-    );
+    let condition = if matches!(parsed.attributes().mode(), FieldMode::Skip) {
+        quote!(policy.is_disabled())
+    } else {
+        quote!(true)
+    };
     quote! {
         if #condition {
             let __qubit_redact_serialized_0 = #value;
@@ -400,13 +397,21 @@ fn newtype_struct_body(
         },
         legacy_nested,
     );
-    let condition = serialization_condition(
-        source_context,
-        parsed.serde_attributes(),
-        parsed.attributes().mode(),
-        raw,
-        predicate,
-    );
+    let condition = if transparent {
+        if matches!(parsed.attributes().mode(), FieldMode::Skip) {
+            quote!(policy.is_disabled())
+        } else {
+            quote!(true)
+        }
+    } else {
+        serialization_condition(
+            source_context,
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+            raw,
+            predicate,
+        )
+    };
     if transparent {
         quote! {
             if #condition {

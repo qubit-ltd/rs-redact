@@ -52,3 +52,51 @@ fn test_input_model_preserves_struct_tuple_unit_and_enum_shapes() {
         ContainerData::Enum(variants) if variants.len() == 3
     ));
 }
+
+#[test]
+fn test_variant_redact_attributes_are_rejected_independent_of_serde() {
+    let inputs: [DeriveInput; 5] = [
+        parse_quote!(
+            enum Event {
+                #[redact]
+                Value(String),
+            }
+        ),
+        parse_quote!(
+            enum Event {
+                #[redact()]
+                Value(String),
+            }
+        ),
+        parse_quote!(
+            enum Event {
+                #[redact(skip)]
+                Value(String),
+            }
+        ),
+        parse_quote!(
+            enum Event {
+                #[redact(level = "secret")]
+                Value(String),
+            }
+        ),
+        parse_quote!(
+            enum Event {
+                #[redact(unknown)]
+                Value(String),
+            }
+        ),
+    ];
+
+    for serde_enabled in [false, true] {
+        for input in &inputs {
+            let error = model::parse(input, "Redact", serde_enabled)
+                .err()
+                .expect("variant-level redact attributes must be rejected");
+            assert_eq!(
+                error.to_string(),
+                "Redact does not support #[redact(...)] on enum variants; annotate the variant fields instead"
+            );
+        }
+    }
+}

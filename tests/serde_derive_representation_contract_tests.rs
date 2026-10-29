@@ -13,6 +13,50 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use serde::Serialize;
 
+thread_local! {
+    static TRANSPARENT_PREDICATE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn count_if_empty<T: AsRef<str>>(value: &T) -> bool {
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+    value.as_ref().is_empty()
+}
+
+#[derive(Serialize)]
+#[serde(transparent)]
+struct NativeConditionalNamed {
+    #[serde(skip_serializing_if = "count_if_empty")]
+    value: String,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(transparent)]
+struct ConditionalNamed {
+    #[serde(skip_serializing_if = "count_if_empty")]
+    value: String,
+}
+
+#[derive(Serialize)]
+#[serde(transparent)]
+struct NativeConditionalTuple(#[serde(skip_serializing_if = "count_if_empty")] String);
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(transparent)]
+struct ConditionalTuple(#[serde(skip_serializing_if = "count_if_empty")] String);
+
+#[derive(Serialize)]
+struct OrdinaryConditional {
+    #[serde(skip_serializing_if = "count_if_empty")]
+    value: String,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(transparent)]
+struct TransparentSkipped(#[redact(skip)] String);
+
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]
 #[serde(transparent)]
@@ -102,6 +146,75 @@ fn test_transparent_named_source_and_view_forward_inner_event() {
         serde_json::to_value(disabled.redact_view(&source)).expect("disabled transparent JSON should serialize"),
         serde_json::json!("raw-secret")
     );
+}
+
+#[test]
+fn test_transparent_skip_serializing_if_is_ignored_for_named_and_tuple_fields() {
+    use serde_test::Token;
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    let named = ConditionalNamed { value: String::new() };
+    let named_source = NativeConditionalNamed { value: String::new() };
+    let tuple = ConditionalTuple(String::new());
+    let tuple_source = NativeConditionalTuple(String::new());
+    let standard = Redactor::standard();
+    let disabled = Redactor::new(RedactionPolicy::disabled());
+
+    check_transparent_tokens(&named_source, Token::Str(""));
+    check_transparent_tokens(&named, Token::Str(""));
+    check_transparent_tokens(&standard.redact_view(&named), Token::Str(""));
+    check_transparent_tokens(&disabled.redact_view(&named), Token::Str(""));
+    check_transparent_tokens(&tuple_source, Token::Str(""));
+    check_transparent_tokens(&tuple, Token::Str(""));
+    check_transparent_tokens(&standard.redact_view(&tuple), Token::Str(""));
+    check_transparent_tokens(&disabled.redact_view(&tuple), Token::Str(""));
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    let ordinary = OrdinaryConditional { value: String::new() };
+    serde_test::assert_ser_tokens(
+        &ordinary,
+        &[
+            Token::Struct {
+                name: "OrdinaryConditional",
+                len: 0,
+            },
+            Token::StructEnd,
+        ],
+    );
+    assert!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get) > 0);
+
+    let skipped = TransparentSkipped(String::from("raw-secret"));
+    serde_test::assert_ser_tokens(
+        &standard.redact_view(&skipped),
+        &[Token::UnitStruct {
+            name: "TransparentSkipped",
+        }],
+    );
+    check_transparent_tokens(&disabled.redact_view(&skipped), Token::Str("raw-secret"));
+
+    #[cfg(feature = "json")]
+    {
+        assert_eq!(serde_json::to_value(&named_source).unwrap(), serde_json::json!(""));
+        assert_eq!(
+            serde_json::to_value(standard.redact_view(&named)).unwrap(),
+            serde_json::json!("")
+        );
+        assert_eq!(
+            serde_json::to_value(disabled.redact_view(&named)).unwrap(),
+            serde_json::json!("")
+        );
+        assert_eq!(serde_json::to_value(&named).unwrap(), serde_json::json!(""));
+        assert_eq!(serde_json::to_value(&tuple_source).unwrap(), serde_json::json!(""));
+        assert_eq!(
+            serde_json::to_value(standard.redact_view(&tuple)).unwrap(),
+            serde_json::json!("")
+        );
+        assert_eq!(
+            serde_json::to_value(disabled.redact_view(&tuple)).unwrap(),
+            serde_json::json!("")
+        );
+        assert_eq!(serde_json::to_value(&tuple).unwrap(), serde_json::json!(""));
+    }
 }
 
 #[test]
