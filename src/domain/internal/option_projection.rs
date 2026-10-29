@@ -12,6 +12,7 @@ use serde::Serializer;
 use serde::ser::Error as SerdeError;
 
 use super::redact_serialize_scope::current_policy;
+use super::redact_serialize_scope::serialize_structured;
 use super::redact_serialize_source::RedactSerializeSource;
 use super::redacted_projection_ref::RedactedProjectionRef;
 use crate::RedactionPolicy;
@@ -48,8 +49,9 @@ where
 {
     /// Serializes the optional value within the active redaction scope.
     ///
-    /// A present value is serialized through the redaction adapter; an absent
-    /// value is serialized as `None` without visiting a nested value.
+    /// The optional container is admitted as one structured node. A present
+    /// value is serialized through the redaction adapter; an absent value is
+    /// serialized as `None` without visiting a nested value.
     ///
     /// # Type Parameters
     ///
@@ -73,10 +75,11 @@ where
     {
         let policy_owner =
             current_policy().ok_or_else(|| S::Error::custom("serialization requires an active redaction scope"))?;
+        let policy = policy_owner.as_ref();
         let Self(value) = self;
-        match (*value).as_ref() {
-            Some(value) => serializer.serialize_some(&RedactedProjectionRef::new(value, policy_owner.as_ref())),
+        serialize_structured(serializer, policy, |serializer| match (*value).as_ref() {
+            Some(value) => serializer.serialize_some(&RedactedProjectionRef::new(value, policy)),
             None => serializer.serialize_none(),
-        }
+        })
     }
 }
