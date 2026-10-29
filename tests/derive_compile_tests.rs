@@ -33,6 +33,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/adapter_path_generics.rs");
     tests.pass("tests/fixtures/pass/adapter_self_path.rs");
     tests.pass("tests/fixtures/pass/adapter_self_predicate.rs");
+    tests.pass("tests/fixtures/pass/recursive_self_predicate.rs");
     tests.pass("tests/fixtures/pass/adapter_self_type_argument.rs");
     tests.pass("tests/fixtures/pass/adapter_self_bare_fn.rs");
     tests.pass("tests/fixtures/pass/generic_keyed_by.rs");

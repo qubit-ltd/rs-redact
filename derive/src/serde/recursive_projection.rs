@@ -152,7 +152,12 @@ pub(super) fn expand(
         .params
         .insert(0, GenericParam::Lifetime(parse_quote!(#lifetime)));
     let (factory_impl_generics, _, factory_where_clause) = factory_generics.split_for_impl();
-    let constructor = super::entry::projection_constructor_for(name, projection, model, marker, quote!(value));
+    let source_context = super::source_function_path::SourceTypeContext {
+        ident: name,
+        generics: &input.generics,
+    };
+    let constructor =
+        super::entry::projection_constructor_for(&source_context, projection, model, marker, quote!(value));
     quote! {
         #[doc(hidden)]
         struct #carrier<'__value, T, P> {

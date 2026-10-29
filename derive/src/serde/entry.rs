@@ -242,7 +242,7 @@ pub(crate) fn expand(
         })
         .collect::<Vec<_>>();
     let source_projection_type = quote!(#projection<#source_lifetime, #(#source_arguments,)* #(#actual_types),*>);
-    let projection_constructor = projection_constructor_for(name, &projection, model, &marker, quote!(self));
+    let projection_constructor = projection_constructor_for(&source_context, &projection, model, &marker, quote!(self));
     let source_projection_visibility = &input.vis;
     let source_projection_support = quote! {
         trait #source_fields_trait {
@@ -346,7 +346,7 @@ pub(crate) fn expand(
 ///
 /// # Parameters
 ///
-/// * `name` - Source type identifier used in enum patterns.
+/// * `source_context` - Source identity for enum patterns and saved predicates.
 /// * `projection` - Generated projection type identifier.
 /// * `model` - Validated source shape and source fields.
 /// * `marker` - Fresh member name used by the projection declaration.
@@ -357,13 +357,13 @@ pub(crate) fn expand(
 /// variant.
 #[must_use]
 pub(super) fn projection_constructor_for(
-    name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     projection: &Ident,
     model: &ContainerData<'_>,
     marker: &Ident,
     source: TokenStream,
 ) -> TokenStream {
-    projection::projection_constructor_for(name, projection, model, marker, source)
+    projection::projection_constructor_for(source_context, projection, model, marker, source)
 }
 
 /// Collects source fields in projection parameter order.

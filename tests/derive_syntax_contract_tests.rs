@@ -9,6 +9,7 @@
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
+use std::cell::Cell;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -21,6 +22,164 @@ use qubit_redact::Redactor;
 use serde::Serializer;
 use serde_json::json;
 use serde_json::to_value;
+
+thread_local! {
+    static SELF_PREDICATE_CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
+fn is_empty_string(value: &str) -> bool {
+    SELF_PREDICATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+    value.is_empty()
+}
+
+/// Recursive predicates bind `Self` to the source type and run only at
+/// serialization.
+#[test]
+fn test_recursive_self_predicate_is_rebound_and_lazy() {
+    #[derive(Debug, Redact)]
+    #[redact(serde)]
+    struct Node {
+        #[serde(skip_serializing_if = "Self::is_empty")]
+        label: String,
+        next: Option<Box<Node>>,
+    }
+
+    impl Node {
+        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
+        fn is_empty(value: &String) -> bool {
+            is_empty_string(value)
+        }
+    }
+
+    let redactor = Redactor::standard();
+    let node = Node {
+        label: String::new(),
+        next: Some(Box::new(Node {
+            label: String::new(),
+            next: None,
+        })),
+    };
+    SELF_PREDICATE_CALLS.with(|calls| calls.set(0));
+    let view = redactor.redact_view(&node);
+    assert_eq!(SELF_PREDICATE_CALLS.with(Cell::get), 0);
+    assert_eq!(
+        to_value(view).expect("recursive view omits empty labels"),
+        json!({"next": {"next": null}})
+    );
+    assert_eq!(SELF_PREDICATE_CALLS.with(Cell::get), 2);
+    assert_eq!(
+        to_value(&node).expect("source serialization omits empty labels"),
+        json!({"next": {"next": null}})
+    );
+    assert_eq!(SELF_PREDICATE_CALLS.with(Cell::get), 4);
+
+    let nonempty = Node {
+        label: "kept".to_owned(),
+        next: None,
+    };
+    assert_eq!(
+        to_value(redactor.redact_view(&nonempty)).expect("non-empty label remains"),
+        json!({"label": "kept", "next": null})
+    );
+}
+
+/// Recursive enum predicates work for named and tuple fields.
+#[test]
+fn test_recursive_enum_self_predicates_cover_named_and_tuple_fields() {
+    #[derive(Debug, Redact)]
+    enum Tree {
+        Named {
+            #[serde(skip_serializing_if = "Self::empty")]
+            label: String,
+            child: Option<Box<Tree>>,
+        },
+        Tuple(#[serde(skip_serializing_if = "Self::empty")] String, Option<Box<Tree>>),
+    }
+
+    impl Tree {
+        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
+        fn empty(value: &String) -> bool {
+            value.is_empty()
+        }
+    }
+
+    let redactor = Redactor::standard();
+    let named = Tree::Named {
+        label: String::new(),
+        child: None,
+    };
+    let tuple = Tree::Tuple("kept".to_owned(), None);
+    assert_eq!(
+        to_value(redactor.redact_view(&named)).unwrap(),
+        json!({"Named": {"child": null}})
+    );
+    assert_eq!(
+        to_value(redactor.redact_view(&tuple)).unwrap(),
+        json!({"Tuple": ["kept", null]})
+    );
+}
+
+/// Generic recursive Self paths preserve source generic arguments.
+#[test]
+fn test_generic_recursive_self_predicate_and_explicit_path_control() {
+    #[derive(Debug, Redact)]
+    struct Generic<'a, T, const N: usize> {
+        #[serde(skip_serializing_if = "Self::is_none")]
+        value: Option<T>,
+        borrowed: &'a str,
+        next: Option<Box<Generic<'a, T, N>>>,
+        #[serde(skip_serializing)]
+        bytes: [u8; N],
+    }
+
+    impl<'a, T, const N: usize> Generic<'a, T, N> {
+        fn is_none(value: &Option<T>) -> bool {
+            value.is_none()
+        }
+    }
+
+    #[derive(Debug, Redact)]
+    struct Node {
+        #[serde(skip_serializing_if = "Node::empty")]
+        value: String,
+        next: Option<Box<Node>>,
+    }
+
+    impl Node {
+        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
+        fn empty(value: &String) -> bool {
+            value.is_empty()
+        }
+    }
+
+    let redactor = Redactor::standard();
+    let generic = Generic {
+        value: None::<u32>,
+        borrowed: "borrowed",
+        next: Some(Box::new(Generic {
+            value: Some(7u32),
+            borrowed: "nested",
+            next: None,
+            bytes: [0; 2],
+        })),
+        bytes: [0; 2],
+    };
+    assert_eq!(
+        to_value(redactor.redact_view(&generic)).unwrap(),
+        json!({
+            "borrowed": "borrowed",
+            "next": {"value": 7, "borrowed": "nested", "next": null}
+        })
+    );
+    let explicit = Node {
+        value: String::new(),
+        next: None,
+    };
+    assert_eq!(
+        to_value(redactor.redact_view(&explicit)).unwrap(),
+        json!({"next": null})
+    );
+}
 
 /// Bare Serde omission controls remain composable with later field attributes.
 #[test]

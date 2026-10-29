@@ -19,6 +19,8 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
 use super::super::recursive_projection;
+use super::super::source_function_path::SourceTypeContext;
+use super::super::source_function_path::source_function_path;
 use crate::attributes::SerdeAttributes;
 use crate::model::ContainerData;
 use crate::model::FieldMode;
@@ -217,7 +219,7 @@ fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
 ///
 /// # Parameters
 ///
-/// * `name` - Source type identifier used in enum patterns.
+/// * `source_context` - Source identity for enum patterns and saved predicates.
 /// * `projection` - Generated projection type identifier.
 /// * `model` - Validated source shape and source fields.
 /// * `marker` - Fresh member name used by the projection declaration.
@@ -228,12 +230,13 @@ fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
 /// variant.
 #[must_use]
 pub(super) fn projection_constructor_for(
-    name: &Ident,
+    source_context: &SourceTypeContext<'_>,
     projection: &Ident,
     model: &ContainerData<'_>,
     marker: &Ident,
     source: TokenStream,
 ) -> TokenStream {
+    let name = source_context.ident;
     match model {
         ContainerData::Struct(fields) => {
             let members = match fields {
@@ -241,7 +244,8 @@ pub(super) fn projection_constructor_for(
                     .iter()
                     .map(|field| {
                         let name = field.identifier();
-                        let value = projection_member_value(field.serde_attributes(), quote!(&#source.#name));
+                        let value =
+                            projection_member_value(source_context, field.serde_attributes(), quote!(&#source.#name));
                         quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
@@ -250,7 +254,8 @@ pub(super) fn projection_constructor_for(
                     .map(|field| {
                         let index = field.index();
                         let name = format_ident!("__qubit_redact_field_{}", index.index);
-                        let value = projection_member_value(field.serde_attributes(), quote!(&#source.#index));
+                        let value =
+                            projection_member_value(source_context, field.serde_attributes(), quote!(&#source.#index));
                         quote!(#name: #value)
                     })
                     .collect::<Vec<_>>(),
@@ -269,7 +274,8 @@ pub(super) fn projection_constructor_for(
                         let names = fields.iter().map(|field| field.identifier()).collect::<Vec<_>>();
                         let values = fields.iter().map(|field| {
                             let name = field.identifier();
-                            let value = projection_member_value(field.serde_attributes(), quote!(#name));
+                            let value =
+                                projection_member_value(source_context, field.serde_attributes(), quote!(#name));
                             quote!(#name: #value)
                         });
                         quote!(#name::#variant_name { #(#names),* } => #projection::#variant_name { #(#values),* })
@@ -282,10 +288,9 @@ pub(super) fn projection_constructor_for(
                                 format_ident!("__qubit_redact_projection_{index}", span = field.field().span())
                             })
                             .collect::<Vec<_>>();
-                        let values = fields
-                            .iter()
-                            .zip(&names)
-                            .map(|(field, name)| projection_member_value(field.serde_attributes(), quote!(#name)));
+                        let values = fields.iter().zip(&names).map(|(field, name)| {
+                            projection_member_value(source_context, field.serde_attributes(), quote!(#name))
+                        });
                         quote!(#name::#variant_name(#(#names),*) => #projection::#variant_name(#(#values),*))
                     }
                     FieldsData::Unit => quote!(#name::#variant_name => #projection::#variant_name),
@@ -296,10 +301,15 @@ pub(super) fn projection_constructor_for(
     }
 }
 
-/// Builds a borrowed field value and, when needed, saves its Serde predicate.
-fn projection_member_value(attributes: &SerdeAttributes, raw: TokenStream) -> TokenStream {
+/// Builds a field value and rebinds a saved predicate to its source type.
+fn projection_member_value(
+    source_context: &SourceTypeContext<'_>,
+    attributes: &SerdeAttributes,
+    raw: TokenStream,
+) -> TokenStream {
     if projection_uses_saved_predicate(attributes) {
         let predicate = attributes.skip_serializing_if().expect("saved predicate was checked");
+        let predicate = source_function_path(source_context, predicate);
         quote!((#raw, #predicate))
     } else {
         raw
