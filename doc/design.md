@@ -304,6 +304,8 @@ zero for none/unit, dynamic map keys, and scalar unit-variant names. Static fiel
 punctuation, escaping, and framing are excluded. Each logical scalar payload is
 charged once, including when a nested redacted value forwards it through another
 budget adapter. Input and structural admission remain in force.
+For `collect_str`, formatting failure still charges the accepted input prefix; payload is charged
+only for scalar text forwarded to the downstream serializer.
 
 Direct Serialize(view/source) uses structure, input, and logical payload limits; the caller's
 serializer/writer controls final encoding. `to_json` uses the same projection plus an independent
@@ -349,7 +351,10 @@ destination serializer's human-readable preference. JSON output retains its
 existing shape while non-JSON serializers receive the intended option, tuple,
 and representation events.
 Derived transparent, adjacent-tagged, and untagged representations also use
-Serde's effective events and names. Adjacent tags retain the enum name, variant
+Serde's effective events and names. Transparent projections ignore
+`skip_serializing_if`, matching native Serde field forwarding; redaction-specific
+`skip` behavior remains separate. Variant-level redact attributes are rejected
+because derive redaction is defined on containers and fields. Adjacent tags retain the enum name, variant
 index, and serialized variant name. The corrected `Some` and fixed-array Tuple
 events apply to direct source serialization enabled by `#[redact(serde)]` and
 borrowed views. These corrections preserve JSON shape but change event streams
@@ -408,6 +413,8 @@ are charged once in either path. NDJSON admission stores nonblank values with so
 and counts blank lines separately, keeping auxiliary storage constant for blank
 runs. Rendering restores line breaks through the bounded output writer, including
 for multipart NDJSON.
+Opaque non-text multipart parts do not require UTF-8 decoding; sensitive non-UTF-8 parts use the
+opaque mask for their effective sensitivity.
 
 ### 8.4 URL parsing benchmark decision
 

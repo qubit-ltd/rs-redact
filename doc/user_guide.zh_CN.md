@@ -248,6 +248,7 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 `Serialize` 保持原有行为。需要启用 runtime 的 `serde` feature；生成代码本身不要求直接依赖 Serde。
 只有自己的代码使用 Serde trait 或派生宏时，才需直接声明 `serde`。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
+transparent 字段遵循原生 Serde 语义，不调用 `skip_serializing_if`，而是转发所选字段事件，包括空字符串。若旧版本输出 `null`，下游应改为接受字段本身的表示；非 JSON serializer 也可能观察到事件变化。脱敏专有的 `skip` 仍独立生效，启用时使用安全替代。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
 ### 选择序列化边界
@@ -344,6 +345,7 @@ adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型�
 和借用 view。非 JSON serializer 会观察到这些事件变化，已存储数据可能需要旧 decoder 或明确的
 格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
 其中 `Option<Map>::Some` 会以 `Some` 事件包住 map。库不会自动解码旧事件布局。
+`redact` 属性只支持容器和字段，不支持 enum variant。variant 级 `#[redact(...)]` 会在编译时报错；请把字段行为移到 variant 内的字段，或从 unit variant 移除该属性。
 
 ### 内部标签枚举与 newtype 载荷
 
@@ -838,6 +840,7 @@ strict 可以分类 `redact_field`、JSON key 和 HTTP URL query 参数等运行
 内嵌 form 的字段位于深度 3，因此策略至少要允许该深度；inspection 与渲染使用相同边界，不会
 自动提高配置值。处理 segment 前会验证完整 framing，辅助 segment 存储随准入 part 增长，而不随
 所有 segment 增长。已准入的 JSON 与 NDJSON 值会保留并在渲染时复用。
+`application/octet-stream` 等 opaque multipart part 无需 UTF-8 解码，并使用既有 opaque marker 渲染，因此二进制 part 不会连带丢失相邻文本 part。敏感的非 UTF-8 part 则按最终敏感等级使用配置的 opaque mask。
 
 ## 进阶用法
 
@@ -1039,6 +1042,7 @@ UTF-8 前缀仍计费。High/Secret 和 inspection 不执行源 formatter。disa
 
 Serde 逻辑载荷按 str/char 的 UTF-8 字节、bytes 切片长度及数字/bool 的标量表示计量；
 none/unit 为 0，动态 map key 和标量形式的 unit variant 名称计入载荷。
+`collect_str` 格式化失败时，input usage 仍包含已接受前缀；Serde payload 预算只计算成功转发给下游 serializer 的标量内容。
 静态字段名、标点、转义和编码 framing 不计入此额度。
 嵌套事件共享账本，同一逻辑标量即使经另一层预算 adapter 转发也只计费一次，普通 Serialize 仍仅执行一次。`to_json` 的最终额度则包含所有 JSON 标签、
 引号、转义、标点和掩码。比如 `{"value":"abcd"}` 的逻辑载荷是 4 字节，最终 JSON 是 16 字节。

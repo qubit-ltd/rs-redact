@@ -105,6 +105,7 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。
 derive 生成的 transparent、adjacent-tagged 与 untagged 表示也遵循 Serde 生效后的事件和名称。
+transparent 投影忽略 `skip_serializing_if`，与原生 Serde 的字段转发一致；脱敏专有的 `skip` 行为保持独立。derive 的脱敏属性定义在容器和字段上，因此 variant 级属性会被拒绝。
 adjacent tag 保留枚举名、变体索引和序列化变体名。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于
 `#[redact(serde)]` 启用的源对象序列化和借用 view。这些修正不改变 JSON 结构，但非 JSON serializer
 观察到的事件流会变化；使用旧事件写入的持久化数据可能需要旧 decoder 或显式格式版本。迁移时应由旧实现
@@ -249,6 +250,7 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 `max_output_bytes` 各默认 16 KiB；均允许 0，后两者不能超过 isize::MAX。
 载荷沿 Serde 事件计量：字符串/字符 UTF-8、bytes 切片、数字/bool 标量表示，none/unit 为 0，
 动态 map key 和标量形式的 unit variant 名称计入，静态字段名、标点、转义及 framing 不计入。
+`collect_str` 格式化失败时仍会扣除已接受的 input 前缀；payload 只为转发给下游 serializer 的标量文本计费。
 每个逻辑标量载荷只计费一次；嵌套脱敏值经另一层预算 adapter 转发时也不会重复计费，
 输入和结构准入仍照常执行。
 
@@ -314,6 +316,7 @@ part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入�
 form inspection 与渲染共享相同的原始段准入，因此段额度不足优先于语法分类，已准入段在两条路径中都只计费一次。
 NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空行的辅助空间保持常量；渲染通过有界 writer
 恢复换行，multipart NDJSON 也保留源行位置。
+非文本 opaque multipart part 无需 UTF-8 解码；敏感的非 UTF-8 part 使用其最终敏感等级对应的 opaque mask。
 
 ### 8.4 URL 解析基准结论
 

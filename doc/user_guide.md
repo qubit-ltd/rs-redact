@@ -264,6 +264,7 @@ use that redacted representation. Without it, a separately derived ordinary `Ser
 remains unchanged. Enable the runtime `serde` feature; generated implementations do not
 require a direct Serde dependency. Add `serde` when your own code uses its traits or derives.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
+For transparent fields, `skip_serializing_if` follows native Serde behavior and is not called: the selected field event is forwarded, including an empty string. If an earlier version emitted `null`, consumers should accept the field representation; non-JSON serializers may also observe a changed event. Redaction-specific `skip` remains separate and still uses a safe replacement while enabled.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
 ### Choosing the serialization boundary
@@ -374,6 +375,9 @@ explicit format version. When migrating, read old data with the old implementati
 with the corrected one; do not assume the new event layout decodes old data automatically.
 In particular, `Option<Map>::Some` now emits `Some` containing the map. The library does not
 automatically decode the earlier layout.
+Redact attributes are supported on containers and fields, not enum variants. Variant-level
+`#[redact(...)]` is rejected at compile time; put field behavior on that variant's fields, or
+remove the attribute from a unit variant.
 
 ### Internally Tagged Variants and Newtype Payloads
 
@@ -908,6 +912,9 @@ use the same boundary and do not raise the configured limit. Multipart framing i
 validated before processing, while auxiliary segment storage grows with admitted
 parts rather than every segment. Admitted JSON and NDJSON values are retained and reused during
 rendering.
+Opaque multipart parts such as `application/octet-stream` do not need UTF-8 decoding and render
+with the existing opaque marker, so a binary part does not make a neighboring text part disappear.
+Sensitive non-UTF-8 parts use the configured opaque mask for their effective sensitivity level.
 
 ## Advanced Usage
 
@@ -1138,6 +1145,8 @@ memory size of the original object.
 
 Logical Serde payload counts UTF-8 str/char bytes, byte slices, and numeric/bool scalar representations.
 None/unit counts zero; dynamic map keys and scalar unit-variant names count as payload.
+When `collect_str` formatting fails, input usage still includes its accepted prefix; the Serde payload
+budget counts only scalar content successfully forwarded to the downstream serializer.
 Static field names, punctuation, escaping,
 and encoder framing do not count. Nested events share the ledger, and each logical scalar payload is
 charged once even when a nested redacted value forwards it through another budget adapter. Ordinary
