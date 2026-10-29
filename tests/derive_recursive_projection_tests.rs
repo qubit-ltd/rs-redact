@@ -9,14 +9,15 @@
 
 #![cfg(all(feature = "derive", feature = "serde", feature = "json"))]
 
+use std::cell::Cell;
+use std::io;
+
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::domain::internal::RedactSerializeSource;
 use qubit_redact::domain::internal::RedactedSerializeRef;
 use serde::Serialize;
-use std::cell::Cell;
-use std::io;
 
 struct ArrayCallbackCounter<'a>(&'a Cell<usize>);
 
@@ -26,11 +27,7 @@ impl serde_json::ser::Formatter for ArrayCallbackCounter<'_> {
         W: ?Sized + io::Write,
     {
         self.0.set(self.0.get() + 1);
-        if first {
-            Ok(())
-        } else {
-            writer.write_all(b",")
-        }
+        if first { Ok(()) } else { writer.write_all(b",") }
     }
 }
 
@@ -195,9 +192,7 @@ fn test_recursive_vec_box_view_serializes_multiple_levels() {
 #[test]
 fn test_recursive_vector_stops_when_container_node_is_rejected() {
     let value = BudgetNode {
-        children: (0..1000)
-            .map(|_| Box::new(BudgetNode { children: vec![] }))
-            .collect(),
+        children: (0..1000).map(|_| Box::new(BudgetNode { children: vec![] })).collect(),
     };
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -216,9 +211,7 @@ fn test_recursive_vector_stops_when_container_node_is_rejected() {
 #[test]
 fn test_recursive_vector_budget_matrix() {
     let make_value = |count: usize| BudgetNode {
-        children: (0..count)
-            .map(|_| Box::new(BudgetNode { children: vec![] }))
-            .collect(),
+        children: (0..count).map(|_| Box::new(BudgetNode { children: vec![] })).collect(),
     };
     let value = make_value(1000);
     let node_limited = RedactionPolicy::builder()

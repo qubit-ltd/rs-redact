@@ -544,25 +544,18 @@ mod http {
     fn test_invalid_form_inspection_counts_segments_before_syntax_failure() {
         let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 8));
         let capture = BodyCapture::complete(b"first=value&%GG=invalid");
-        let rendered = redactor.redact_http_body_with_content_type_text(
-            capture,
-            Some("application/x-www-form-urlencoded"),
-        );
+        let rendered =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
         assert_eq!(rendered.summary().usage().visited_collection_items(), 2);
         let error = redactor
-            .inspect_http_body_with_content_type_text(
-                capture,
-                Some("application/x-www-form-urlencoded"),
-            )
+            .inspect_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"))
             .unwrap_err();
         assert!(error.reasons().contains(RedactionReason::InvalidForm));
         assert_eq!(error.usage().visited_collection_items(), 2);
 
         let empty = BodyCapture::complete(b"&&");
-        let empty_output = redactor.redact_http_body_with_content_type_text(
-            empty,
-            Some("application/x-www-form-urlencoded"),
-        );
+        let empty_output =
+            redactor.redact_http_body_with_content_type_text(empty, Some("application/x-www-form-urlencoded"));
         assert_eq!(empty_output.summary().usage().visited_collection_items(), 0);
         redactor
             .inspect_http_body_with_content_type_text(empty, Some("application/x-www-form-urlencoded"))
@@ -570,10 +563,7 @@ mod http {
 
         let valid = BodyCapture::complete(b"first=value&second=value");
         let inspection = redactor
-            .inspect_http_body_with_content_type_text(
-                valid,
-                Some("application/x-www-form-urlencoded"),
-            )
+            .inspect_http_body_with_content_type_text(valid, Some("application/x-www-form-urlencoded"))
             .expect("valid form fields should be inspected");
         assert_eq!(inspection.usage().visited_collection_items(), 2);
     }
@@ -586,13 +576,17 @@ mod http {
 
         let ample = Redactor::new(policy_with_key_and_collection_limits(16, 8));
         let rendered = ample.redact_http_body_with_content_type_text(capture, kind);
-        let error = ample.inspect_http_body_with_content_type_text(capture, kind).unwrap_err();
+        let error = ample
+            .inspect_http_body_with_content_type_text(capture, kind)
+            .unwrap_err();
         assert!(error.reasons().contains(RedactionReason::InvalidForm));
         assert_eq!(rendered.summary().usage().visited_collection_items(), 3);
         assert_eq!(error.usage().visited_collection_items(), 3);
 
         let limited = Redactor::new(policy_with_key_and_collection_limits(16, 2));
-        let error = limited.inspect_http_body_with_content_type_text(capture, kind).unwrap_err();
+        let error = limited
+            .inspect_http_body_with_content_type_text(capture, kind)
+            .unwrap_err();
         assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
         assert!(!error.reasons().contains(RedactionReason::InvalidForm));
         assert_eq!(error.usage().visited_collection_items(), 2);

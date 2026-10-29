@@ -180,8 +180,7 @@ pub(crate) fn expand(
         &projection_generics,
         &marker,
     );
-    let recursive_helpers =
-        recursive_projection::expand(input, &projection, model, &marker, runtime, serde);
+    let recursive_helpers = recursive_projection::expand(input, &projection, model, &marker, runtime, serde);
     let actual_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
     let projection_bounds = projection_bounds(input, model, &parameters, runtime, serde, &lifetime);
     let recursive_source_bounds = if recursive_projection::supports_recursive_projection(input, model) {
@@ -975,16 +974,14 @@ fn serialization_adapter_helpers(
     serde: &Path,
 ) -> Vec<TokenStream> {
     match model {
-        ContainerData::Struct(fields) => {
-            helpers_for_group(
-                source_context,
-                source_generics,
-                projection_generics,
-                fields,
-                None,
-                serde,
-            )
-        }
+        ContainerData::Struct(fields) => helpers_for_group(
+            source_context,
+            source_generics,
+            projection_generics,
+            fields,
+            None,
+            serde,
+        ),
         ContainerData::Enum(variants) => variants
             .iter()
             .filter(|variant| !variant.serde_attributes().skip())

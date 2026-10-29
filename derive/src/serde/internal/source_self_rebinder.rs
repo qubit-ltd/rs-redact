@@ -3,7 +3,8 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 // =============================================================================
-//! Rebinds source `Self` references before source constraints move into helpers.
+//! Rebinds source `Self` references before source constraints move into
+//! helpers.
 
 use syn::ExprPath;
 use syn::Generics;
@@ -70,9 +71,7 @@ pub(in crate::serde) fn rebind_source_generics(source: &Ident, generics: &Generi
 }
 
 fn starts_with_self(path: &Path) -> bool {
-    path.segments
-        .first()
-        .is_some_and(|segment| segment.ident == "Self")
+    path.segments.first().is_some_and(|segment| segment.ident == "Self")
 }
 
 fn path_suffix(path: &Path) -> Path {
@@ -103,8 +102,7 @@ mod tests {
     use super::rebind_source_generics;
 
     fn parse_generics(tokens: TokenStream) -> Generics {
-        let input: DeriveInput =
-            syn::parse2(quote!(struct Test #tokens;)).expect("valid source generics");
+        let input: DeriveInput = syn::parse2(quote!(struct Test #tokens;)).expect("valid source generics");
         input.generics
     }
 
@@ -135,13 +133,9 @@ mod tests {
         assert_rebound(
             rebind_source_generics(
                 &source,
-                &parse_generics(
-                    quote!(<'a, T, const N: usize> where <Self as HasAssoc>::Assoc: Clone),
-                ),
+                &parse_generics(quote!(<'a, T, const N: usize> where <Self as HasAssoc>::Assoc: Clone)),
             ),
-            parse_generics(
-                quote!(<'a, T, const N: usize> where <Source<'a, T, N> as HasAssoc>::Assoc: Clone),
-            ),
+            parse_generics(quote!(<'a, T, const N: usize> where <Source<'a, T, N> as HasAssoc>::Assoc: Clone)),
         );
         assert_rebound(
             rebind_source_generics(
@@ -155,9 +149,7 @@ mod tests {
                 &source,
                 &parse_generics(quote!(<'a, T, const N: usize> where for<'b> &'b Self: Trait)),
             ),
-            parse_generics(
-                quote!(<'a, T, const N: usize> where for<'b> &'b Source<'a, T, N>: Trait),
-            ),
+            parse_generics(quote!(<'a, T, const N: usize> where for<'b> &'b Source<'a, T, N>: Trait)),
         );
     }
 
@@ -169,9 +161,7 @@ mod tests {
                 &source,
                 &parse_generics(quote!(<'a, T, const N: usize> where [u8; Self::SIZE]: Copy)),
             ),
-            parse_generics(
-                quote!(<'a, T, const N: usize> where [u8; <Source<'a, T, N>>::SIZE]: Copy),
-            ),
+            parse_generics(quote!(<'a, T, const N: usize> where [u8; <Source<'a, T, N>>::SIZE]: Copy)),
         );
     }
 
