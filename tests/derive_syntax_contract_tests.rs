@@ -632,3 +632,104 @@ fn test_generic_source_serde_accepts_nested_projection_children() {
         json!({"child": {"name": "borrowed"}})
     );
 }
+
+#[test]
+fn test_source_self_bounds_keep_source_type_identity_in_projections() {
+    trait Marker {}
+
+    #[derive(Redact)]
+    struct Record
+    where
+        Self: Marker,
+    {
+        value: u8,
+    }
+
+    impl Marker for Record {}
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    struct SourceRecord
+    where
+        Self: Marker,
+    {
+        value: u8,
+    }
+
+    impl Marker for SourceRecord {}
+
+    let record = Record { value: 7 };
+    assert_eq!(
+        to_value(Redactor::standard().redact_view(&record)).expect("source Self view"),
+        json!({"value": 7})
+    );
+
+    let source_record = SourceRecord { value: 9 };
+    let view = to_value(Redactor::standard().redact_view(&source_record)).expect("source Serialize view");
+    let source = to_value(&source_record).expect("ordinary derived source serialization");
+    assert_eq!(view, json!({"value": 9}));
+    assert_eq!(source, view);
+}
+
+#[test]
+fn test_source_self_bounds_support_assoc_trait_and_const_paths() {
+    trait HasAssoc {
+        type Assoc;
+        const SIZE: usize;
+    }
+    trait Uses<T> {}
+    trait RefMarker {}
+    impl<T> RefMarker for &T {}
+
+    struct Plain<'a, T: Clone, const N: usize>
+    where
+        Self: Uses<Self>,
+        <Self as HasAssoc>::Assoc: Clone,
+        for<'b> &'b Self: RefMarker,
+    {
+        value: &'a T,
+        bytes: [u8; N],
+    }
+
+    impl<'a, T: Clone, const N: usize> HasAssoc for Plain<'a, T, N> {
+        type Assoc = u8;
+        const SIZE: usize = N;
+    }
+    impl<'a, T: Clone, const N: usize> Uses<Plain<'a, T, N>> for Plain<'a, T, N> {}
+
+    #[derive(Redact)]
+    struct Constrained<'a, T: Clone, const N: usize>
+    where
+        Self: Uses<Self>,
+        <Self as HasAssoc>::Assoc: Clone,
+        for<'b> &'b Self: RefMarker,
+    {
+        value: &'a T,
+        bytes: [u8; N],
+    }
+
+    impl<'a, T: Clone, const N: usize> HasAssoc for Constrained<'a, T, N> {
+        type Assoc = u8;
+        const SIZE: usize = N;
+    }
+    impl<'a, T: Clone, const N: usize> Uses<Constrained<'a, T, N>> for Constrained<'a, T, N> {}
+
+    let text = String::from("value");
+    let plain = Plain::<_, 2> {
+        value: &text,
+        bytes: [1, 2],
+    };
+    let constrained = Constrained::<_, 2> {
+        value: &text,
+        bytes: [3, 4],
+    };
+    let expected = json!({"value": "value", "bytes": [3, 4]});
+    assert_eq!(
+        to_value(Redactor::standard().redact_view(&constrained)).expect("Self-bound projection"),
+        expected
+    );
+    assert_eq!(plain.value, constrained.value);
+    assert_eq!(plain.bytes, [1, 2]);
+    assert_eq!(<Plain<'_, String, 2> as HasAssoc>::SIZE, 2);
+    assert_eq!(<Constrained<'_, String, 2> as HasAssoc>::SIZE, 2);
+}

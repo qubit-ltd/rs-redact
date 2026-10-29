@@ -41,10 +41,16 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/disabled_fields.rs");
     tests.pass("tests/fixtures/pass/serde_wire_shape.rs");
     tests.pass("tests/fixtures/pass/generic_grouped_bounds.rs");
+    tests.pass("tests/fixtures/pass/source_self_bounds.rs");
     tests.pass("tests/fixtures/pass/keyed_by.rs");
     tests.pass("tests/fixtures/pass/view_without_serde.rs");
     #[cfg(feature = "json")]
     tests.pass("tests/fixtures/pass/json_string_variants.rs");
+}
+
+#[test]
+fn test_source_self_bounds_without_derive_compile() {
+    trybuild::TestCases::new().pass("tests/fixtures/pass/source_self_bounds_control.rs");
 }
 
 /// Verifies that invalid attributes produce stable targeted diagnostics.

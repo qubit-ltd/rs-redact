@@ -30,6 +30,7 @@ use syn::spanned::Spanned;
 use super::r#enum::enum_body;
 use super::field::adapter_helper_name;
 use super::field::field_context;
+use super::internal::rebind_source_generics;
 use super::recursive_projection;
 use super::source_function_path::SourceTypeContext;
 use super::source_function_path::path_has_self_type_argument;
@@ -152,7 +153,8 @@ pub(crate) fn expand(
     } else {
         None
     };
-    let mut projection_generics = input.generics.clone();
+    let rebound_source_generics = rebind_source_generics(name, &input.generics);
+    let mut projection_generics = rebound_source_generics.clone();
     projection_generics
         .params
         .insert(0, GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
@@ -161,7 +163,13 @@ pub(crate) fn expand(
             .iter()
             .map(|parameter| -> GenericParam { parse_quote!(#parameter: ?Sized) }),
     );
-    let adapters = serialization_adapter_helpers(&source_context, &projection_generics, model, serde);
+    let adapters = serialization_adapter_helpers(
+        &source_context,
+        &rebound_source_generics,
+        &projection_generics,
+        model,
+        serde,
+    );
     let (projection_impl_generics, projection_type_generics, _) = projection_generics.split_for_impl();
     let declaration = projection_declaration(
         input,
@@ -192,7 +200,10 @@ pub(crate) fn expand(
         Vec::new()
     };
     let (source_impl_generics, source_type_generics, source_where_clause) = input.generics.split_for_impl();
-    let source_predicates = input.generics.where_clause.iter().flat_map(|clause| &clause.predicates);
+    let source_predicates = projection_generics
+        .where_clause
+        .iter()
+        .flat_map(|clause| &clause.predicates);
     let projection_serialize_impl = (!unsupported_recursive_fields).then(|| {
         quote! {
             impl #projection_impl_generics #serde::Serialize for #projection #projection_type_generics
@@ -694,8 +705,8 @@ fn projection_declaration(
     marker: &Ident,
 ) -> TokenStream {
     let source = &input.ident;
-    let (_, source_arguments, source_where_clause) = input.generics.split_for_impl();
-    let (declaration_generics, _, _) = generics.split_for_impl();
+    let (_, source_arguments, _) = input.generics.split_for_impl();
+    let (declaration_generics, _, declaration_where_clause) = generics.split_for_impl();
     match model {
         ContainerData::Struct(fields) => {
             let members = match fields {
@@ -736,7 +747,7 @@ fn projection_declaration(
             quote! {
                 #[doc(hidden)]
                 #[derive(Clone, Copy)]
-                struct #projection #declaration_generics #source_where_clause {
+                struct #projection #declaration_generics #declaration_where_clause {
                     #marker: ::core::marker::PhantomData<(&#lifetime #source #source_arguments, #(&#lifetime #parameters),*)>,
                     #(#members),*
                 }
@@ -787,7 +798,7 @@ fn projection_declaration(
             quote! {
                 #[doc(hidden)]
                 #[derive(Clone, Copy)]
-                enum #projection #declaration_generics #source_where_clause {
+                enum #projection #declaration_generics #declaration_where_clause {
                     #(#declarations,)*
                     #marker(::core::marker::PhantomData<(&#lifetime #source #source_arguments, #(&#lifetime #parameters),*)>)
                 }
@@ -944,8 +955,11 @@ fn projection_member_value(attributes: &SerdeAttributes, raw: TokenStream) -> To
 ///
 /// # Parameters
 ///
-/// * `type_name` - Owning type used to name generated helpers.
-/// * `generics` - Source generic parameters and bounds.
+/// * `source_context` - Source type identity used to resolve `Self` in adapter
+///   paths.
+/// * `source_generics` - Rebound source generic parameters and bounds.
+/// * `projection_generics` - Projection parameters used to select helper
+///   dependencies and avoid generated-name collisions.
 /// * `model` - Validated source fields and adapter controls.
 /// * `serde` - Resolved Serde path.
 ///
@@ -955,16 +969,35 @@ fn projection_member_value(attributes: &SerdeAttributes, raw: TokenStream) -> To
 #[must_use]
 fn serialization_adapter_helpers(
     source_context: &SourceTypeContext<'_>,
-    generics: &Generics,
+    source_generics: &Generics,
+    projection_generics: &Generics,
     model: &ContainerData<'_>,
     serde: &Path,
 ) -> Vec<TokenStream> {
     match model {
-        ContainerData::Struct(fields) => helpers_for_group(source_context, generics, fields, None, serde),
+        ContainerData::Struct(fields) => {
+            helpers_for_group(
+                source_context,
+                source_generics,
+                projection_generics,
+                fields,
+                None,
+                serde,
+            )
+        }
         ContainerData::Enum(variants) => variants
             .iter()
             .filter(|variant| !variant.serde_attributes().skip())
-            .flat_map(|variant| helpers_for_group(source_context, generics, variant.fields(), Some(variant), serde))
+            .flat_map(|variant| {
+                helpers_for_group(
+                    source_context,
+                    source_generics,
+                    projection_generics,
+                    variant.fields(),
+                    Some(variant),
+                    serde,
+                )
+            })
             .collect(),
     }
 }
@@ -973,8 +1006,11 @@ fn serialization_adapter_helpers(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Owning source type identifier.
-/// * `generics` - Source generic parameters and bounds.
+/// * `source_context` - Source type identity used to resolve `Self` in adapter
+///   paths.
+/// * `source_generics` - Rebound source generic parameters and bounds.
+/// * `projection_generics` - Projection parameters used to select helper
+///   dependencies and avoid generated-name collisions.
 /// * `fields` - Fields whose optional adapters are inspected.
 /// * `variant` - Owning enum variant, or None for struct fields.
 /// * `serde` - Resolved Serde path.
@@ -985,7 +1021,8 @@ fn serialization_adapter_helpers(
 #[must_use]
 fn helpers_for_group(
     source_context: &SourceTypeContext<'_>,
-    generics: &Generics,
+    source_generics: &Generics,
+    projection_generics: &Generics,
     fields: &FieldsData<'_>,
     variant: Option<&VariantData<'_>>,
     serde: &Path,
@@ -997,7 +1034,8 @@ fn helpers_for_group(
             .filter_map(|field| {
                 adapter_helper(
                     source_context,
-                    generics,
+                    source_generics,
+                    projection_generics,
                     field.field(),
                     &field_context(
                         variant.map(|item| &item.variant().ident),
@@ -1015,7 +1053,8 @@ fn helpers_for_group(
             .filter_map(|field| {
                 adapter_helper(
                     source_context,
-                    generics,
+                    source_generics,
+                    projection_generics,
                     field.field(),
                     &field_context(
                         variant.map(|item| &item.variant().ident),
@@ -1035,8 +1074,11 @@ fn helpers_for_group(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Owning type used to name the carrier.
-/// * `generics` - Source generic parameters used by the field.
+/// * `source_context` - Source type identity used to resolve `Self` in adapter
+///   paths.
+/// * `source_generics` - Rebound source generic parameters and bounds.
+/// * `projection_generics` - Projection parameters used to select field
+///   dependencies and avoid generated-name collisions.
 /// * `field` - Source field supplying its type and diagnostic span.
 /// * `context` - Stable field context used in helper names.
 /// * `adapter` - Custom serialization function, or None to use ordinary Serde.
@@ -1048,7 +1090,8 @@ fn helpers_for_group(
 #[must_use]
 fn adapter_helper(
     source_context: &SourceTypeContext<'_>,
-    generics: &Generics,
+    source_generics: &Generics,
+    projection_generics: &Generics,
     field: &Field,
     context: &str,
     adapter: Option<&Path>,
@@ -1058,14 +1101,14 @@ fn adapter_helper(
     let helper = adapter_helper_name(source_context.ident, field, context);
     let wrapper = format_ident!("{helper}_carrier", span = field.span());
     let field_type = &field.ty;
-    let lifetime = assertions::fresh_lifetime(generics);
+    let lifetime = assertions::fresh_lifetime(projection_generics);
     let adapter_tokens = source_function_path(source_context, adapter);
     let mut helper_generics = if adapter.segments.first().is_some_and(|segment| segment.ident == "Self")
         || path_has_self_type_argument(adapter)
     {
-        source_context.generics.clone()
+        source_generics.clone()
     } else {
-        assertions::generics_for_field_and_adapter(generics, field_type, adapter)
+        assertions::generics_for_field_and_adapter(projection_generics, field_type, adapter)
     };
     helper_generics
         .params

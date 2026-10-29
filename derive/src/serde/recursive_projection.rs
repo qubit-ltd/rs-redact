@@ -19,6 +19,7 @@ use syn::PathArguments;
 use syn::Type;
 use syn::parse_quote;
 
+use super::internal::rebind_source_generics;
 use crate::expand::assertions;
 use crate::model::ContainerData;
 use crate::model::FieldMode;
@@ -142,13 +143,13 @@ pub(super) fn expand(
             }
         })
         .collect::<Vec<_>>();
-    let (_, source_type_generics, source_where_clause) = input.generics.split_for_impl();
+    let (_, source_type_generics, _) = input.generics.split_for_impl();
     let projection_type = quote!(#projection<#lifetime, #(#source_arguments,)* #(#projection_arguments),*>);
-    let mut factory_generics = input.generics.clone();
+    let mut factory_generics = rebind_source_generics(name, &input.generics);
     factory_generics
         .params
         .insert(0, GenericParam::Lifetime(parse_quote!(#lifetime)));
-    let (factory_impl_generics, _, _) = factory_generics.split_for_impl();
+    let (factory_impl_generics, _, factory_where_clause) = factory_generics.split_for_impl();
     let constructor = super::entry::projection_constructor_for(name, projection, model, marker, quote!(value));
     quote! {
         #[doc(hidden)]
@@ -224,7 +225,7 @@ pub(super) fn expand(
             }
         }
 
-        fn #factory #factory_impl_generics (value: &#lifetime #name #source_type_generics) -> #projection_type #source_where_clause {
+        fn #factory #factory_impl_generics (value: &#lifetime #name #source_type_generics) -> #projection_type #factory_where_clause {
             #constructor
         }
     }

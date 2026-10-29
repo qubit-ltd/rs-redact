@@ -10,10 +10,12 @@
 mod adjacently_tagged;
 mod externally_tagged;
 mod internally_tagged;
+mod source_self_rebinder;
 mod untagged;
 mod variant_fields;
 
 pub(super) use adjacently_tagged::adjacent_variant_arm;
 pub(super) use externally_tagged::external_variant_arm;
 pub(super) use internally_tagged::internal_variant_arm;
+pub(in crate::serde) use source_self_rebinder::rebind_source_generics;
 pub(super) use untagged::untagged_variant_arm;

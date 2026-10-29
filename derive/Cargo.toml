@@ -30,7 +30,7 @@ proc-macro = true
 proc-macro-crate = "^3.5"
 proc-macro2 = "^1.0"
 quote = "^1.0"
-syn = "^3.0"
+syn = { version = "^3.0", features = ["visit-mut"] }
 
 [dev-dependencies]
 # Local doctests use the workspace runtime. Omitting a version keeps this
