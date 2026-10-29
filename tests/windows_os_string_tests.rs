@@ -38,9 +38,9 @@ fn bounded_redactor(maximum: usize) -> Redactor {
 #[test]
 fn test_plain_argv_preserves_windows_lossy_representation() {
     for (units, expected, env_expected) in [
-        (vec![0x41, 0xD800, 0x42], "[\"A�B\"]", "VISIBLE=A�B"),
-        (vec![0x41, 0xDC00, 0x42], "[\"A�B\"]", "VISIBLE=A�B"),
-        (vec![0xD83D, 0xDE00], "[\"😀\"]", "VISIBLE=😀"),
+        (vec![0x41, 0xD800, 0x42], "[\"A�B\"]", "[\"REGION=A�B\"]"),
+        (vec![0x41, 0xDC00, 0x42], "[\"A�B\"]", "[\"REGION=A�B\"]"),
+        (vec![0xD83D, 0xDE00], "[\"😀\"]", "[\"REGION=😀\"]"),
     ] {
         let value = wide(&units);
         let output = Redactor::standard().redact_argv([ArgvItem::plain(&value)]);
@@ -49,7 +49,7 @@ fn test_plain_argv_preserves_windows_lossy_representation() {
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
         assert_eq!(output.summary().usage().output_bytes(), expected.len());
 
-        let standard_env = Redactor::standard().redact_env_pairs([(OsStr::new("VISIBLE"), value.as_os_str())]);
+        let standard_env = Redactor::standard().redact_env_pairs([(OsStr::new("REGION"), value.as_os_str())]);
         assert_eq!(standard_env.text().as_str(), env_expected);
 
         let disabled = Redactor::new(RedactionPolicy::disabled());
@@ -61,7 +61,7 @@ fn test_plain_argv_preserves_windows_lossy_representation() {
                 .as_str()
                 .is_char_boundary(disabled_argv.text().as_str().len())
         );
-        let disabled_env = disabled.redact_env_pairs([(OsStr::new("VISIBLE"), value.as_os_str())]);
+        let disabled_env = disabled.redact_env_pairs([(OsStr::new("REGION"), value.as_os_str())]);
         assert!(disabled_env.summary().is_redaction_disabled());
         assert_eq!(disabled_env.text().as_str(), env_expected);
     }
