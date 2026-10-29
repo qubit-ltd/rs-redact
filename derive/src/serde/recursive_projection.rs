@@ -102,6 +102,7 @@ pub(super) fn expand(
     projection: &syn::Ident,
     model: &ContainerData<'_>,
     marker: &syn::Ident,
+    runtime: &syn::Path,
     serde: &syn::Path,
 ) -> TokenStream {
     if !supports_recursive_projection(input, model) {
@@ -115,6 +116,7 @@ pub(super) fn expand(
     let vector = format_ident!("__QubitRedact{}RecursiveVec", type_fragment);
     let factory = format_ident!("__qubit_redact_{}_reproject", name.to_string().trim_start_matches("r#"));
     let serde = quote!(#serde);
+    let runtime = quote!(#runtime);
     let lifetime = assertions::fresh_lifetime(&input.generics);
     let fields = collect_fields(model);
     let projection_arguments = fields
@@ -197,11 +199,28 @@ pub(super) fn expand(
             fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where S: #serde::Serializer {
                 use #serde::ser::SerializeSeq;
-                let mut sequence = serializer.serialize_seq(Some(self.value.len()))?;
-                for value in self.value {
-                    sequence.serialize_element(&#carrier::new(value.as_ref(), self.reproject))?;
-                }
-                sequence.end()
+                let policy_owner = #runtime::domain::internal::current_policy()
+                    .ok_or_else(|| {
+                        <S::Error as #serde::ser::Error>::custom(
+                            "serialization requires an active redaction scope",
+                        )
+                    })?;
+                #runtime::domain::internal::serialize_structured(
+                    serializer,
+                    policy_owner.as_ref(),
+                    |serializer| {
+                        #runtime::domain::internal::admit_serializer_items(
+                            &serializer, self.value.len(),
+                        )?;
+                        let mut sequence = serializer.serialize_seq(Some(self.value.len()))?;
+                        for value in self.value {
+                            sequence.serialize_element(
+                                &#carrier::new(value.as_ref(), self.reproject),
+                            )?;
+                        }
+                        sequence.end()
+                    },
+                )
             }
         }
 

@@ -12,7 +12,42 @@
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+use qubit_redact::domain::internal::RedactSerializeSource;
 use qubit_redact::domain::internal::RedactedSerializeRef;
+use serde::Serialize;
+use std::cell::Cell;
+use std::io;
+
+struct ArrayCallbackCounter<'a>(&'a Cell<usize>);
+
+impl serde_json::ser::Formatter for ArrayCallbackCounter<'_> {
+    fn begin_array_value<W>(&mut self, writer: &mut W, first: bool) -> io::Result<()>
+    where
+        W: ?Sized + io::Write,
+    {
+        self.0.set(self.0.get() + 1);
+        if first {
+            Ok(())
+        } else {
+            writer.write_all(b",")
+        }
+    }
+}
+
+fn serialize_with_array_counter<T: RedactSerializeSource>(
+    redactor: &Redactor,
+    value: &T,
+    callbacks: &Cell<usize>,
+) -> Result<String, serde_json::Error>
+where
+    for<'value> T::RedactedFields<'value>: serde::Serialize,
+{
+    let mut output = Vec::new();
+    let formatter = ArrayCallbackCounter(callbacks);
+    let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
+    redactor.redact_view(value).serialize(&mut serializer)?;
+    Ok(String::from_utf8(output).expect("JSON is UTF-8"))
+}
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact)]
@@ -69,6 +104,19 @@ struct RecursiveVecNode {
     #[redact(level = "secret")]
     password: String,
     children: Vec<Box<RecursiveVecNode>>,
+}
+
+#[allow(clippy::vec_box)]
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+struct BudgetNode {
+    children: Vec<Box<BudgetNode>>,
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact)]
+struct OrdinaryVector {
+    children: Vec<u8>,
 }
 
 #[test]
@@ -142,6 +190,141 @@ fn test_recursive_vec_box_view_serializes_multiple_levels() {
         serde_json::to_value(redactor.redact_view(&value)).expect("recursive Vec view"),
         expected
     );
+}
+
+#[test]
+fn test_recursive_vector_stops_when_container_node_is_rejected() {
+    let value = BudgetNode {
+        children: (0..1000)
+            .map(|_| Box::new(BudgetNode { children: vec![] }))
+            .collect(),
+    };
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1).max_nodes(1);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let redactor = Redactor::new(policy);
+    let encoded = redactor.to_json(&value).unwrap();
+    assert_eq!(encoded, r#"{"children":"<redacted>"}"#);
+    let view = serde_json::to_value(redactor.redact_view(&value)).unwrap();
+    assert_eq!(view, serde_json::json!({"children":"<redacted>"}));
+}
+
+#[test]
+fn test_recursive_vector_budget_matrix() {
+    let make_value = |count: usize| BudgetNode {
+        children: (0..count)
+            .map(|_| Box::new(BudgetNode { children: vec![] }))
+            .collect(),
+    };
+    let value = make_value(1000);
+    let node_limited = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(2000).max_nodes(1);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let redactor = Redactor::new(node_limited);
+    let callbacks = Cell::new(0);
+    let encoded = serialize_with_array_counter(&redactor, &value, &callbacks).unwrap();
+    assert_eq!(encoded, r#"{"children":"<redacted>"}"#);
+    assert_eq!(callbacks.get(), 0);
+
+    let item_limited = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1).max_nodes(2000);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let redactor = Redactor::new(item_limited);
+    let callbacks = Cell::new(0);
+    assert!(serialize_with_array_counter(&redactor, &value, &callbacks).is_err());
+    assert_eq!(callbacks.get(), 0);
+
+    for count in [0, 1, 1000] {
+        let value = make_value(count);
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_collection_items(5000).max_nodes(5000);
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+        let redactor = Redactor::new(policy);
+        let encoded = redactor.to_json(&value).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(parsed["children"].as_array().unwrap().len(), count);
+        assert_eq!(value.children.len(), count);
+    }
+
+    let root_limited = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(5000).max_nodes(0);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let callbacks = Cell::new(0);
+    let encoded = serialize_with_array_counter(&Redactor::new(root_limited), &value, &callbacks).unwrap();
+    assert_eq!(encoded, r#""<redacted>""#);
+    assert_eq!(callbacks.get(), 0);
+
+    let depth_limited = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(5000).max_nodes(5000).max_depth(1);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let callbacks = Cell::new(0);
+    let encoded = serialize_with_array_counter(&Redactor::new(depth_limited), &value, &callbacks).unwrap();
+    assert_eq!(encoded, r#"{"children":"<redacted>"}"#);
+    assert_eq!(callbacks.get(), 0);
+
+    let ordinary = OrdinaryVector { children: vec![1, 2] };
+    let low_items = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_collection_items(1);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    assert!(serde_json::to_value(Redactor::new(low_items).redact_view(&ordinary)).is_err());
+
+    let secret_value = RecursiveVecNode {
+        password: "root-secret".into(),
+        children: (0..1000)
+            .map(|index| {
+                Box::new(RecursiveVecNode {
+                    password: format!("child-secret-{index}"),
+                    children: vec![],
+                })
+            })
+            .collect(),
+    };
+    let ample = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits
+                .max_collection_items(5000)
+                .max_nodes(5000)
+                .max_output_bytes(500_000);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let encoded = Redactor::new(ample).to_json(&secret_value).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+    assert_eq!(parsed["children"].as_array().unwrap().len(), 1000);
+    assert_eq!(parsed["password"], "<redacted>");
+    assert!(!encoded.contains("root-secret"));
+    assert!(!encoded.contains("child-secret"));
+    assert_eq!(secret_value.password, "root-secret");
+    assert_eq!(secret_value.children.len(), 1000);
 }
 
 #[test]
