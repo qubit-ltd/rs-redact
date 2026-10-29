@@ -84,10 +84,18 @@ impl Redactor {
 
     /// Inspects HTTP headers without rendering their values.
     ///
+    /// Header values are admitted as raw bytes and are not decoded as text.
+    /// Classification uses header names and
+    /// [`HeaderValue::is_sensitive`]; a sensitive-marked value is classified
+    /// as [`Sensitivity::Secret`](crate::Sensitivity). A successful
+    /// inspection does not validate the text encoding of header values.
+    /// Content-Type parsing performed by body inspection is a separate
+    /// operation.
+    ///
     /// # Errors
     ///
-    /// Returns [`RedactionInspectionError`] when a header cannot be decoded
-    /// safely or a shared resource limit prevents complete inspection.
+    /// Returns [`RedactionInspectionError`] when a shared resource limit
+    /// prevents complete inspection.
     ///
     /// # Parameters
     ///

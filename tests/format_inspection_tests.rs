@@ -666,6 +666,53 @@ fn test_inspect_http_structures_honor_shared_node_limit() {
     );
 }
 
+#[cfg(feature = "http")]
+#[test]
+fn test_opaque_header_inspection_classifies_without_decoding_values() {
+    for (name, marked, expected) in [
+        ("x-visible", false, None),
+        ("authorization", false, Some(Sensitivity::High)),
+        ("x-visible", true, Some(Sensitivity::Secret)),
+    ] {
+        let mut value = HeaderValue::from_bytes(&[0xFF]).expect("valid opaque header");
+        value.set_sensitive(marked);
+        let mut headers = HeaderMap::new();
+        let _ = headers.insert(name, value);
+        let result = Redactor::standard()
+            .inspect_http_headers(&headers)
+            .expect("opaque values need no text decoding for classification");
+        assert_eq!(result.max_sensitivity(), expected, "header {name}, marked={marked}");
+        assert_eq!(result.usage().inspected_input_bytes(), name.len() + 1);
+        assert_eq!(result.usage().output_bytes(), 0);
+    }
+
+    let mut marked_value = HeaderValue::from_bytes(&[0xFF]).expect("valid opaque header");
+    marked_value.set_sensitive(true);
+    let mut marked_headers = HeaderMap::new();
+    let _ = marked_headers.insert("x-visible", marked_value.clone());
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_http_headers(&marked_headers)
+        .expect("disabled inspection admits opaque header bytes");
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    assert_eq!(disabled.usage().inspected_input_bytes(), "x-visible".len() + 1);
+    assert_eq!(disabled.usage().output_bytes(), 0);
+
+    let limited_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_input_bytes(0);
+        })
+        .expect("valid input limit")
+        .build()
+        .expect("valid policy");
+    let mut limited_headers = HeaderMap::new();
+    let _ = limited_headers.insert("x-visible", marked_value);
+    let error = Redactor::new(limited_policy)
+        .inspect_http_headers(&limited_headers)
+        .expect_err("input limit must reject header admission");
+    assert!(error.reasons().contains(RedactionReason::InputLimitReached));
+}
+
 /// JSON inspection traverses arrays, nested objects, and every scalar kind.
 #[cfg(feature = "json")]
 #[test]
