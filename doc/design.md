@@ -113,6 +113,10 @@ Self-recursive `nested` edges through supported containers (for example,
 recursive associated-type obligations. `redact_view()` and `to_json()` retain the same
 field capability requirements as other projections; this does not add ordinary source
 `Serialize` as a blanket requirement.
+Projection helper declarations preserve source generic constraints against the original source type.
+Recursive `Vec` projections admit their container node and cumulative item count before creating or
+traversing the sequence; node rejection uses the safe replacement, while item rejection returns a
+serializer error before element callbacks begin.
 
 Text RuntimeCore and synchronous Serde scopes have different lifetimes and own separate
 ledgers. Serde scopes use PolicyFrame Arc snapshots and thread-local guards; nested and
@@ -398,7 +402,9 @@ cursor before the segments are consumed. Auxiliary segment state does not scale
 with the raw segment count; admitted slots grow only for admitted parts. Top-level
 form fields use depth 2, while form fields inside multipart parts use depth 3 in
 both inspection and rendering. Admitted JSON and NDJSON values are retained
-and reused during rendering. NDJSON admission stores nonblank values with source-line indices
+and reused during rendering. Form inspection and rendering share the same raw-segment admission,
+so an exhausted segment allowance takes precedence over syntax classification and accepted segments
+are charged once in either path. NDJSON admission stores nonblank values with source-line indices
 and counts blank lines separately, keeping auxiliary storage constant for blank
 runs. Rendering restores line breaks through the bounded output writer, including
 for multipart NDJSON.

@@ -1142,6 +1142,13 @@ Static field names, punctuation, escaping,
 and encoder framing do not count. Nested events share the ledger, and each logical scalar payload is
 charged once even when a nested redacted value forwards it through another budget adapter. Ordinary
 Serialize runs once.
+
+Recursive `Vec` projections admit the container node and the cumulative item count before starting the
+sequence. A rejected container is replaced as a whole; insufficient item allowance returns a serializer
+error before any vector element callback runs. Directly serializing through an external serializer may
+have written a prefix before an error, so the caller must discard or otherwise treat that output as
+failed. `to_json` returns a `String` only after complete encoding and never exposes partial JSON.
+
 Final `to_json` bytes include all JSON labels, quotes, escapes, punctuation, and masks.
 For example, `{"value":"abcd"}` has four logical payload bytes and 16 final JSON bytes.
 The caller must bound additional encoding overhead from an arbitrary external serializer.

@@ -98,6 +98,8 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 受支持容器中的自递归 `nested` 字段（例如 `Option<Box<Node>>` 或
 `Vec<Box<Node>>`）通过惰性子投影工厂打断递归关联类型约束。`redact_view()` 与
 `to_json()` 仍遵循普通投影的字段能力要求，不会因此要求源对象一律实现普通 `Serialize`。
+投影辅助类型会保留源泛型约束，并将其绑定到原始源类型。递归 `Vec` 投影会在创建或遍历序列前
+准入容器节点和累计元素数；节点拒绝使用安全替代，元素拒绝则在元素回调开始前返回 serializer 错误。
 
 脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，level 模式切片使用 sequence，通过准入的固定数组使用
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
@@ -309,6 +311,7 @@ Multipart 内嵌 JSON/NDJSON 的解析失败保留 `InvalidJson`，资源准入�
 Multipart framing 会先由借用的 segment 游标完整校验，再逐段消费。辅助 segment 状态不随原始
 segment 数量增长；admitted slot 只为通过准入的 part 增长。顶层 form 字段使用深度 2，multipart
 part 内的 form 字段在 inspection 与渲染中都使用深度 3。已准入的 JSON 与 NDJSON 值会保留并在渲染时复用。
+form inspection 与渲染共享相同的原始段准入，因此段额度不足优先于语法分类，已准入段在两条路径中都只计费一次。
 NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空行的辅助空间保持常量；渲染通过有界 writer
 恢复换行，multipart NDJSON 也保留源行位置。
 
