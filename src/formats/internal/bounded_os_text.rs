@@ -90,7 +90,7 @@ fn write_display(value: &OsStr, maximum: usize, output: &mut String) -> bool {
         maximum,
         exceeded: false,
     };
-    let _ = write!(&mut writer, "{value}");
+    let _ = write!(&mut writer, "{}", value.display());
     !writer.exceeded
 }
 
