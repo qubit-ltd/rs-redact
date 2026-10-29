@@ -36,6 +36,83 @@ use crate::policy::ResolvedField;
 /// let output = Redactor::standard().redact_text(&Credentials);
 /// assert!(!output.text().as_str().contains("raw-secret"));
 /// ```
+///
+/// A display name labels a nested payload; use `keyed_nested` when a business
+/// key should classify the entire payload:
+///
+/// ```
+/// use qubit_redact::{Redact, RedactionPolicy, RedactionWriter, Redactor};
+///
+/// #[derive(Debug)]
+/// struct Payload;
+///
+/// impl Redact for Payload {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("Payload", |fields| {
+///             fields.unredacted("value", || "visible");
+///         });
+///     }
+/// }
+///
+/// struct ByLabel(Payload);
+/// impl Redact for ByLabel {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("ByLabel", |fields| {
+///             fields.nested("password", &self.0);
+///         });
+///     }
+/// }
+///
+/// struct ByBusinessKey(Payload);
+/// impl Redact for ByBusinessKey {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("ByBusinessKey", |fields| {
+///             fields.keyed_nested("payload", "password", &self.0);
+///         });
+///     }
+/// }
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| { fields.secret_sensitive("password"); })
+///     .expect("valid field rule")
+///     .build()
+///     .expect("valid policy");
+/// let redactor = Redactor::new(policy);
+/// let labeled = redactor.redact_text(&ByLabel(Payload));
+/// assert!(labeled.text().as_str().contains("visible"));
+/// let keyed = redactor.redact_text(&ByBusinessKey(Payload));
+/// assert!(!keyed.text().as_str().contains("visible"));
+/// ```
+///
+/// With the `json` feature, the display label also does not classify the
+/// complete JSON value; its object keys are classified recursively:
+///
+/// ```
+/// #[cfg(feature = "json")]
+/// fn json_example() {
+/// use qubit_redact::{Redact, RedactionPolicy, RedactionWriter, Redactor};
+///
+/// struct JsonPayload(serde_json::Value);
+/// impl Redact for JsonPayload {
+///     fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+///         writer.record("JsonPayload", |fields| {
+///             fields.json_value("password", &self.0);
+///         });
+///     }
+/// }
+///
+/// let policy = RedactionPolicy::builder()
+///     .fields(|fields| { fields.secret_sensitive("password"); })
+///     .expect("valid field rule")
+///     .build()
+///     .expect("valid policy");
+/// let value = serde_json::json!({"visible": "data"});
+/// let output = Redactor::new(policy).redact_text(&JsonPayload(value));
+/// assert!(output.text().as_str().contains("data"));
+/// }
+/// #[cfg(feature = "json")]
+/// json_example();
+/// ```
 pub struct RedactionFields<'writer, 'session> {
     /// Domain writer receiving field output.
     pub(super) writer: &'writer mut RedactionWriter<'session>,
@@ -201,6 +278,20 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Redacts JSON text for a named field through this shared transaction.
+    ///
+    /// `name` is a display label and participates in field admission; it does
+    /// not classify the whole JSON value. Object keys inside the JSON are
+    /// classified recursively. Use [`Self::keyed_nested`] when a business key
+    /// should classify the entire payload.
+    ///
+    /// Returns this field writer for continued chained output. If field
+    /// admission fails, a safe replacement is written within the current
+    /// transaction budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - JSON text to parse and redact.
     #[cfg(feature = "json")]
     pub fn json(&mut self, name: &str, value: &str) -> &mut Self {
         if !self.admit_field(name) {
@@ -220,6 +311,20 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Writes a borrowed parsed JSON value without cloning or modifying it.
+    ///
+    /// `name` is a display label and participates in field admission; it does
+    /// not classify the whole JSON value. Object keys inside the value are
+    /// classified recursively. Use [`Self::keyed_nested`] when a business key
+    /// should classify the entire payload.
+    ///
+    /// Returns this field writer for continued chained output. If field
+    /// admission fails, a safe replacement is written within the current
+    /// transaction budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Parsed JSON value to redact.
     #[cfg(feature = "json")]
     pub fn json_value(&mut self, name: &str, value: &serde_json::Value) -> &mut Self {
         if !self.admit_field(name) {
@@ -246,6 +351,20 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Writes a nested domain value through the current session.
+    ///
+    /// `name` is a display label and participates in field admission; it does
+    /// not classify the whole child value. The child's [`Redact`]
+    /// implementation applies its own rules. Use [`Self::keyed_nested`]
+    /// when a business key should classify the entire payload.
+    ///
+    /// Returns this field writer for continued chained output. If field
+    /// admission fails, a safe replacement is written within the current
+    /// transaction budget. Nested output shares this transaction's budget.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Nested domain value to redact.
     pub fn nested<T>(&mut self, name: &str, value: &T) -> &mut Self
     where
         T: Redact + ?Sized,

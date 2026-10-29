@@ -592,6 +592,10 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
         let payload = remaining_payload_bytes();
         let mut writer = BoundedDisplayWriter::new(input.min(payload));
         let result = fmt::write(&mut writer, format_args!("{value}"));
+        let admitted = admit_input(writer.accepted_bytes());
+        if !admitted {
+            return Err(SerdeError::custom("redaction input budget exceeded"));
+        }
         let text = writer.finish().ok_or_else(|| {
             SerdeError::custom(if input <= payload {
                 "redaction input budget exceeded"
@@ -600,7 +604,10 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
             })
         })?;
         result.map_err(|_| SerdeError::custom("redaction scalar formatting failed"))?;
-        self.serialize_str(&text)
+        if !admit_payload_or_forwarded(text.len()) {
+            return Err(SerdeError::custom("redaction scalar payload budget exceeded"));
+        }
+        self.inner.serialize_str(&text)
     }
     /// Preserves the downstream encoding preference without accessing the
     /// source.

@@ -27,14 +27,141 @@ struct Plain<'a> {
 }
 
 fn bounded(payload: usize, output: usize) -> Redactor {
+    bounded_with_input(usize::MAX, payload, output)
+}
+
+fn bounded_with_input(input: usize, payload: usize, output: usize) -> Redactor {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
-            limits.max_serde_payload_bytes(payload).max_output_bytes(output);
+            limits
+                .max_input_bytes(input)
+                .max_serde_payload_bytes(payload)
+                .max_output_bytes(output);
         })
         .expect("valid draft")
         .build()
         .expect("valid policy");
     Redactor::new(policy)
+}
+
+#[derive(Debug)]
+struct AcceptedPrefixThenError;
+
+impl fmt::Display for AcceptedPrefixThenError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ab")?;
+        Err(fmt::Error)
+    }
+}
+
+impl Serialize for AcceptedPrefixThenError {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+#[derive(Debug)]
+struct AcceptedPrefixThenWriterLimit;
+
+impl fmt::Display for AcceptedPrefixThenWriterLimit {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("ab")?;
+        formatter.write_str("xy")?;
+        Ok(())
+    }
+}
+
+impl Serialize for AcceptedPrefixThenWriterLimit {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+#[derive(Debug)]
+struct SimpleCollectStr(&'static str);
+
+impl fmt::Display for SimpleCollectStr {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+
+impl Serialize for SimpleCollectStr {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+#[derive(Redact)]
+struct CollectedSimple {
+    value: SimpleCollectStr,
+}
+
+#[derive(Debug)]
+struct RecoverCollectStr<T>(T);
+
+impl<T: fmt::Display + Serialize> Serialize for RecoverCollectStr<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut sequence = serializer.serialize_seq(Some(2))?;
+        let _ = sequence.serialize_element(&self.0);
+        sequence.serialize_element("cd")?;
+        sequence.end()
+    }
+}
+
+#[derive(Redact)]
+struct CollectStrRecovery<T> {
+    value: RecoverCollectStr<T>,
+}
+
+#[test]
+fn test_collect_str_formatter_error_charges_accepted_input_before_recovery() {
+    let redactor = bounded_with_input(3, 16, 128);
+    let error = serde_json::to_value(redactor.redact_view(&CollectStrRecovery {
+        value: RecoverCollectStr(AcceptedPrefixThenError),
+    }))
+    .expect_err("the accepted ab prefix leaves less than cd");
+    assert!(error.to_string().contains("input"), "{error}");
+}
+
+#[test]
+fn test_collect_str_recovery_exact_budget_and_scope_reset() {
+    let redactor = bounded_with_input(4, 16, 128);
+    let value = serde_json::to_value(redactor.redact_view(&CollectStrRecovery {
+        value: RecoverCollectStr(AcceptedPrefixThenError),
+    }))
+    .expect("ab prefix plus cd exactly consumes input=4");
+    assert_eq!(value, serde_json::json!({"value": ["cd"]}));
+
+    let reset_redactor = bounded_with_input(2, 16, 128);
+    let error = serde_json::to_value(reset_redactor.redact_view(&CollectStrRecovery {
+        value: RecoverCollectStr(AcceptedPrefixThenError),
+    }));
+    assert!(error.is_err());
+    assert_eq!(
+        serde_json::to_value(reset_redactor.redact_view(&Plain { value: "cd" }))
+            .expect("a new scope gets its full input allowance"),
+        serde_json::json!({"value": "cd"})
+    );
+}
+
+#[test]
+fn test_collect_str_writer_limit_charges_accepted_prefix_before_recovery() {
+    let error = serde_json::to_value(bounded_with_input(3, 16, 128).redact_view(&CollectStrRecovery {
+        value: RecoverCollectStr(AcceptedPrefixThenWriterLimit),
+    }))
+    .expect_err("the writer-accepted ab prefix leaves less than cd");
+    assert!(error.to_string().contains("input"), "{error}");
+}
+
+#[test]
+fn test_collect_str_exact_input_and_payload_boundaries_succeed() {
+    let redactor = bounded_with_input(2, 2, 128);
+    let value = serde_json::to_value(redactor.redact_view(&CollectedSimple {
+        value: SimpleCollectStr("ab"),
+    }))
+    .expect("the forwarded scalar exactly consumes input and payload budgets");
+    assert_eq!(value, serde_json::json!({"value": "ab"}));
 }
 
 #[test]

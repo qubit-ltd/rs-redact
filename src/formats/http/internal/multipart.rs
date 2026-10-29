@@ -314,20 +314,32 @@ fn redact_part(
         (Cow::Owned(markers::MULTIPART_FILE.to_string()), false, false)
     } else if name == markers::MULTIPART_UNNAMED {
         (Cow::Owned(markers::MULTIPART_PART.to_string()), false, false)
-    } else {
-        let body_text = std::str::from_utf8(body).ok()?;
-        if let Some(value) = redactor.redact_bounded_if_sensitive(name, body_text, max_output_bytes) {
-            (Cow::Owned(value.into_owned()), false, false)
-        } else {
-            redact_non_sensitive_part(
-                redactor,
-                body,
-                policy,
-                metadata.content_type(),
-                max_output_bytes,
-                admitted,
-            )?
+    } else if let Some(level) = redactor.sensitivity(name) {
+        match std::str::from_utf8(body) {
+            Ok(text) => (
+                Cow::Owned(
+                    redactor
+                        .redact_bounded_if_sensitive(name, text, max_output_bytes)?
+                        .into_owned(),
+                ),
+                false,
+                false,
+            ),
+            Err(_) => (
+                Cow::Owned(redactor.masking().mask_opaque(level).to_owned()),
+                false,
+                false,
+            ),
         }
+    } else {
+        redact_non_sensitive_part(
+            redactor,
+            body,
+            policy,
+            metadata.content_type(),
+            max_output_bytes,
+            admitted,
+        )?
     };
     if truncated {
         return Some((String::new(), passed, true));
@@ -397,7 +409,6 @@ fn redact_non_sensitive_part<'body>(
     max_output_bytes: usize,
     admitted: Option<Option<&mut AdmittedMultipartBody>>,
 ) -> Option<(Cow<'body, str>, bool, bool)> {
-    let text = std::str::from_utf8(body).ok()?;
     match part_type {
         Some(value) if content_type::is_json(value) => {
             let value = match admitted? {
@@ -418,14 +429,20 @@ fn redact_non_sensitive_part<'body>(
             let value = form::redact_bounded(redactor, body, max_output_bytes);
             (Cow::Owned(value), false, false)
         }),
-        Some(value) if content_type::is_text(value) => match policy.http().text_body_policy() {
-            TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
-            TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
-        },
-        None => match policy.http().text_body_policy() {
-            TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
-            TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
-        },
+        Some(value) if content_type::is_text(value) => {
+            let text = std::str::from_utf8(body).ok()?;
+            match policy.http().text_body_policy() {
+                TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
+                TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
+            }
+        }
+        None => {
+            let text = std::str::from_utf8(body).ok()?;
+            match policy.http().text_body_policy() {
+                TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
+                TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
+            }
+        }
         Some(_) => Some((Cow::Owned(markers::MULTIPART_PART.to_string()), false, false)),
     }
 }
