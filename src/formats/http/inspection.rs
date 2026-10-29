@@ -319,17 +319,14 @@ pub(in crate::formats::http) fn inspect_ndjson(
 /// * `bytes` - URL-encoded form body.
 /// * `field_depth` - Structural depth charged to each form field.
 pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, bytes: &[u8], field_depth: usize) {
+    if !super::internal::multipart::admit_form_fields(session, bytes, field_depth) {
+        return;
+    }
     if !form::is_valid(bytes) {
         session.fail_inspection(RedactionReason::InvalidForm);
         return;
     }
     for (key, _) in form_urlencoded::parse(bytes) {
-        if !session.admit_format_collection_item()
-            || !session.admit_format_node(field_depth)
-            || !session.admit_domain_key(&key)
-        {
-            return;
-        }
         if let Some(sensitivity) = body_fields(session).sensitivity(&key) {
             session.observe_sensitivity(sensitivity);
         }

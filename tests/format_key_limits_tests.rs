@@ -523,6 +523,104 @@ mod http {
     }
 
     #[test]
+    fn test_invalid_form_inspection_preserves_segment_limit_precedence() {
+        let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 1));
+        let capture = BodyCapture::complete(b"first=value&%GG=invalid");
+        let kind = Some("application/x-www-form-urlencoded");
+        let rendered = redactor.redact_http_body_with_content_type_text(capture, kind);
+        let error = redactor
+            .inspect_http_body_with_content_type_text(capture, kind)
+            .unwrap_err();
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+        assert!(!error.reasons().contains(RedactionReason::InvalidForm));
+        assert_eq!(error.usage().visited_collection_items(), 1);
+        assert_eq!(
+            error.usage().visited_collection_items(),
+            rendered.summary().usage().visited_collection_items(),
+        );
+    }
+
+    #[test]
+    fn test_invalid_form_inspection_counts_segments_before_syntax_failure() {
+        let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 8));
+        let capture = BodyCapture::complete(b"first=value&%GG=invalid");
+        let rendered = redactor.redact_http_body_with_content_type_text(
+            capture,
+            Some("application/x-www-form-urlencoded"),
+        );
+        assert_eq!(rendered.summary().usage().visited_collection_items(), 2);
+        let error = redactor
+            .inspect_http_body_with_content_type_text(
+                capture,
+                Some("application/x-www-form-urlencoded"),
+            )
+            .unwrap_err();
+        assert!(error.reasons().contains(RedactionReason::InvalidForm));
+        assert_eq!(error.usage().visited_collection_items(), 2);
+
+        let empty = BodyCapture::complete(b"&&");
+        let empty_output = redactor.redact_http_body_with_content_type_text(
+            empty,
+            Some("application/x-www-form-urlencoded"),
+        );
+        assert_eq!(empty_output.summary().usage().visited_collection_items(), 0);
+        redactor
+            .inspect_http_body_with_content_type_text(empty, Some("application/x-www-form-urlencoded"))
+            .expect("empty segments do not consume structural item budget");
+
+        let valid = BodyCapture::complete(b"first=value&second=value");
+        let inspection = redactor
+            .inspect_http_body_with_content_type_text(
+                valid,
+                Some("application/x-www-form-urlencoded"),
+            )
+            .expect("valid form fields should be inspected");
+        assert_eq!(inspection.usage().visited_collection_items(), 2);
+    }
+
+    #[test]
+    fn test_invalid_multipart_form_inspection_counts_outer_and_inner_segments() {
+        let body = b"--boundary\r\nContent-Disposition: form-data; name=\"payload\"\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nfirst=value&%GG=invalid\r\n--boundary--\r\n";
+        let capture = BodyCapture::complete(body);
+        let kind = Some("multipart/form-data; boundary=boundary");
+
+        let ample = Redactor::new(policy_with_key_and_collection_limits(16, 8));
+        let rendered = ample.redact_http_body_with_content_type_text(capture, kind);
+        let error = ample.inspect_http_body_with_content_type_text(capture, kind).unwrap_err();
+        assert!(error.reasons().contains(RedactionReason::InvalidForm));
+        assert_eq!(rendered.summary().usage().visited_collection_items(), 3);
+        assert_eq!(error.usage().visited_collection_items(), 3);
+
+        let limited = Redactor::new(policy_with_key_and_collection_limits(16, 2));
+        let error = limited.inspect_http_body_with_content_type_text(capture, kind).unwrap_err();
+        assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+        assert!(!error.reasons().contains(RedactionReason::InvalidForm));
+        assert_eq!(error.usage().visited_collection_items(), 2);
+
+        let valid_body = b"--boundary\r\nContent-Disposition: form-data; name=\"payload\"\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nfirst=value&second=value\r\n--boundary--\r\n";
+        let valid_capture = BodyCapture::complete(valid_body);
+        let inspection = ample
+            .inspect_http_body_with_content_type_text(valid_capture, kind)
+            .expect("valid embedded form fields should be inspected");
+        assert_eq!(inspection.usage().visited_collection_items(), 3);
+    }
+
+    #[test]
+    fn test_native_and_text_form_inspection_share_invalid_form_accounting() {
+        let redactor = Redactor::new(policy_with_key_and_collection_limits(16, 8));
+        let capture = BodyCapture::complete(b"first=value&%GG=invalid");
+        let text_error = redactor
+            .inspect_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"))
+            .unwrap_err();
+        let content_type = HeaderValue::from_static("application/x-www-form-urlencoded");
+        let native_error = redactor.inspect_http_body(capture, Some(&content_type)).unwrap_err();
+        assert!(text_error.reasons().contains(RedactionReason::InvalidForm));
+        assert!(native_error.reasons().contains(RedactionReason::InvalidForm));
+        assert_eq!(text_error.usage().visited_collection_items(), 2);
+        assert_eq!(native_error.usage().visited_collection_items(), 2);
+    }
+
+    #[test]
     fn test_http_multipart_name_limit_rejects_before_publication() {
         let redactor = Redactor::new(policy_with_key_limit(1));
         let body = b"--boundary\r\nContent-Disposition: form-data; name=\"abcd\"\r\n\r\nrejected-value-427\r\n--boundary--\r\n";
