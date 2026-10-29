@@ -79,6 +79,13 @@ fn type_uses_self(ty: &Type) -> bool {
                     .is_some_and(|segment| segment.ident == "Self")
                 || path_has_self_type_argument(&type_path.path)
         }
+        Type::FnPtr(value) => {
+            value.inputs.iter().any(|argument| type_uses_self(&argument.ty))
+                || match &value.output {
+                    syn::ReturnType::Default => false,
+                    syn::ReturnType::Type(_, ty) => type_uses_self(ty.as_ref()),
+                }
+        }
         _ => false,
     }
 }
@@ -114,6 +121,14 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
         Type::Ptr(value) => replace_self_in_type(&mut value.elem, source, generics),
         Type::Paren(value) => replace_self_in_type(&mut value.elem, source, generics),
         Type::Group(value) => replace_self_in_type(&mut value.elem, source, generics),
+        Type::FnPtr(value) => {
+            for argument in &mut value.inputs {
+                replace_self_in_type(&mut argument.ty, source, generics);
+            }
+            if let syn::ReturnType::Type(_, ty) = &mut value.output {
+                replace_self_in_type(ty.as_mut(), source, generics);
+            }
+        }
         _ => {}
     }
     let Type::Path(type_path) = ty else {
@@ -154,4 +169,53 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
         return;
     }
     replace_self_in_path_arguments(&mut type_path.path, source, generics);
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::ToTokens;
+    use syn::Generics;
+    use syn::Ident;
+    use syn::Type;
+    use syn::parse_quote;
+
+    use super::replace_self_in_type;
+    use super::type_uses_self;
+
+    #[test]
+    fn test_bare_function_self_detection_and_replacement() {
+        let source: Ident = parse_quote!(Source);
+        let generics: Generics = parse_quote!(<'a, T, const N: usize>);
+
+        let cases: [(Type, Type); 3] = [
+            (parse_quote!(fn(Self)), parse_quote!(fn(Source<'a, T, N>))),
+            (parse_quote!(fn() -> Self), parse_quote!(fn() -> Source<'a, T, N>)),
+            (
+                parse_quote!(Option<fn(Self)>),
+                parse_quote!(Option<fn(Source<'a, T, N>)>),
+            ),
+        ];
+        for (mut ty, expected) in cases {
+            assert!(type_uses_self(&ty));
+            replace_self_in_type(&mut ty, &source, &generics);
+            assert_eq!(ty.to_token_stream().to_string(), expected.to_token_stream().to_string());
+        }
+    }
+
+    #[test]
+    fn test_bare_function_preserves_non_self_parts() {
+        let source: Ident = parse_quote!(Source);
+        let generics: Generics = parse_quote!(<'a, T, const N: usize>);
+        let mut ty: Type = parse_quote!(for<'b> unsafe extern "C" fn(&'b Self) -> Self);
+        assert!(type_uses_self(&ty));
+        replace_self_in_type(&mut ty, &source, &generics);
+        let expected: Type = parse_quote!(for<'b> unsafe extern "C" fn(&'b Source<'a, T, N>) -> Source<'a, T, N>);
+        assert_eq!(ty.to_token_stream().to_string(), expected.to_token_stream().to_string());
+
+        let mut no_self: Type = parse_quote!(unsafe extern "C" fn(u8) -> u16);
+        let original = no_self.to_token_stream().to_string();
+        assert!(!type_uses_self(&no_self));
+        replace_self_in_type(&mut no_self, &source, &generics);
+        assert_eq!(no_self.to_token_stream().to_string(), original);
+    }
 }
