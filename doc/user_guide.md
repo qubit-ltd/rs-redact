@@ -1125,8 +1125,15 @@ For a derived `#[redact(json)]` field stored as `serde_json::Value`, JSON-specif
 are checked against that field's complete tree. They are not accumulated across JSON fields.
 When the policy is disabled, this added JSON-specific check is skipped; the existing general
 Serde scope accounting and final output limits still apply.
-These general limits accumulate in the active Serde scope across the serialized value. A
-JSON `String` field is serialized as a string; a `Value` field keeps
+These general limits accumulate in the active Serde scope across the serialized value. Each
+projected Option layer contributes one structural node and one depth level. An explicit Display
+scalar must pass structural admission before its formatter runs. Rejection uses the existing safe
+structural replacement or returns the serializer error required by other limits. Disabled policy
+still enforces structural limits. Applications that need the full value should size `max_nodes`
+and `max_depth` for the actual projection shape; disabling redaction does not bypass those limits.
+Recursive `skip_serializing_if` predicates may refer to the source type as `Self`; derive resolves
+that path against the source type, including recursive view projections.
+A JSON `String` field is serialized as a string; a `Value` field keeps
 its JSON wire structure. `to_json` also enforces the final encoded-byte limit. Directly
 serializing a view or source object leaves final encoding size to the external serializer and
 writer. A borrowed `Value` has no recoverable original input bytes and cannot reveal duplicate

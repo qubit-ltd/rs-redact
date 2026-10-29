@@ -7,21 +7,36 @@
 // =============================================================================
 //! Constant-state traversal of strict multipart framing.
 
-/// Borrows multipart segments after validating the complete framing.
+/// Iterates non-blank multipart segments borrowed from a validated body.
+///
+/// Construction scans the complete framing, including the closing delimiter
+/// and whitespace-only epilogue, before resetting the cursor for replay.
 #[derive(Clone)]
 pub(in crate::formats::http) struct MultipartSegments<'a> {
+    /// Complete body retained for the lifetime of yielded segment slices.
     bytes: &'a [u8],
+    /// Opening delimiter including its `--` prefix.
     delimiter: String,
+    /// Closing delimiter including its `--` prefix and closing suffix.
     closing: String,
+    /// Byte offset from which the next logical line is scanned.
     scan_position: usize,
+    /// Start offset of the current segment body, or `None` before its opening
+    /// delimiter.
     segment_start: Option<usize>,
+    /// Whether iteration has reached its terminal state.
     finished: bool,
+    /// Whether the completed pass found a closing delimiter followed only by
+    /// whitespace.
     framing_valid: bool,
 }
 
 impl<'a> MultipartSegments<'a> {
-    /// Validates all delimiters and the epilogue before returning a fresh
-    /// iterator.
+    /// Validates the complete framing, then returns a fresh replay iterator.
+    ///
+    /// The validation pass consumes the temporary cursor through the closing
+    /// delimiter and checks the epilogue. On success, all cursor state is
+    /// reset so iteration performs a second pass over the same borrowed body.
     ///
     /// # Parameters
     ///
@@ -54,6 +69,11 @@ impl<'a> MultipartSegments<'a> {
         Some(segments)
     }
 
+    /// Classifies a line as a delimiter after trimming trailing spaces/tabs.
+    ///
+    /// `None` means the line is not a recognized delimiter (including a
+    /// non-UTF-8 line), `Some(false)` is an opening delimiter, and
+    /// `Some(true)` is the closing delimiter.
     fn delimiter_at(&self, start: usize, end: usize) -> Option<bool> {
         let line = std::str::from_utf8(&self.bytes[start..end]).ok()?;
         let line = line.trim_end_matches([' ', '\t']);
@@ -70,6 +90,10 @@ impl<'a> MultipartSegments<'a> {
 impl<'a> Iterator for MultipartSegments<'a> {
     type Item = &'a [u8];
 
+    /// Returns the next non-whitespace segment as a slice of the source body.
+    ///
+    /// A malformed closing epilogue terminates iteration with `None`; the
+    /// constructor's full validation pass normally detects it before replay.
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             return None;
@@ -106,7 +130,10 @@ impl<'a> Iterator for MultipartSegments<'a> {
     }
 }
 
-/// Finds the next logical line bounds.
+/// Finds the next logical line's content bounds and the following byte offset.
+///
+/// A CR immediately before LF is excluded from the content range; an
+/// unterminated final line ends at `bytes.len()`.
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
     if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
@@ -118,6 +145,7 @@ fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
     }
 }
 
+/// Removes one trailing CRLF or LF sequence from a borrowed segment.
 #[inline]
 fn strip_line_ending(value: &[u8]) -> &[u8] {
     value

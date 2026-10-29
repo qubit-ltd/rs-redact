@@ -117,6 +117,12 @@ Projection helper declarations preserve source generic constraints against the o
 Recursive `Vec` projections admit their container node and cumulative item count before creating or
 traversing the sequence; node rejection uses the safe replacement, while item rejection returns a
 serializer error before element callbacks begin.
+Each projected Option layer also admits its own node and depth before emitting `serialize_some` or
+`serialize_none`; it does not add a collection item. Explicit Display scalar adapters admit their
+structure before invoking the source formatter. Rejection uses the existing safe structural
+replacement, while disabled policy continues to enforce structural budgets. Recursive
+`skip_serializing_if` predicates resolve `Self` against the original source type, preserving the
+same path semantics in lazy recursive projections.
 
 Text RuntimeCore and synchronous Serde scopes have different lifetimes and own separate
 ledgers. Serde scopes use PolicyFrame Arc snapshots and thread-local guards; nested and

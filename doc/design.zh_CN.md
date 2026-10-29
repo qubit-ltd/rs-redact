@@ -101,6 +101,10 @@ derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 投影辅助类型会保留源泛型约束，并将其绑定到原始源类型。递归 `Vec` 投影会在创建或遍历序列前
 准入容器节点和累计元素数；节点拒绝使用安全替代，元素拒绝则在元素回调开始前返回 serializer 错误。
 
+每层 Option 投影也会在发送 `serialize_some` 或 `serialize_none` 前准入自身的节点和深度，不额外计为集合项。
+显式 Display 标量 adapter 会在调用源 formatter 前执行结构准入。拒绝时使用现有安全结构替代；disabled 策略仍执行结构预算。
+递归 `skip_serializing_if` 谓词中的 `Self` 会绑定到原始源类型，在惰性递归投影中保持相同路径语义。
+
 脱敏序列化保留源 Serde 事件形状：`Option::Some` 使用 `serialize_some`，level 模式切片使用 sequence，通过准入的固定数组使用
 tuple，包装器透传目标 serializer 的 human-readable 选择。JSON 输出形状保持不变，非 JSON
 serializer 则收到预期的 Option、tuple 和表示方式事件。

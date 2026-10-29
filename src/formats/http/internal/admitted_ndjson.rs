@@ -10,10 +10,18 @@
 use serde_json::Value;
 
 /// Non-blank NDJSON records retained with their zero-based source line index.
+///
+/// `records` is sparse: blank source lines advance `line_count` but retain no
+/// `Value`. Stored indices are strictly increasing and always less than
+/// `line_count`. `line_count` counts lines yielded by `str::lines`; a terminal
+/// newline is tracked separately and does not add an empty trailing line.
 #[derive(Clone)]
 pub(in crate::formats::http) struct AdmittedNdjson {
+    /// Parsed non-blank values paired with their original zero-based line.
     records: Vec<(usize, Value)>,
+    /// Number of source lines yielded so far by `str::lines`.
     line_count: usize,
+    /// Whether the complete source ended in a newline.
     trailing_newline: bool,
 }
 
@@ -39,6 +47,10 @@ impl AdmittedNdjson {
     }
 
     /// Returns the admitted records for in-place rendering.
+    ///
+    /// Callers may transform each `Value`, but must preserve every line index
+    /// and the records' strictly increasing order; changing either breaks the
+    /// association with the source lines.
     pub(in crate::formats::http) fn records_mut(&mut self) -> &mut [(usize, Value)] {
         &mut self.records
     }

@@ -285,10 +285,23 @@ impl RedactionBudget {
 }
 
 #[cfg(feature = "json")]
+/// Admits parsed JSON values into the transaction's shared structural ledger.
+///
+/// The visitor mutably borrows the transaction's structural budget, cumulative
+/// usage, and optional per-operation usage as disjoint fields. `base_depth`
+/// offsets each JSON-relative context depth by the domain depth active when
+/// admission began. The root contributes a structural node only; every
+/// non-root value contributes a collection item before its node is admitted.
+/// Consequently, a node rejection can leave an already-counted collection
+/// item, and counts from earlier successful visits, in the usage ledgers.
 struct JsonUsageVisitor<'a> {
+    /// Shared domain and format traversal limits.
     structural: &'a mut StructuralBudget,
+    /// Cumulative resource use for the entire transaction.
     usage: &'a mut RedactionUsage,
+    /// Resource use for the active independently published item, if any.
     active_operation_usage: &'a mut Option<RedactionUsage>,
+    /// Domain depth at which this JSON tree was admitted.
     base_depth: usize,
 }
 
@@ -296,6 +309,14 @@ struct JsonUsageVisitor<'a> {
 impl JsonTreeVisitor for JsonUsageVisitor<'_> {
     type Error = RedactionReason;
 
+    /// Accounts a collection item (except for the root) before admitting its
+    /// root-inclusive absolute depth as a structural node.
+    ///
+    /// Returns `DepthLimitReached` when the depth limit rejects the node and
+    /// `TraversalLimitReached` when its collection-item or node limit rejects
+    /// it. The first reached rejection is returned and stops this traversal.
+    /// The visitor does not roll back an item already counted before a later
+    /// depth/node rejection, or visits completed before an error.
     fn enter(&mut self, _value: &Value, context: JsonTreeContext<'_>) -> Result<(), Self::Error> {
         if !matches!(context.location, JsonTreeLocation::Root) {
             if !self.structural.admit_collection_item() {
