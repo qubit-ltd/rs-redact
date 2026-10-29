@@ -26,6 +26,16 @@ jobs:
         run: ./.infra/bin/prepare-local-path-dependencies.sh
       - name: Check portable core
         run: cargo check --locked -p qubit-redact --lib --no-default-features --target wasm32-unknown-unknown
+  windows-os-strings:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - name: Prepare local path dependencies
+        shell: bash
+        run: ./.infra/bin/prepare-local-path-dependencies.sh
+      - name: Test Windows OS strings
+        run: cargo test --locked -p qubit-redact --no-default-features --test windows_os_string_tests
   rust-ci:
     permissions:
       contents: read
