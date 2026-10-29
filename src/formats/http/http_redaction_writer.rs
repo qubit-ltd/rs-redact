@@ -190,11 +190,17 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body into the parent session's aggregate output.
     ///
     /// Body and content-type byte lengths are offered to the shared budget
-    /// before the body renderer inspects their contents. Rejected input emits
-    /// a non-empty diagnostic fallback when it fits; exhausted output skips
-    /// the renderer. Successful admission appends bounded
-    /// output. Actual output rejection closes later operations; source
-    /// truncation alone leaves any remaining output allowance usable.
+    /// before the body renderer inspects their contents. If input admission
+    /// rejects this body, no body text is appended; the transaction summary
+    /// records the rejection, and any text already appended by the composer
+    /// remains. Callers can use [`crate::RedactionTextOutput::text_or_marker`]
+    /// for standalone diagnostic display or
+    /// [`crate::DiagnosticRedactionBatch::finish_with_marker`] for batch
+    /// items. Exhausted output skips the renderer. Successful admission
+    /// appends bounded output. Actual output rejection closes later
+    /// operations; source truncation alone leaves any remaining output
+    /// allowance usable. Structural admission failure retains its
+    /// `<truncated>` diagnostic output.
     ///
     /// # Parameters
     ///
@@ -232,11 +238,17 @@ impl<'session> HttpRedactionWriter<'session> {
     /// Redacts a captured HTTP body with text Content-Type.
     ///
     /// Body and content-type byte lengths are offered to the shared budget
-    /// before the body renderer inspects their contents. Rejected input emits
-    /// a non-empty diagnostic fallback when it fits; exhausted output skips
-    /// the renderer. Successful admission appends bounded
-    /// output. Actual output rejection closes later operations; source
-    /// truncation alone leaves any remaining output allowance usable.
+    /// before the body renderer inspects their contents. If input admission
+    /// rejects this body, no body text is appended; the transaction summary
+    /// records the rejection, and any text already appended by the composer
+    /// remains. Callers can use [`crate::RedactionTextOutput::text_or_marker`]
+    /// for standalone diagnostic display or
+    /// [`crate::DiagnosticRedactionBatch::finish_with_marker`] for batch
+    /// items. Exhausted output skips the renderer. Successful admission
+    /// appends bounded output. Actual output rejection closes later
+    /// operations; source truncation alone leaves any remaining output
+    /// allowance usable. Structural admission failure retains its
+    /// `<truncated>` diagnostic output.
     ///
     /// # Parameters
     ///
