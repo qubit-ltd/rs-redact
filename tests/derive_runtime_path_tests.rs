@@ -45,7 +45,7 @@ fn test_runtime_path_reports_missing_dependency() {
     );
 }
 
-/// Verifies a crate named like the runtime resolves through `Itself`.
+/// Verifies `Itself` resolution happens before container attribute validation.
 #[test]
 fn test_runtime_path_resolves_itself() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -66,5 +66,27 @@ fn test_runtime_path_resolves_itself() {
     assert!(
         !stderr.contains("unable to resolve the qubit-redact runtime crate"),
         "{stderr}",
+    );
+}
+
+/// Verifies successful generated implementations use the runtime crate itself.
+#[test]
+fn test_runtime_path_itself_expands_and_runs() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = manifest_dir.join("tests/fixtures/crates/runtime_itself_success/Cargo.toml");
+    let target_dir = manifest_dir.join("target/runtime-itself-success-fixture");
+    let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let output = support::isolated_cargo::command(&cargo)
+        .args(["run", "--manifest-path"])
+        .arg(manifest)
+        .arg("--target-dir")
+        .arg(target_dir)
+        .output()
+        .expect("the isolated cargo run starts");
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
     );
 }
