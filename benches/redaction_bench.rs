@@ -166,6 +166,9 @@ fn benchmark_redaction(criterion: &mut Criterion) {
             redactor.redact_env_pairs(black_box(pairs))
         });
     });
+    // Each element is one argument or environment pair; the fixed program is
+    // excluded.
+    formats.throughput(Throughput::Elements((arguments.len() + variables.len()) as u64));
     formats.bench_function("process/64-arguments-and-variables", |bencher| {
         bencher.iter(|| {
             let items = arguments.iter().map(|value| ArgvItem::plain(OsStr::new(value)));
