@@ -19,9 +19,59 @@ use std::marker::PhantomData;
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
+use serde::Serialize;
 use serde::Serializer;
 use serde_json::json;
 use serde_json::to_value;
+
+fn string_is_empty(value: &str) -> bool {
+    value.is_empty()
+}
+
+fn bytes_are_empty(value: &[u8]) -> bool {
+    value.is_empty()
+}
+
+fn slice_is_empty<T>(value: &[T]) -> bool {
+    value.is_empty()
+}
+
+#[test]
+fn test_skip_predicates_allow_deref_and_slice_coercion() {
+    #[derive(Redact)]
+    #[redact(serde)]
+    struct Record {
+        #[serde(skip_serializing_if = "string_is_empty")]
+        text: String,
+        #[serde(skip_serializing_if = "bytes_are_empty")]
+        bytes: Vec<u8>,
+    }
+
+    #[derive(Serialize)]
+    struct Native {
+        #[serde(skip_serializing_if = "string_is_empty")]
+        text: String,
+        #[serde(skip_serializing_if = "bytes_are_empty")]
+        bytes: Vec<u8>,
+    }
+
+    let redactor = Redactor::standard();
+    for (text, bytes) in [(String::new(), vec![]), ("kept".to_owned(), vec![1_u8])] {
+        let source = Record {
+            text: text.clone(),
+            bytes: bytes.clone(),
+        };
+        let native = Native { text, bytes };
+        let expected = to_value(native).expect("native Serde should serialize");
+        assert_eq!(to_value(redactor.redact_view(&source)).unwrap(), expected);
+        assert_eq!(to_value(&source).unwrap(), expected);
+        #[cfg(feature = "json")]
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&redactor.to_json(&source).unwrap()).unwrap(),
+            expected
+        );
+    }
+}
 
 thread_local! {
     static SELF_PREDICATE_CALLS: Cell<usize> = const { Cell::new(0) };
@@ -45,8 +95,7 @@ fn test_recursive_self_predicate_is_rebound_and_lazy() {
     }
 
     impl Node {
-        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
-        fn is_empty(value: &String) -> bool {
+        fn is_empty(value: &str) -> bool {
             is_empty_string(value)
         }
     }
@@ -87,6 +136,24 @@ fn test_recursive_self_predicate_is_rebound_and_lazy() {
 #[test]
 fn test_recursive_enum_self_predicates_cover_named_and_tuple_fields() {
     #[derive(Debug, Redact)]
+    struct TupleRecord(
+        #[serde(skip_serializing_if = "Self::empty")]
+        String,
+        #[serde(skip_serializing_if = "Self::empty_bytes")]
+        Vec<u8>,
+    );
+
+    impl TupleRecord {
+        fn empty(value: &str) -> bool {
+            value.is_empty()
+        }
+
+        fn empty_bytes(value: &[u8]) -> bool {
+            value.is_empty()
+        }
+    }
+
+    #[derive(Debug, Redact)]
     enum Tree {
         Named {
             #[serde(skip_serializing_if = "Self::empty")]
@@ -97,13 +164,22 @@ fn test_recursive_enum_self_predicates_cover_named_and_tuple_fields() {
     }
 
     impl Tree {
-        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
-        fn empty(value: &String) -> bool {
+        fn empty(value: &str) -> bool {
             value.is_empty()
         }
     }
 
     let redactor = Redactor::standard();
+    let empty_tuple = TupleRecord(String::new(), vec![]);
+    assert_eq!(
+        to_value(redactor.redact_view(&empty_tuple)).unwrap(),
+        json!([])
+    );
+    let retained_tuple = TupleRecord("kept".to_owned(), vec![1_u8]);
+    assert_eq!(
+        to_value(redactor.redact_view(&retained_tuple)).unwrap(),
+        json!(["kept", [1]])
+    );
     let named = Tree::Named {
         label: String::new(),
         child: None,
@@ -146,8 +222,7 @@ fn test_generic_recursive_self_predicate_and_explicit_path_control() {
     }
 
     impl Node {
-        #[allow(clippy::ptr_arg)] // Serde skip predicates take the field's exact type.
-        fn empty(value: &String) -> bool {
+        fn empty(value: &str) -> bool {
             value.is_empty()
         }
     }
@@ -260,6 +335,26 @@ fn test_generic_skip_predicate_preserves_projection_type_parameters() {
 
     let text_only = Generic { value: Some(TextOnly) };
     assert!(format!("{}", redactor.redact_view(&text_only)).contains("TextOnly"));
+}
+
+#[test]
+fn test_generic_slice_skip_predicate_accepts_vec_coercion() {
+    #[derive(Debug, Redact)]
+    #[redact(serde)]
+    struct Generic<T: Debug> {
+        #[serde(skip_serializing_if = "slice_is_empty")]
+        values: Vec<T>,
+    }
+
+    let redactor = Redactor::standard();
+    assert_eq!(
+        to_value(redactor.redact_view(&Generic::<u8> { values: vec![] })).unwrap(),
+        json!({})
+    );
+    assert_eq!(
+        to_value(redactor.redact_view(&Generic::<u8> { values: vec![1] })).unwrap(),
+        json!({"values": [1]})
+    );
 }
 
 /// A concrete predicate field does not make text-only formatting require

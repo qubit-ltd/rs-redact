@@ -312,7 +312,7 @@ fn projection_member_value(
     if projection_uses_saved_predicate(attributes) {
         let predicate = attributes.skip_serializing_if().expect("saved predicate was checked");
         let predicate = source_function_path(source_context, predicate);
-        quote!((#raw, #predicate))
+        quote!((#raw, |value| #predicate(value)))
     } else {
         raw
     }
