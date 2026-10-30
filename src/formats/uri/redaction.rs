@@ -207,9 +207,13 @@ fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUri
 
 /// Returns the UTF-8 decoding of `raw`, preserving literal `+` characters.
 ///
-/// Allocates at most the input byte length. Returns value-free `Err(())` for an
-/// incomplete or non-hexadecimal percent escape, or decoded non-UTF-8 bytes.
-pub(super) fn decode_uri_component(raw: &str) -> Result<String, ()> {
+/// Borrows input without percent escapes and allocates at most its byte length
+/// otherwise. Returns value-free `Err(())` for malformed escapes or decoded
+/// non-UTF-8 bytes.
+pub(super) fn decode_uri_component(raw: &str) -> Result<Cow<'_, str>, ()> {
+    if !raw.as_bytes().contains(&b'%') {
+        return Ok(Cow::Borrowed(raw));
+    }
     let bytes = raw.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -227,7 +231,7 @@ pub(super) fn decode_uri_component(raw: &str) -> Result<String, ()> {
             index += 1;
         }
     }
-    String::from_utf8(decoded).map_err(|_| ())
+    String::from_utf8(decoded).map(Cow::Owned).map_err(|_| ())
 }
 
 /// Streams one sensitive value through URI encoding and the bounded writer.
@@ -267,4 +271,31 @@ const fn hex_value(byte: u8) -> Option<u8> {
 #[must_use]
 fn safe_text(value: String) -> String {
     escape_log_control_characters(Cow::Owned(value)).into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    /// Verifies unescaped URI components are borrowed without changing text.
+    #[test]
+    fn test_decode_uri_component_borrows_unescaped_text() {
+        for raw in ["", "plain", "a+b"] {
+            assert!(matches!(
+                super::decode_uri_component(raw),
+                Ok(std::borrow::Cow::Borrowed(value)) if value == raw
+            ));
+        }
+    }
+
+    /// Verifies percent decoding remains strict and preserves UTF-8 behavior.
+    #[test]
+    fn test_decode_uri_component_preserves_strict_percent_decoding() {
+        assert!(matches!(
+            super::decode_uri_component("hello%20world"),
+            Ok(std::borrow::Cow::Owned(value)) if value == "hello world"
+        ));
+        assert_eq!(super::decode_uri_component("%C3%A9").unwrap().as_ref(), "é");
+        for raw in ["%", "%0", "%GG", "%FF", "%C3%28"] {
+            assert!(super::decode_uri_component(raw).is_err());
+        }
+    }
 }

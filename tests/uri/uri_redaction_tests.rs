@@ -192,6 +192,28 @@ fn test_uri_redacts_percent_encoded_sensitive_query_values() {
     assert!(!output.text().as_str().contains("%53%65%63%72%65%74"));
 }
 
+/// Verifies encoded keys, literal plus signs, and invalid UTF-8 retain their
+/// URI contracts.
+#[test]
+fn test_uri_component_decoding_preserves_public_contracts() {
+    let redactor = Redactor::standard();
+    let encoded_key = "https://example.test/?%70assword=raw-secret";
+    assert!(
+        redactor
+            .inspect_uri(encoded_key)
+            .expect("encoded sensitive key should inspect")
+            .contains_sensitive()
+    );
+    assert!(!redactor.redact_uri(encoded_key).text().as_str().contains("raw-secret"));
+
+    let literal_plus = redactor.redact_uri("https://example.test/?field=a+b");
+    assert!(literal_plus.text().as_str().contains("field=a+b"));
+
+    let invalid_utf8 = "https://example.test/?field=%FF";
+    assert!(redactor.inspect_uri(invalid_utf8).is_err());
+    assert_eq!(redactor.redact_uri(invalid_utf8).text().as_str(), "<invalid URI>");
+}
+
 /// A URI that cannot fit after earlier output must become an exhausted handle
 /// and must not add unbudgeted text to the aggregate transaction.
 #[test]
