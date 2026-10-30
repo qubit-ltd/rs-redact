@@ -10,11 +10,80 @@
 #![cfg(all(feature = "derive", feature = "serde"))]
 
 use std::io::Write;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use qubit_redact::Redact;
+use qubit_redact::RedactSerialize;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Redactor;
 use qubit_redact::domain::internal::RedactSerializeSource;
+
+static CHILD_SERIALIZATION_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+struct CountedChild;
+
+impl RedactSerialize for CountedChild {
+    fn serialize_redacted<S>(&self, serializer: S, _policy: &RedactionPolicy) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        CHILD_SERIALIZATION_CALLS.fetch_add(1, Ordering::SeqCst);
+        serializer.serialize_unit()
+    }
+}
+
+#[test]
+fn test_legacy_none_obeys_zero_structural_budgets() {
+    for limited in [
+        policy(Some(0), None),
+        policy(None, Some(0)),
+        bounded_policy(RedactionPolicy::disabled(), Some(0), None),
+        bounded_policy(RedactionPolicy::disabled(), None, Some(0)),
+    ] {
+        let value = None::<Empty>
+            .serialize_redacted(serde_json::value::Serializer, &limited)
+            .expect("safe legacy Option replacement");
+        assert_eq!(value, serde_json::json!("<redacted>"));
+    }
+}
+
+#[test]
+fn test_legacy_option_layers_consume_nodes_and_depth() {
+    let source = Some(Some(Empty {}));
+    for limited in [policy(Some(2), None), policy(None, Some(2))] {
+        assert_eq!(
+            source
+                .serialize_redacted(serde_json::value::Serializer, &limited)
+                .unwrap(),
+            serde_json::json!("<redacted>")
+        );
+    }
+    for enough in [policy(Some(3), None), policy(None, Some(3))] {
+        assert_eq!(
+            source
+                .serialize_redacted(serde_json::value::Serializer, &enough)
+                .unwrap(),
+            serde_json::json!({})
+        );
+    }
+    assert_eq!(
+        source
+            .serialize_redacted(serde_json::value::Serializer, &RedactionPolicy::standard())
+            .unwrap(),
+        serde_json::json!({})
+    );
+}
+
+#[test]
+fn test_legacy_option_rejection_does_not_serialize_child() {
+    CHILD_SERIALIZATION_CALLS.store(0, Ordering::SeqCst);
+    let value = Some(CountedChild)
+        .serialize_redacted(serde_json::value::Serializer, &policy(Some(0), None))
+        .unwrap();
+    assert_eq!(value, serde_json::json!("<redacted>"));
+    assert_eq!(CHILD_SERIALIZATION_CALLS.load(Ordering::SeqCst), 0);
+}
 
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]

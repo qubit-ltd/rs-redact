@@ -127,8 +127,12 @@ fn projection_group_bounds(
                 {
                     continue;
                 }
-                let parameter =
-                    projection_field_type(field.field(), field.serde_attributes(), &parameters[*offset + index]);
+                let parameter = projection_field_type(
+                    input,
+                    field.field(),
+                    field.serde_attributes(),
+                    &parameters[*offset + index],
+                );
                 match field.attributes().mode() {
                     FieldMode::Unmarked | FieldMode::Skip if field.serde_attributes().serialize_with().is_none() => {
                         result.push(quote!(#parameter: #serde::Serialize))
@@ -144,6 +148,7 @@ fn projection_group_bounds(
                         if let Some(key_index) = fields.iter().position(|item| item.identifier() == key) {
                             let key_field = &fields[key_index];
                             let key_parameter = projection_field_type(
+                                input,
                                 key_field.field(),
                                 key_field.serde_attributes(),
                                 &parameters[*offset + key_index],
@@ -176,8 +181,12 @@ fn projection_group_bounds(
                 {
                     continue;
                 }
-                let parameter =
-                    projection_field_type(field.field(), field.serde_attributes(), &parameters[*offset + index]);
+                let parameter = projection_field_type(
+                    input,
+                    field.field(),
+                    field.serde_attributes(),
+                    &parameters[*offset + index],
+                );
                 match field.attributes().mode() {
                     FieldMode::Unmarked | FieldMode::Skip if field.serde_attributes().serialize_with().is_none() => {
                         result.push(quote!(#parameter: #serde::Serialize))

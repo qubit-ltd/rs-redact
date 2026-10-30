@@ -20,6 +20,7 @@ use syn::spanned::Spanned;
 
 use super::super::field::adapter_helper_name;
 use super::super::field::field_context;
+use super::super::internal::rebind_source_type;
 use super::super::source_function_path::SourceTypeContext;
 use super::super::source_function_path::path_has_self_type_argument;
 use super::super::source_function_path::source_function_path;
@@ -175,7 +176,7 @@ fn adapter_helper(
     let adapter = adapter?;
     let helper = adapter_helper_name(source_context.ident, field, context);
     let wrapper = format_ident!("{helper}_carrier", span = field.span());
-    let field_type = &field.ty;
+    let field_type = rebind_source_type(source_context.ident, source_context.generics, &field.ty);
     let lifetime = assertions::fresh_lifetime(projection_generics);
     let adapter_tokens = source_function_path(source_context, adapter);
     let mut helper_generics = if adapter.segments.first().is_some_and(|segment| segment.ident == "Self")
@@ -183,7 +184,7 @@ fn adapter_helper(
     {
         source_generics.clone()
     } else {
-        assertions::generics_for_field_and_adapter(projection_generics, field_type, adapter)
+        assertions::generics_for_field_and_adapter(projection_generics, &field_type, adapter)
     };
     helper_generics
         .params

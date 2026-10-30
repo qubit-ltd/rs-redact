@@ -18,6 +18,7 @@ use syn::Lifetime;
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 
+use super::super::internal::rebind_source_type;
 use super::super::recursive_projection;
 use super::super::source_function_path::SourceTypeContext;
 use super::super::source_function_path::source_function_path;
@@ -176,12 +177,13 @@ pub(super) fn projection_declaration(
 /// generated parameter that keeps serialization bounds conditional.
 #[must_use]
 pub(in crate::serde::entry) fn projection_field_type(
+    input: &DeriveInput,
     field: &Field,
     attributes: &SerdeAttributes,
     parameter: &Ident,
 ) -> TokenStream {
     if attributes.serialize_with().is_some() {
-        let ty = &field.ty;
+        let ty = rebind_source_type(&input.ident, &input.generics, &field.ty);
         quote!(#ty)
     } else {
         quote!(#parameter)
@@ -201,7 +203,7 @@ fn projection_member_type(
     let ty = if matches!(mode, FieldMode::Nested) && recursive_projection::shape(input, &field.ty).is_some() {
         recursive_projection::concrete_field_type(input, &field.ty)
     } else {
-        projection_field_type(field, attributes, parameter)
+        projection_field_type(input, field, attributes, parameter)
     };
     if projection_uses_saved_predicate(attributes) {
         quote!((& #lifetime #ty, fn(&#ty) -> bool))

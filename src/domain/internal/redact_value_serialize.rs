@@ -20,8 +20,11 @@ use super::redact_serialize_scope::serialize_structured;
 use super::redacted_serialize_ref::RedactedSerializeRef;
 
 impl<T: RedactSerialize> RedactSerialize for Option<T> {
-    /// Serializes contained redacted values through the active policy scope,
-    /// preserving the Serde `Some` event for present values.
+    /// Serializes this option after admitting its structural budget entry.
+    ///
+    /// Each option layer consumes one node and one depth level. If admission
+    /// is denied, the contained value is not accessed; otherwise the Serde
+    /// `Some` or `None` event is preserved.
     ///
     /// # Errors
     ///
@@ -43,10 +46,10 @@ impl<T: RedactSerialize> RedactSerialize for Option<T> {
     where
         S: Serializer,
     {
-        match self {
+        serialize_structured(serializer, policy, |serializer| match self {
             Some(value) => serializer.serialize_some(&RedactedSerializeRef::new(value, policy)),
             None => serializer.serialize_none(),
-        }
+        })
     }
 }
 

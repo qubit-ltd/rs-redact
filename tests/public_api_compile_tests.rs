@@ -39,10 +39,7 @@ fn check_dependent(case: &str, source: &str, features: &[&str]) -> Output {
     .expect("the dependent manifest should be writable");
     fs::write(directory.join("src/main.rs"), source).expect("the dependent source should be writable");
     let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
-    command
-        .args(["check", "--offline", "--message-format=json"])
-        .env("CARGO_NET_OFFLINE", "true")
-        .current_dir(&directory);
+    command.args(["check", "--message-format=json"]).current_dir(&directory);
     let output = command
         .output()
         .expect("cargo check for the dependent crate should run");

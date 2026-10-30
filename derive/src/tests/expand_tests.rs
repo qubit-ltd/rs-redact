@@ -74,3 +74,19 @@ fn test_adapter_generics_keep_path_and_transitive_bounds_only() {
         assert!(rendered.contains(expected), "missing `{expected}` in `{rendered}`");
     }
 }
+
+#[test]
+fn test_adapter_field_self_type_uses_complete_source_arguments() {
+    let input: DeriveInput = parse_quote! {
+        #[redact(serde)]
+        struct Source<'a, T, const N: usize> {
+            #[serde(serialize_with = "encode")]
+            marker: std::marker::PhantomData<(&'a Self, [T; N])>,
+        }
+    };
+    let rendered = expand::expand(&input).expect("valid input expands").to_string();
+    assert!(
+        rendered.contains("PhantomData < (& 'a Source < 'a , T , N > , [T ; N]) >"),
+        "{rendered}"
+    );
+}

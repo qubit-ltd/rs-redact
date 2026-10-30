@@ -19,7 +19,9 @@ use syn::Type;
 
 /// Source type identity needed while emitting Serde attribute paths.
 pub(super) struct SourceTypeContext<'a> {
+    /// Identifier that names the source declaration.
     pub(super) ident: &'a Ident,
+    /// Lifetime, type, and const parameters declared by the source.
     pub(super) generics: &'a Generics,
 }
 use syn::parse_quote;
@@ -27,7 +29,9 @@ use syn::parse_quote;
 /// Generates a function path in the lexical context of the derived source.
 ///
 /// Leading `Self` is replaced by the complete source type, including its
-/// declared generic arguments. Other paths are emitted unchanged.
+/// declared generic arguments. Nested type arguments and bare function types
+/// are traversed; qself paths retain their explicit qualification and opaque
+/// generic argument forms are preserved.
 #[must_use]
 pub(super) fn source_function_path(context: &SourceTypeContext<'_>, path: &Path) -> TokenStream {
     let mut path = path.clone();
@@ -50,6 +54,9 @@ pub(super) fn source_function_path(context: &SourceTypeContext<'_>, path: &Path)
 }
 
 /// Checks whether a path's generic type arguments use `Self`.
+///
+/// Type arguments, associated type values, and nested bare function types are
+/// inspected. Lifetime, const, and opaque arguments do not count as type uses.
 pub(super) fn path_has_self_type_argument(path: &Path) -> bool {
     path.segments.iter().any(|segment| {
         let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
@@ -63,6 +70,11 @@ pub(super) fn path_has_self_type_argument(path: &Path) -> bool {
     })
 }
 
+/// Checks supported nested type forms for a lexical source `Self` path.
+///
+/// References, tuples, arrays, pointers, qself roots, path arguments, and bare
+/// function inputs/outputs are traversed. Opaque or unsupported type forms do
+/// not count as a discovered use.
 fn type_uses_self(ty: &Type) -> bool {
     match ty {
         Type::Reference(value) => type_uses_self(&value.elem),
@@ -92,6 +104,9 @@ fn type_uses_self(ty: &Type) -> bool {
     }
 }
 
+/// Rebinds source `Self` inside angle-bracketed type arguments on a path.
+///
+/// Lifetime, const, and opaque generic arguments are left unchanged.
 fn replace_self_in_path_arguments(path: &mut Path, source: &Ident, generics: &Generics) {
     for segment in &mut path.segments {
         if let PathArguments::AngleBracketed(arguments) = &mut segment.arguments {
@@ -100,6 +115,13 @@ fn replace_self_in_path_arguments(path: &mut Path, source: &Ident, generics: &Ge
     }
 }
 
+/// Rebinds source `Self` in type and associated-type arguments.
+///
+/// # Parameters
+///
+/// - `arguments`: Generic arguments to visit.
+/// - `source`: Source type identifier used for replacement.
+/// - `generics`: Source type parameters included in the replacement.
 fn replace_self_in_arguments(arguments: &mut AngleBracketedGenericArguments, source: &Ident, generics: &Generics) {
     for argument in &mut arguments.args {
         match argument {
@@ -110,6 +132,11 @@ fn replace_self_in_arguments(arguments: &mut AngleBracketedGenericArguments, sou
     }
 }
 
+/// Rebinds supported source `Self` type paths inside a field or function type.
+///
+/// Nested references, tuples, arrays, slices, pointers, parentheses, groups,
+/// qself roots, path type arguments, and bare function signatures are visited.
+/// Const generic arguments and unparsed token forms are preserved unchanged.
 fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
     match ty {
         Type::Reference(value) => replace_self_in_type(&mut value.elem, source, generics),

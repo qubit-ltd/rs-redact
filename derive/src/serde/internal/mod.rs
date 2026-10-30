@@ -18,4 +18,5 @@ pub(super) use adjacently_tagged::adjacent_variant_arm;
 pub(super) use externally_tagged::external_variant_arm;
 pub(super) use internally_tagged::internal_variant_arm;
 pub(in crate::serde) use source_self_rebinder::rebind_source_generics;
+pub(in crate::serde) use source_self_rebinder::rebind_source_type;
 pub(super) use untagged::untagged_variant_arm;

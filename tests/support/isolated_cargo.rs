@@ -28,7 +28,6 @@ use std::process::Command;
 pub fn command(program: &OsStr) -> Command {
     let mut command = Command::new(program);
     command.env("CARGO_TERM_COLOR", "never");
-    command.env("CARGO_NET_OFFLINE", "false");
     if env::var_os("CARGO_LLVM_COV").is_some() {
         for variable in [
             "LLVM_PROFILE_FILE",

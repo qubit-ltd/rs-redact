@@ -36,6 +36,7 @@ fn test_pass_fixtures() {
     tests.pass("tests/fixtures/pass/recursive_self_predicate.rs");
     tests.pass("tests/fixtures/pass/adapter_self_type_argument.rs");
     tests.pass("tests/fixtures/pass/adapter_self_bare_fn.rs");
+    tests.pass("tests/fixtures/pass/adapter_self_field_type.rs");
     tests.pass("tests/fixtures/pass/generic_keyed_by.rs");
     tests.pass("tests/fixtures/pass/generic_borrowed_source.rs");
     tests.pass("tests/fixtures/pass/concrete_text_only_skip_predicate.rs");
