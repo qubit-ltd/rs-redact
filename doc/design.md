@@ -2,7 +2,7 @@
 
 [中文设计文档](design.zh_CN.md) · [User Guide](user_guide.md) · [README](../README.md)
 
-Current runtime: qubit-redact 0.10.0; workspace derive: qubit-redact-derive 0.8.1. The runtime declares a 0.8 dependency range for derive; the package version numbers are independent. Rust 1.94, empty default features.
+Current runtime: qubit-redact 0.10.0; workspace derive: qubit-redact-derive 0.9.0. The runtime requires derive 0.9 or newer within that minor line; the package version numbers are independent. Rust 1.94, empty default features.
 
 ## 1. Goals and boundaries
 
@@ -478,8 +478,12 @@ Text failure markers and reasons follow actual admission and output rejection.
 The derive crate uses a path-only development dependency on the workspace runtime
 for executable rustdoc examples. Cargo omits that local dependency from the published
 manifest, preserving the publication order (derive, then runtime) without a registry
-dependency cycle. `cargo publish --workspace --dry-run --all-features` verifies both
-normalized packages without uploading them.
+dependency cycle. The package regression builds both normalized archives, patches a
+temporary consumer only to those extracted archives, and runs skip, keyed_by, and
+recursive projection regressions. This verifies archive contents, not registry resolution.
+Publish derive 0.9 first, repeat the consumer regression without a derive patch against
+the registry, then publish runtime 0.10. `cargo publish --workspace --dry-run --all-features`
+also verifies both normalized packages without uploading them.
 
 ## 10. Verification strategy
 

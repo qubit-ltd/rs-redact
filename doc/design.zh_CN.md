@@ -2,7 +2,7 @@
 
 [English Design](design.md) · [中文用户手册](user_guide.zh_CN.md) · [README](../README.zh_CN.md)
 
-当前 runtime：qubit-redact 0.10.0；仓库 derive：qubit-redact-derive 0.8.1。runtime 声明 derive 0.8 依赖范围；两个包的版本号独立。Rust 1.94，默认空 feature。
+当前 runtime：qubit-redact 0.10.0；仓库 derive：qubit-redact-derive 0.9.0。runtime 要求 derive 0.9 系列；两个包的版本号独立。Rust 1.94，默认空 feature。
 
 ## 1. 目标与边界
 
@@ -371,7 +371,10 @@ feature 启用，不再随仅需结构化序列化的 `serde` 消费者一同引
 
 derive crate 通过仅含 path 的开发依赖引用 workspace runtime，以执行 rustdoc 示例。
 Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime 的发布顺序，不产生 registry
-依赖环。`cargo publish --workspace --dry-run --all-features` 验证两个规范化发布包，但不会上传。
+依赖环。包回归会构建两个规范化 archive，并让临时 consumer 仅 patch 到解包 archive，运行
+skip、keyed_by 和递归投影回归；这能验证 archive 内容，不代表 registry 解析已验证。先发布
+derive 0.9，再移除 derive patch、针对 registry 重跑 consumer 回归，最后发布 runtime 0.10。
+`cargo publish --workspace --dry-run --all-features` 也会验证规范化发布包，但不会上传。
 
 ## 10. 验证策略
 
@@ -379,7 +382,7 @@ Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime �
 矩阵覆盖 derive-only、derive 与 Serde/JSON/HTTP/URI 的组合、BigDecimal 单独启用及与
 derive 组合，以及全部 feature；展开隐式依赖后覆盖全部 28 种 runtime feature 集。每组执行编译、测试（含 doctest）、rustdoc 和 Clippy；
 文档示例按真实依赖设置 feature gate。
-项目 CI hook 还会依次运行接线测试、校验脚本测试和两种语言文档中的带注解示例。
+项目 CI hook 还会依次运行接线测试、发布包检查器测试、archive 回归、校验脚本测试和两种语言文档中的带注解示例。
 
 下游负向编译测试读取 Cargo JSON compiler message。只有在 fixture 源码具有 primary span、
 且匹配预期 API 或 trait 的 rustc error 才算预期拒绝；指定错误码时还必须精确匹配。

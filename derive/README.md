@@ -22,6 +22,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
+This runtime release uses `qubit-redact-derive` 0.9. Applications that depend on
+`qubit-redact-derive` directly should update their requirement from `0.8` to `0.9`.
+
 ## Quick Start
 
 <!-- redact-example: kind=run features=derive,serde,json -->

@@ -12,5 +12,5 @@ qubit-redact = {
     path = "../../../../",
     default-features = false,
 }
-qubit-redact-derive = { version = "0.8", path = "../../../../derive" }
+qubit-redact-derive = { version = "0.9", path = "../../../../derive" }
 serde = "1"

@@ -12,5 +12,5 @@ qubit-redact = {
     path = "../../../../",
     features = ["serde"],
 }
-qubit-redact-derive = { version = "0.8", path = "../../../../derive" }
+qubit-redact-derive = { version = "0.9", path = "../../../../derive" }
 serialization = { package = "serde", version = "1" }
