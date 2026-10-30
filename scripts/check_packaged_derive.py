@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import tarfile
@@ -17,6 +18,23 @@ DERIVE_VERSION = "0.9.0"
 
 class CheckError(RuntimeError):
     pass
+
+
+def require_positive_test_summary(output: str) -> None:
+    pattern = re.compile(
+        r"test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; "
+        r"\d+ ignored; \d+ measured; \d+ filtered out"
+        r"(?:; finished in [^\r\n]+)?"
+    )
+    summaries = [match for line in output.splitlines()
+                 if (match := pattern.fullmatch(line)) is not None]
+    if len(summaries) != 1:
+        raise CheckError("expected exactly one recognizable libtest summary")
+    status, passed, failed = summaries[0].groups()
+    if status != "ok" or int(failed) != 0:
+        raise CheckError("recursive projection tests did not pass")
+    if int(passed) == 0:
+        raise CheckError("recursive projection test target executed zero tests")
 
 
 def run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> str:
@@ -204,8 +222,7 @@ qubit-redact-derive = {{ path = "{derive_dir}" }}
         run(["cargo", "run", "--locked", "--features", "derive,serde,json"], cwd=consumer, env=env)
         shutil.copy2(projection, consumer / "tests/derive_recursive_projection_tests.rs")
         result = run(["cargo", "test", "--locked", "--test", "derive_recursive_projection_tests", "--features", "derive,serde,json", "--", "--nocapture"], cwd=consumer, env=env)
-        if "0 passed" in result:
-            raise CheckError("recursive projection test target executed zero tests")
+        require_positive_test_summary(result)
         print("PASS: normalized workspace archives compiled and passed skip/keyed_by/recursive projection regressions (archive patch, not registry verification)")
 
 

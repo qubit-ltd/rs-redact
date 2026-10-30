@@ -10,6 +10,10 @@ CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 
 
+def summary(count):
+    return f"test result: ok. {count} passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"
+
+
 class PackagedDeriveChecks(unittest.TestCase):
     def test_rejects_old_normalized_dependency(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -29,6 +33,27 @@ class PackagedDeriveChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(CHECKER.CheckError):
                 CHECKER.run(["python3", "-c", "raise SystemExit(17)"], cwd=Path(temp))
+
+    def test_accepts_positive_test_counts(self):
+        for count in (1, 7, 10, 20, 100):
+            with self.subTest(count=count):
+                CHECKER.require_positive_test_summary(summary(count))
+
+    def test_rejects_zero_and_missing_summaries(self):
+        for output in (summary(0), "", "running 7 tests\n", "test result: ok. unknown passed"):
+            with self.subTest(output=output):
+                with self.assertRaises(CHECKER.CheckError):
+                    CHECKER.require_positive_test_summary(output)
+
+    def test_summary_requires_one_successful_target(self):
+        CHECKER.require_positive_test_summary("log: 0 passed is only a label\n" + summary(10))
+        CHECKER.require_positive_test_summary(summary(10).replace("\n", "\r\n"))
+        with self.assertRaises(CHECKER.CheckError):
+            CHECKER.require_positive_test_summary(summary(10) + summary(1))
+        with self.assertRaises(CHECKER.CheckError):
+            CHECKER.require_positive_test_summary(
+                "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out\n"
+            )
 
 
 if __name__ == "__main__":
