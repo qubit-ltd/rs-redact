@@ -242,6 +242,45 @@ fn main() {
 | `keyed_by = key` | 按实现 `AsRef<str>` 的兄弟 key 分类，仅用于具名字段；value 需具备等级能力和 `Debug`。 |
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
+### 敏感 map 键
+
+文本脱敏支持 `HashMap` 和 `BTreeMap`。键和值都需要满足当前实现要求的等级能力与 `Debug`；键还需满足容器对应的哈希或排序能力。结构化脱敏对键额外要求 `AsRef<str>`，对值要求 `Serialize` 和等级序列化能力。数值键可能适用于某些文本路径，但不代表结构化输出也支持。未设置 `map_value_level` 表示值按普通方式输出，并不会免除这些类型约束。
+
+两个键脱敏后若重名，结构化序列化会失败。标准 secret 掩码是固定文本，因此两个不同键即可碰撞；其他掩码只要生成相同键也会失败。文本诊断可能显示重复的掩码键，不能据此推断 JSON 序列化一定成功。`to_json()` 失败时不会返回部分 JSON。直接交给外部 serializer 或 writer 时，失败输出应丢弃，绝不能回退为序列化源对象。
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use std::collections::BTreeMap;
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Redact)]
+struct Labels {
+    #[redact(map_key_level = "secret")]
+    entries: BTreeMap<String, String>,
+}
+
+fn main() {
+    let redactor = Redactor::standard();
+    let one = Labels {
+        entries: BTreeMap::from([("alpha".into(), "one".into())]),
+    };
+    let encoded = redactor.to_json(&one).expect("one masked key");
+    let value: serde_json::Value = serde_json::from_str(&encoded).expect("JSON");
+    assert_eq!(value, serde_json::json!({"entries": {"<redacted>": "one"}}));
+
+    let two = Labels {
+        entries: BTreeMap::from([
+            ("alpha".into(), "one".into()),
+            ("beta".into(), "two".into()),
+        ]),
+    };
+    let result = redactor.to_json(&two);
+    assert!(result.is_err());
+    let diagnostic = result.unwrap_or_else(|_| "<redaction unavailable>".into());
+    assert_eq!(diagnostic, "<redaction unavailable>");
+}
+```
+
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
 runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的结构化脱敏能力。
 `#[redact(serde)]` 额外让源对象自身的普通 `Serialize` 输出脱敏；未标注时，单独派生的普通

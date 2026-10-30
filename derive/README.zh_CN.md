@@ -60,7 +60,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `skip` | 启用时省略；disabled 恢复字段。 |
 | `nested` | 委托 `Redact`；结构化输出使用嵌套值生成的视图投影。 |
 | `map` | 支持 key 为 `String`、`&str`、`Cow<str>` 的 `HashMap`/`BTreeMap`，以及外层 `Option`；value 需具备等级能力，放行文本还需 `Debug`。 |
-| `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出。 |
+| `map_key_level = "..."` | 固定每个 key 的等级，value 保持普通输出；键掩码可能碰撞并导致结构化序列化失败。类型约束和错误处理见[敏感 map 键说明](../doc/user_guide.zh_CN.md#敏感-map-键)。 |
 | `map_key_level = "...", map_value_level = "..."` | 分别固定 key、value 等级。 |
 | `keyed_by = key` | 按实现 `AsRef<str>` 的兄弟 key 分类，仅用于具名字段；value 需具备等级能力和 `Debug`。 |
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |

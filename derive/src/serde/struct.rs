@@ -32,11 +32,17 @@ use crate::model::UnnamedField;
 ///
 /// # Parameters
 ///
-/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `source_context` - Source type and generic context used to resolve source
+///   paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `fields` - Parsed named, unnamed, or unit fields.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated container naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///
@@ -44,8 +50,7 @@ use crate::model::UnnamedField;
 ///
 /// # Panics
 ///
-/// Panics if transparent mode has no field or field controls bypassed
-/// map-level or keyed-field validation.
+/// Panics if transparent mode is requested for a named shape with no field.
 #[must_use]
 pub(super) fn struct_body(
     source_context: &SourceTypeContext<'_>,
@@ -123,19 +128,21 @@ pub(super) fn struct_body(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Owning source type used in helper names.
+/// * `source_context` - Source type and generic context used to resolve source
+///   paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `parsed` - Validated single named field and its controls.
 /// * `runtime` - Resolved runtime crate path.
 /// * `serde` - Resolved Serde path.
 /// * `container_attributes` - Validated container naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///
 /// A direct serializer expression, or a unit-struct expression when omitted.
-///
-/// # Panics
-///
-/// Panics if map-level controls bypassed key-sensitivity validation.
 #[must_use]
 fn transparent_named_struct_body(
     source_context: &SourceTypeContext<'_>,
@@ -201,11 +208,17 @@ fn transparent_named_struct_body(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `source_context` - Source type and generic context used to resolve source
+///   paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `fields` - Parsed named fields in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated container naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///
@@ -213,7 +226,7 @@ fn transparent_named_struct_body(
 ///
 /// # Panics
 ///
-/// Panics if map-level controls bypassed key-sensitivity validation.
+/// Panics if a keyed field refers to a sibling that was not validated.
 #[must_use]
 fn named_struct_body(
     source_context: &SourceTypeContext<'_>,
@@ -338,21 +351,24 @@ fn named_struct_body(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `source_context` - Source type and generic context used to resolve source
+///   paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `parsed` - Parsed newtype field.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated container naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
+/// * `transparent` - Whether to forward the field's serialized value directly
+///   or preserve the newtype-struct serializer event.
 ///
 /// # Returns
 ///
 /// A direct transparent value or a newtype serializer expression, or a unit
 /// struct when omitted.
-///
-/// # Panics
-///
-/// Panics if validation admitted keyed mode on a tuple field or map-level
-/// mode without a key sensitivity.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 fn newtype_struct_body(
@@ -441,20 +457,21 @@ fn newtype_struct_body(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Struct receiving the generated serialization implementation.
+/// * `source_context` - Source type and generic context used to resolve source
+///   paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `fields` - Parsed positional fields in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated container naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///
 /// A `SerializeTupleStruct` expression containing each selected field.
-///
-/// # Panics
-///
-/// Panics if validation admitted keyed mode on a tuple field or map-level
-/// mode without a key sensitivity.
 #[must_use]
 fn tuple_struct_body(
     source_context: &SourceTypeContext<'_>,

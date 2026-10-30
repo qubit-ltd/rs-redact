@@ -60,7 +60,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `skip` | Omit while enabled; disabled restores the field. |
 | `nested` | Delegate to `Redact`; structured output follows the nested value's generated view projection. |
 | `map` | `HashMap`/`BTreeMap` with `String`, `&str`, or `Cow<str>` keys, optionally wrapped in `Option`; values require level capability and `Debug` for pass-through text. |
-| `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. |
+| `map_key_level = "..."` | Fixed level for each map key; values remain ordinary. Key masking can collide and make structured serialization fail; see the [map key guide](../doc/user_guide.md#sensitive-map-keys) for type bounds and error handling. |
 | `map_key_level = "...", map_value_level = "..."` | Independently fixed key and value levels. |
 | `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |

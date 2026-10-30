@@ -257,6 +257,45 @@ fn main() {
 | `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
+### Sensitive map keys
+
+Text map redaction supports `HashMap` and `BTreeMap`. Keys and values need the level capability and `Debug` required by the current implementation; keys also need the container's hash or ordering capability. Structured redaction adds `AsRef<str>` for keys and `Serialize` plus level serialization capability for values. A numeric key may work in a text path without being supported in structured output. Leaving `map_value_level` unset means values use ordinary output; it does not remove these type bounds.
+
+When two keys redact to the same key, structured serialization fails. The standard secret mask is fixed text, so two distinct keys are enough to collide; other masks fail too whenever their rendered keys match. Text diagnostics may display duplicate masked keys, which does not imply JSON serialization will succeed. `to_json()` returns no partial JSON on failure. When writing directly through an external serializer or writer, discard failed output and never fall back to serializing the source object.
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use std::collections::BTreeMap;
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Redact)]
+struct Labels {
+    #[redact(map_key_level = "secret")]
+    entries: BTreeMap<String, String>,
+}
+
+fn main() {
+    let redactor = Redactor::standard();
+    let one = Labels {
+        entries: BTreeMap::from([("alpha".into(), "one".into())]),
+    };
+    let encoded = redactor.to_json(&one).expect("one masked key");
+    let value: serde_json::Value = serde_json::from_str(&encoded).expect("JSON");
+    assert_eq!(value, serde_json::json!({"entries": {"<redacted>": "one"}}));
+
+    let two = Labels {
+        entries: BTreeMap::from([
+            ("alpha".into(), "one".into()),
+            ("beta".into(), "two".into()),
+        ]),
+    };
+    let result = redactor.to_json(&two);
+    assert!(result.is_err());
+    let diagnostic = result.unwrap_or_else(|_| "<redaction unavailable>".into());
+    assert_eq!(diagnostic, "<redaction unavailable>");
+}
+```
+
 Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
 The runtime `serde` feature generates structured redaction for `redact_view()` for every
 derived type. `#[redact(serde)]` additionally makes the source type's ordinary `Serialize`
