@@ -386,6 +386,13 @@ earlier layout.
   URL query parameters use query rules; form fields in
   `application/x-www-form-urlencoded` bodies use body rules.
 
+`UriRedactionBoundary` derives an effective URI policy from the application
+snapshot: it enables confidentiality, adds the standard URI floor, and uses
+standard masks while retaining application limits and path/fragment
+configuration. The standard field floor does not force every path or fragment
+to be hidden. Admission decisions use inspection and reject sensitive or
+inconclusive results; complete redacted text is not a URI syntax certificate.
+
 HTTP body implementation is split by responsibility:
 
 - `src/formats/http/internal/http_policy_executor/body.rs`: admission dispatch and final publication;

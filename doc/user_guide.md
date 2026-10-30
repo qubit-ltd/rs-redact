@@ -803,6 +803,43 @@ fn main() {
 }
 ```
 
+### Use the mandatory URI boundary
+
+`Redactor` is a general redaction entry point, and a disabled application policy
+is a raw-value debugging escape hatch there. Use `UriRedactionBoundary` when
+URI admission must keep confidentiality enabled regardless of the application
+policy. It adds the standard URI field floor and uses standard masks while
+retaining application floors, resource limits, and path/fragment settings.
+The field floor does not require every path or fragment to be hidden.
+
+For admission, inspect the URI: sensitive results and errors both mean reject.
+A successful inspection is not a URI syntax validity certificate. For
+diagnostics, use the rendered output only when it is complete; otherwise use a
+fixed marker and never fall back to the original URI.
+
+<!-- redact-example: kind=run features=uri -->
+```rust
+use qubit_redact::RedactionPolicy;
+use qubit_redact::formats::uri::UriRedactionBoundary;
+
+fn may_accept(boundary: &UriRedactionBoundary, text: &str) -> bool {
+    match boundary.inspect_uri(text) {
+        Ok(inspection) => !inspection.contains_sensitive(),
+        Err(_) => false,
+    }
+}
+
+fn main() {
+    let boundary = UriRedactionBoundary::new(&RedactionPolicy::disabled());
+    assert!(!boundary.policy().is_disabled());
+    let uri = "https://example.test/?password=raw-secret";
+    assert!(!may_accept(&boundary, uri));
+    let output = boundary.redact_uri(uri);
+    let text = output.text_or_marker("<uri unavailable>");
+    assert!(!text.contains("raw-secret"));
+}
+```
+
 ### Redact argv, environment, and process diagnostics
 
 Explicitly classified argv is preferable when the caller knows the argument

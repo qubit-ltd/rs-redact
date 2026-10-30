@@ -212,7 +212,8 @@ impl MaskPolicy {
         }
     }
 
-    /// Masks a value without allocating beyond a caller-supplied byte limit.
+    /// Masks a value while bounding the retained UTF-8 representation by
+    /// `max_bytes`.
     ///
     /// # Type Parameters
     ///
@@ -221,11 +222,14 @@ impl MaskPolicy {
     /// # Parameters
     ///
     /// * `value` - Value to mask.
-    /// * `max_bytes` - Maximum bytes retained from the masked representation.
+    /// * `max_bytes` - Maximum retained UTF-8 bytes in the masked
+    ///   representation.
     ///
     /// # Returns
     ///
-    /// Empty input remains borrowed; other results own at most `max_bytes`.
+    /// Empty input remains borrowed; other results own a representation of at
+    /// most `max_bytes` UTF-8 bytes. This does not bound `String` capacity or
+    /// allocator overhead to the same number of bytes.
     #[cfg(feature = "http")]
     #[must_use]
     #[inline(always)]
@@ -233,7 +237,8 @@ impl MaskPolicy {
         self.mask_bounded_with_truncation(value, max_bytes).0
     }
 
-    /// Masks a value and reports whether the byte ceiling cut the mask.
+    /// Masks a value and reports whether the retained UTF-8 byte ceiling cut
+    /// the mask.
     #[must_use]
     pub(crate) fn mask_bounded_with_truncation<'a>(&self, value: &'a str, max_bytes: usize) -> (Cow<'a, str>, bool) {
         if value.is_empty() {
@@ -245,15 +250,18 @@ impl MaskPolicy {
         (Cow::Owned(output), truncated)
     }
 
-    /// Returns an opaque replacement without exceeding a byte limit.
+    /// Returns an opaque replacement whose retained UTF-8 representation is
+    /// bounded by `max_bytes`.
     ///
     /// # Parameters
     ///
-    /// * `max_bytes` - Maximum bytes retained from the replacement.
+    /// * `max_bytes` - Maximum retained UTF-8 bytes from the replacement.
     ///
     /// # Returns
     ///
-    /// An owned UTF-8 prefix of the configured opaque replacement.
+    /// An owned UTF-8 prefix of the configured opaque replacement, with at
+    /// most `max_bytes` retained bytes. String capacity and allocator overhead
+    /// are not hard allocation limits.
     #[must_use]
     pub(crate) fn opaque_mask_bounded(&self, max_bytes: usize) -> String {
         let mut writer = BoundedMaskWriter::new(max_bytes);

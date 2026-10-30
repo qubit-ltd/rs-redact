@@ -13,15 +13,29 @@ use qubit_budget::json::JsonValueLimits;
 use qubit_json::decode::JsonDecoder;
 
 /// Snapshot of shared structural capacity for one JSON text value.
+///
+/// `remaining_nodes` is the maximum number of value nodes available to this
+/// text. `remaining_items` is converted to a node ceiling by adding the root
+/// node with checked arithmetic, then taking the tighter configured ceiling.
+/// `max_relative_depth` is the maximum value depth relative to the current
+/// traversal. `traversal_closed` rejects validation before inspecting text.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct JsonStructurePreflight {
+    /// Value-node capacity remaining in the shared traversal.
     pub(crate) remaining_nodes: Option<usize>,
+    /// Sequence-item and map-entry capacity remaining in the shared traversal.
     pub(crate) remaining_items: Option<usize>,
+    /// Maximum nesting depth relative to the current traversal position.
     pub(crate) max_relative_depth: Option<usize>,
+    /// Whether a previous traversal decision has closed further admission.
     pub(crate) traversal_closed: bool,
 }
 
 /// Value-free failure from shared JSON structural validation.
+///
+/// `Invalid` represents malformed JSON, `DepthLimit` represents relative
+/// depth rejection, and `TraversalLimit` represents a closed traversal or a
+/// node/item budget rejection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum JsonStructurePreflightError {
     Invalid,
@@ -30,8 +44,25 @@ pub(crate) enum JsonStructurePreflightError {
 }
 
 impl JsonStructurePreflight {
-    /// Validates syntax and shared structural ceilings without constructing a
+    /// Preflights JSON text against configured shared structural budgets.
+    ///
+    /// When no node/item or relative-depth ceiling is configured and traversal
+    /// is open, validation is skipped and returns `Ok(())`; therefore success
+    /// does not by itself guarantee valid JSON. Callers must still parse the
+    /// text before using it as JSON. When a ceiling is configured, decoding
+    /// checks syntax while enforcing that ceiling without materializing a value
     /// tree.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: JSON text to preflight.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when preflight is skipped or completed within the configured
+    /// budgets. Returns `Invalid` for malformed text, `DepthLimit` when the
+    /// relative depth ceiling is exceeded, and `TraversalLimit` when traversal
+    /// is closed or node/item capacity is exceeded.
     pub(crate) fn validate(&self, text: &str) -> Result<(), JsonStructurePreflightError> {
         if self.traversal_closed {
             return Err(JsonStructurePreflightError::TraversalLimit);
@@ -62,6 +93,7 @@ impl JsonStructurePreflight {
     }
 }
 
+/// Returns the tighter ceiling, treating an absent value as unlimited.
 fn min_optional(a: Option<usize>, b: Option<usize>) -> Option<usize> {
     match (a, b) {
         (Some(a), Some(b)) => Some(a.min(b)),
@@ -70,7 +102,10 @@ fn min_optional(a: Option<usize>, b: Option<usize>) -> Option<usize> {
     }
 }
 
+/// Combines optional ceilings, where `None` means no limit.
 fn node_cap(nodes: Option<usize>, items: Option<usize>) -> Option<usize> {
+    // The root value is not a sequence item or map entry. Overflow means the
+    // item-derived ceiling cannot add a tighter representable bound.
     min_optional(nodes, items.and_then(|items| items.checked_add(1)))
 }
 

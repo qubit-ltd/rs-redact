@@ -126,6 +126,7 @@ argv/env、batch 与预算等详见用户手册。
 | 处理本身就是 JSON 的输入 | `redact_json(text)` / `redact_json_value(&value)` |
 | 多个独立值共享一份预算 | `diagnostic_batch()` |
 | 拼接一条诊断文本 | `text_composer()` |
+| 拒绝含敏感信息或检查不完整的 URI | `UriRedactionBoundary::inspect_uri()` |
 
 ## 为什么需要这个项目
 
@@ -148,6 +149,8 @@ disabled 是恢复原值的调试选项；库不擦除源对象，也不保护�
 
 完整的 feature 配置、属性和类型支持表、策略优先级、HTTP 与 batch 场景见
 [中文用户手册](doc/user_guide.zh_CN.md) 和 [英文用户手册](doc/user_guide.md)。
+URI 准入需要保留强制保密边界时，请使用
+[UriRedactionBoundary](doc/user_guide.zh_CN.md#使用强制-uri-边界)。
 另见 [derive 说明](derive/README.zh_CN.md) 与 [API 文档](https://docs.rs/qubit-redact)。
 
 ## 测试

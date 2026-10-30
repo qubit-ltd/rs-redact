@@ -740,6 +740,38 @@ fn main() {
 }
 ```
 
+### 使用强制 URI 边界
+
+`Redactor` 是通用脱敏入口，在那里 disabled 应用策略可用于调试并恢复原值。当 URI 准入必须始终
+启用保密策略时，应使用 `UriRedactionBoundary`。它会追加标准 URI 字段 floor 并采用标准 masks，
+同时保留应用 floor、资源限制和 path/fragment 设置。字段 floor 不会要求隐藏所有 path 或 fragment。
+
+准入前应检查 URI：检查发现敏感数据或返回错误都要拒绝。成功检查也不能证明 URI 语法有效。用于
+诊断时，只能在输出完整时使用脱敏文本；否则使用固定 marker，绝不回退到原始 URI。
+
+<!-- redact-example: kind=run features=uri -->
+```rust
+use qubit_redact::RedactionPolicy;
+use qubit_redact::formats::uri::UriRedactionBoundary;
+
+fn may_accept(boundary: &UriRedactionBoundary, text: &str) -> bool {
+    match boundary.inspect_uri(text) {
+        Ok(inspection) => !inspection.contains_sensitive(),
+        Err(_) => false,
+    }
+}
+
+fn main() {
+    let boundary = UriRedactionBoundary::new(&RedactionPolicy::disabled());
+    assert!(!boundary.policy().is_disabled());
+    let uri = "https://example.test/?password=raw-secret";
+    assert!(!may_accept(&boundary, uri));
+    let output = boundary.redact_uri(uri);
+    let text = output.text_or_marker("<uri unavailable>");
+    assert!(!text.contains("raw-secret"));
+}
+```
+
 ### 处理 argv、环境变量和进程诊断
 
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是

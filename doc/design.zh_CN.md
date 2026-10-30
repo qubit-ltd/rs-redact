@@ -293,6 +293,11 @@ Serde shape 返回明确错误而不是猜测表示。
 - HTTP：处理 URL、header 和 body，所有结果回到父事务。URL query 参数使用 query 规则；
   `application/x-www-form-urlencoded` body 中的 form 字段使用 body 规则。
 
+`UriRedactionBoundary` 从应用策略快照派生有效 URI policy：强制启用保密策略、追加标准 URI
+floor 并采用标准 masks，同时保留应用 limits 及 path/fragment 配置。标准字段 floor 不会强制隐藏
+所有 path 或 fragment。准入决策应使用 inspection，并拒绝敏感或无法确定的结果；完整的脱敏文本也
+不能证明 URI 语法有效。
+
 HTTP body 内部实现按职责拆分：
 
 - `src/formats/http/internal/http_policy_executor/body.rs`：准入结果分派和最终 publication；

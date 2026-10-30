@@ -130,6 +130,7 @@ HTTP, URI, argv/env, batches, and budgets are covered in the user guide.
 | Redact input that is already JSON | `redact_json(text)` / `redact_json_value(&value)` |
 | Share one budget across independent values | `diagnostic_batch()` |
 | Compose one diagnostic message | `text_composer()` |
+| Reject sensitive or inconclusive URI input | `UriRedactionBoundary::inspect_uri()` |
 
 ## Why This Project Exists
 
@@ -157,7 +158,9 @@ the caller's serializer/writer controls final encoded length. See the guide's bu
 
 See the [English user guide](doc/user_guide.md) and [Chinese user guide](doc/user_guide.zh_CN.md)
 for feature configuration, complete attribute/type tables, policy precedence, HTTP, and
-batch scenarios. See also the [derive guide](derive/README.md) and [API docs](https://docs.rs/qubit-redact).
+batch scenarios. Use [`UriRedactionBoundary`](doc/user_guide.md#use-the-mandatory-uri-boundary)
+when URI admission must retain a confidentiality floor. See also the [derive guide](derive/README.md)
+and [API docs](https://docs.rs/qubit-redact).
 
 ## Testing
 

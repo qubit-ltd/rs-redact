@@ -150,7 +150,8 @@ impl MaskingPolicy {
         self.for_level(level).opaque_mask()
     }
 
-    /// Masks a value without allocating beyond a byte limit.
+    /// Masks a value while bounding the retained UTF-8 representation by
+    /// `max_bytes`.
     ///
     /// # Type Parameters
     ///
@@ -160,11 +161,13 @@ impl MaskingPolicy {
     ///
     /// * `level` - Sensitivity level selecting the mask policy.
     /// * `value` - Value to mask.
-    /// * `max_bytes` - Maximum bytes allocated for the masked result.
+    /// * `max_bytes` - Maximum retained UTF-8 bytes in the masked result.
     ///
     /// # Returns
     ///
-    /// The borrowed empty input or an owned mask bounded by `max_bytes`.
+    /// The borrowed empty input or an owned mask with at most `max_bytes`
+    /// retained UTF-8 bytes. This does not bound `String` capacity or allocator
+    /// overhead to the same number of bytes.
     #[must_use]
     #[inline(always)]
     #[cfg(feature = "http")]
@@ -172,7 +175,7 @@ impl MaskingPolicy {
         self.for_level(level).mask_bounded(value, max_bytes)
     }
 
-    /// Masks a value and reports byte-limit truncation.
+    /// Masks a value and reports retained UTF-8 byte-limit truncation.
     ///
     /// # Type Parameters
     ///
@@ -182,12 +185,14 @@ impl MaskingPolicy {
     ///
     /// - `level`: Sensitivity selecting a mask policy.
     /// - `value`: Source text needed by edge-preserving masks.
-    /// - `max_bytes`: Maximum allocated bytes for the resulting mask.
+    /// - `max_bytes`: Maximum retained UTF-8 bytes for the resulting mask.
     ///
     /// # Returns
     ///
-    /// The borrowed empty input or bounded owned mask, followed by whether
-    /// the byte allowance omitted any part of the selected mask.
+    /// The borrowed empty input or owned mask with at most `max_bytes`
+    /// retained UTF-8 bytes, followed by whether the allowance omitted any
+    /// part of the selected mask. String capacity and allocator overhead are
+    /// not hard allocation limits.
     #[must_use]
     #[inline(always)]
     pub(crate) fn mask_bounded_with_truncation<'a>(
@@ -199,16 +204,19 @@ impl MaskingPolicy {
         self.for_level(level).mask_bounded_with_truncation(value, max_bytes)
     }
 
-    /// Returns an opaque replacement constrained to `max_bytes`.
+    /// Returns an opaque replacement whose retained UTF-8 representation is
+    /// bounded by `max_bytes`.
     ///
     /// # Parameters
     ///
     /// * `level` - Sensitivity level selecting the mask policy.
-    /// * `max_bytes` - Maximum bytes retained from the replacement.
+    /// * `max_bytes` - Maximum retained UTF-8 bytes from the replacement.
     ///
     /// # Returns
     ///
-    /// An owned bounded prefix of the configured opaque replacement.
+    /// An owned prefix of the configured opaque replacement with at most
+    /// `max_bytes` retained UTF-8 bytes. String capacity and allocator
+    /// overhead are not hard allocation limits.
     #[must_use]
     #[inline(always)]
     pub(crate) fn mask_opaque_bounded(&self, level: Sensitivity, max_bytes: usize) -> String {
