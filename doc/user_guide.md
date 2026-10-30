@@ -883,12 +883,19 @@ fn main() {
 
 Explicitly classified argv is preferable when the caller knows the argument
 contract. Heuristic argv recognizes supported option forms but is not a shell
-parser and does not validate complete command-line syntax. Unclassified
-non-UTF-8 argv items and non-UTF-8 environment names are conservatively treated
-as Secret and do not by themselves make inspection fail. Environment
-inspection classifies sensitivity from the name under the selected policy. It
-counts a non-UTF-8 value for admission without predicting the renderer's opaque
-Secret mask for that value; disabled inspection bypasses name classification.
+parser and does not validate complete command-line syntax. With redaction
+enabled, heuristic argv mode treats unclassified non-Unicode arguments as
+Secret. Explicit argv mode preserves `ArgvItem::plain` values using lossy
+Unicode conversion; mark sensitive values explicitly or select heuristic mode.
+Non-Unicode OS arguments include invalid UTF-8 on Unix and unpaired UTF-16
+surrogates on Windows.
+Non-UTF-8 environment names are conservatively treated as Secret and do not by
+themselves make inspection fail. Environment inspection classifies sensitivity
+from the name under the selected policy. It counts a non-UTF-8 value for
+admission without predicting the renderer's opaque Secret mask for that value;
+disabled inspection bypasses name classification. A disabled policy restores
+values under its existing contract. Process redaction applies heuristic argv
+rules to its arguments, rather than the explicit `redact_argv` behavior.
 A trailing sensitive option with no following value remains pending; it is not
 reported as a syntax error. Inspection errors report incomplete admission, such
 as a shared resource limit.

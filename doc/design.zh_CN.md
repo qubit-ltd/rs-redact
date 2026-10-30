@@ -287,7 +287,12 @@ Serde shape 返回明确错误而不是猜测表示。
 
 ## 8. 格式层
 
-- argv/env/process：显式分类和受限启发式；未分类的非 UTF-8 参数项及非 UTF-8 环境变量名保守分类为 Secret；
+- argv：启用脱敏时，启发式模式对未分类的非 Unicode 参数按 Secret 处理。显式模式保留
+  `ArgvItem::plain` 的内容，并以有损 Unicode 转换展示；调用方必须显式分类敏感内容，或选择
+  启发式模式。跨平台的非 Unicode OS 参数在 Unix 上包括非法 UTF-8，在 Windows 上包括未配对的
+  UTF-16 surrogate。非 UTF-8 环境变量名独立于 argv 规则，仍保守分类为 Secret；disabled inspection
+  跳过环境变量名分类。disabled 策略按既有契约恢复内容。进程脱敏对参数使用启发式 argv 规则，
+  而不是 `redact_argv` 的显式模式；
 - JSON：严格构造值树、递归字段分类、显式数字范围和共享结构预算；
 - URI：使用 `fluent-uri` 解析，并分别处理 identity、path、query、fragment；
 - HTTP：处理 URL、header 和 body，所有结果回到父事务。URL query 参数使用 query 规则；

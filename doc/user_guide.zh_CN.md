@@ -814,11 +814,12 @@ fn main() {
 ### 处理 argv、环境变量和进程诊断
 
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
-shell parser，也不校验完整命令行语法。未分类的非 UTF-8 argv 参数项和非 UTF-8 环境变量名会
-保守地按 Secret 处理，不会仅因此导致 inspection 失败。环境变量 inspection 按所选策略根据变量名
-分类；非 UTF-8 值仍计入准入预算，但 inspection 不预测 renderer 对该值采用的 opaque Secret mask。
-disabled inspection 会跳过变量名分类。末尾没有后续值的敏感 option 会保持待定
-状态，不会按语法错误报告。Inspection 错误用于报告共享资源限制等准入不完整情况。
+shell parser，也不校验完整命令行语法。启用脱敏时，启发式 argv 模式对未分类的非 Unicode 参数
+保守地按 Secret 处理。显式 argv 模式保留 `ArgvItem::plain` 的内容，并以有损 Unicode 转换展示；
+敏感内容应显式标记，或选择启发式模式。跨平台的非 Unicode OS 参数在 Unix 上包括非法 UTF-8，
+在 Windows 上包括未配对的 UTF-16 surrogate。非 UTF-8 环境变量名仍会保守地按 Secret 处理，不会仅
+因此导致 inspection 失败。环境变量 inspection 按所选策略根据变量名分类；非 UTF-8 值仍计入准入
+预算，但 inspection 不预测 renderer 对该值采用的 opaque Secret mask。disabled inspection 会跳过变量名分类；disabled 策略按既有契约恢复内容。进程脱敏对参数使用启发式 argv 规则，而不是 `redact_argv` 的显式模式。末尾没有后续值的敏感 option 会保持待定状态，不会按语法错误报告。Inspection 错误用于报告共享资源限制等准入不完整情况。
 
 <!-- redact-example: kind=run features=none -->
 ```rust

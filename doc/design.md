@@ -375,9 +375,15 @@ earlier layout.
 
 ## 8. Format layer
 
-- argv/env/process: explicit classification and bounded heuristics; unclassified
-  non-UTF-8 argument items and non-UTF-8 environment names are conservatively
-  classified as Secret;
+- argv: with redaction enabled, heuristic mode treats unclassified non-Unicode
+  arguments as Secret. Explicit mode preserves `ArgvItem::plain` values using
+  lossy Unicode conversion; callers must classify sensitive values explicitly
+  or select heuristic mode. Non-Unicode OS arguments include invalid UTF-8 on
+  Unix and unpaired UTF-16 surrogates on Windows. Non-UTF-8 environment names are conservatively
+  classified as Secret independently of this argv rule; disabled inspection
+  bypasses environment-name classification. A disabled policy restores values
+  under its existing contract. Process redaction applies heuristic argv rules
+  to its arguments, not explicit `redact_argv` behavior;
 - JSON: strict tree construction, recursive field classification, explicit number ranges, and
   shared structural limits;
 - URI: `fluent-uri` parsing with separate identity, path, query, and fragment

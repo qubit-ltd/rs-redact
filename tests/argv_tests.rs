@@ -10,6 +10,10 @@
 mod argv;
 
 use std::ffi::OsStr;
+#[cfg(unix)]
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 
 use proptest::prelude::prop_assert;
 use proptest::prelude::prop_assert_eq;
@@ -42,6 +46,16 @@ where
         .text()
         .as_str()
         .to_owned()
+}
+
+#[cfg(unix)]
+#[test]
+fn test_non_unicode_plain_argv_differs_between_modes() {
+    let value = OsString::from_vec(b"visible-secret\xff".to_vec());
+    let explicit_output = explicit([ArgvItem::plain(&value)]);
+    let heuristic_output = heuristic([ArgvItem::plain(&value)]);
+    assert_eq!(explicit_output, "[\"visible-secret�\"]");
+    assert_eq!(heuristic_output, "[\"<redacted>\"]");
 }
 
 #[test]

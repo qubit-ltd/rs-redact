@@ -55,6 +55,10 @@ fn test_plain_argv_preserves_windows_lossy_representation() {
         let value = wide(&units);
         let output = Redactor::standard().redact_argv([ArgvItem::plain(&value)]);
         assert_eq!(output.text().as_str(), expected);
+        if value.to_str().is_none() {
+            let heuristic = Redactor::standard().redact_heuristic_argv([ArgvItem::plain(&value)]);
+            assert_eq!(heuristic.text().as_str(), "[\"<redacted>\"]");
+        }
         assert!(output.text().as_str().is_char_boundary(output.text().as_str().len()));
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
         assert_eq!(output.summary().usage().output_bytes(), expected.len());
