@@ -12,6 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 HOOK = PROJECT_ROOT / ".infra" / "project-ci-check.local.sh"
 EXPECTED_SCRIPTS = (
     "project_ci_hook_tests.py",
+    "check_packaged_derive_tests.py",
+    "check_packaged_derive.py",
     "check_doc_examples_tests.py",
     "check_doc_examples.py",
 )
@@ -118,7 +120,7 @@ class ProjectCiHookTests(unittest.TestCase):
         self.assertTrue(Path(calls[-1]["argv"][3]).is_absolute())
 
     def test_hook_stops_and_preserves_each_python_failure(self):
-        for index, (script, status) in enumerate(zip(EXPECTED_SCRIPTS, (7, 8, 9), strict=True)):
+        for index, (script, status) in enumerate(zip(EXPECTED_SCRIPTS, range(7, 7 + len(EXPECTED_SCRIPTS)), strict=True)):
             with self.subTest(script=script):
                 result, calls = self.run_hook(script, status)
 
