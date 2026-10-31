@@ -170,12 +170,16 @@ impl RedactionLimitsBuilder {
         self
     }
 
-    /// Sets the maximum structural key length.
+    /// Sets the maximum UTF-8 byte length of domain fields and supported
+    /// non-JSON format classification keys, after format-required decoding
+    /// and before policy normalization or value access. JSON object keys use
+    /// the independent `max_json_key_bytes` limit. Set both methods
+    /// when both key scopes need bounds. This does not limit argv heuristics.
     ///
     /// # Parameters
     ///
-    /// - `maximum`: Maximum raw structural key bytes before classification.
-    ///   Zero is permitted.
+    /// - `maximum`: Maximum UTF-8 key bytes in the shared non-JSON scope. Zero
+    ///   is permitted.
     ///
     /// # Returns
     ///
@@ -240,11 +244,14 @@ impl RedactionLimitsBuilder {
         self
     }
 
-    /// Sets the maximum JSON object-key length.
+    /// Sets the maximum UTF-8 byte length of a decoded JSON object key.
+    /// This is independent of [`Self::max_key_bytes`]; configuring a general
+    /// key limit does not constrain JSON keys.
     ///
     /// # Parameters
     ///
-    /// - `maximum`: Maximum raw JSON object-key bytes. Zero is permitted.
+    /// - `maximum`: Maximum decoded JSON object-key UTF-8 bytes. Zero is
+    ///   permitted.
     ///
     /// # Returns
     ///

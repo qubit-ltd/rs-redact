@@ -9,6 +9,8 @@
 use std::cell::Cell;
 use std::ffi::OsStr;
 
+#[cfg(all(feature = "derive", feature = "json"))]
+use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
@@ -21,6 +23,112 @@ fn policy_with_key_limit(maximum: usize) -> RedactionPolicy {
         .expect("valid limits")
         .build()
         .expect("valid policy")
+}
+
+#[cfg(feature = "json")]
+fn policy_with_key_limits(general: usize, json: usize) -> RedactionPolicy {
+    RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_key_bytes(general).max_json_key_bytes(json);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy")
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_keys_use_the_independent_json_limit() {
+    let redactor = Redactor::new(policy_with_key_limits(1, 32));
+
+    for input in [
+        r#"{"longkey":"value"}"#,
+        r#"{"é":"value"}"#,
+        r#"{"long\u006bey":"value"}"#,
+    ] {
+        let output = redactor.redact_json(input);
+        assert!(
+            output.complete_text().is_ok(),
+            "JSON key should use its JSON limit: {input}"
+        );
+    }
+
+    let value = serde_json::json!({"longkey": "value"});
+    assert!(redactor.redact_json_value(&value).complete_text().is_ok());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_keys_reject_against_their_own_limit() {
+    let redactor = Redactor::new(policy_with_key_limits(32, 1));
+    let output = redactor.redact_json(r#"{"longkey":"value"}"#);
+    assert!(output.complete_text().is_err());
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let unicode_output = redactor.redact_json(r#"{"é":"value"}"#);
+    assert!(unicode_output.complete_text().is_err());
+    assert!(
+        unicode_output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let escaped_key_redactor = Redactor::new(policy_with_key_limits(32, 6));
+    let escaped_output = escaped_key_redactor.redact_json(r#"{"long\u006bey":"value"}"#);
+    assert!(escaped_output.complete_text().is_err());
+    assert!(
+        escaped_output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+
+    let value = serde_json::json!({"longkey": "value"});
+    let output = redactor.redact_json_value(&value);
+    assert!(output.complete_text().is_err());
+    assert!(
+        output
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+}
+
+#[cfg(all(feature = "derive", feature = "json"))]
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct DerivedJsonKeyScope {
+    #[redact(json)]
+    x: serde_json::Value,
+}
+
+#[cfg(all(feature = "derive", feature = "json"))]
+#[test]
+fn test_derived_json_field_keys_use_the_independent_json_limit() {
+    let source = DerivedJsonKeyScope {
+        x: serde_json::json!({"longkey": "value"}),
+    };
+
+    let general_limit_is_independent = Redactor::new(policy_with_key_limits(1, 32));
+    assert_eq!(
+        general_limit_is_independent
+            .to_json(&source)
+            .expect("JSON key is admitted"),
+        r#"{"x":{"longkey":"value"}}"#,
+    );
+
+    let json_limit_applies = Redactor::new(policy_with_key_limits(32, 1));
+    let encoded = json_limit_applies
+        .to_json(&source)
+        .expect("JSON admission fallback remains valid JSON");
+    let parsed: serde_json::Value = serde_json::from_str(&encoded).expect("encoded JSON");
+    assert_eq!(parsed["x"], "<redacted>");
 }
 
 #[cfg(feature = "http")]
@@ -206,6 +314,8 @@ mod uri {
     use qubit_redact::Redactor;
 
     use super::policy_with_key_limit;
+    #[cfg(feature = "json")]
+    use super::policy_with_key_limits;
 
     #[test]
     fn test_uri_query_key_limit_rejects_before_publication() {
@@ -224,6 +334,20 @@ mod uri {
             .inspect_uri(input)
             .expect_err("oversized key must make inspection inconclusive");
         assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_uri_keys_remain_in_the_general_key_scope() {
+        let redactor = Redactor::new(policy_with_key_limits(1, 32));
+        let output = redactor.redact_uri("https://example.test/?longkey=value");
+        assert!(output.complete_text().is_err());
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
     }
 
     #[test]
@@ -326,6 +450,8 @@ mod http {
 
     use super::policy_with_key_and_collection_limits;
     use super::policy_with_key_limit;
+    #[cfg(feature = "json")]
+    use super::policy_with_key_limits;
 
     fn assert_rejected(output: qubit_redact::RedactionTextOutput) {
         assert!(!output.text().as_str().contains("rejected-value-427"));
@@ -461,6 +587,49 @@ mod http {
             .inspect_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"))
             .expect_err("oversized form key must make inspection inconclusive");
         assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_http_json_body_keys_use_the_independent_json_limit() {
+        let redactor = Redactor::new(policy_with_key_limits(1, 32));
+        let capture = BodyCapture::complete(br#"{"longkey":"value"}"#);
+        let output = redactor.redact_http_body_with_content_type_text(capture, Some("application/json"));
+        assert!(output.complete_text().is_ok());
+        assert!(output.text().as_str().contains("longkey"));
+
+        let redactor = Redactor::new(policy_with_key_limits(32, 1));
+        let capture = BodyCapture::complete(br#"{"longkey":"value"}"#);
+        let output = redactor.redact_http_body_with_content_type_text(capture, Some("application/json"));
+        assert!(output.complete_text().is_err());
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_http_form_keys_remain_in_the_general_key_scope() {
+        let redactor = Redactor::new(policy_with_key_limits(1, 32));
+        let capture = BodyCapture::complete(b"longkey=value");
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
+        assert!(output.complete_text().is_err());
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+
+        let redactor = Redactor::new(policy_with_key_limits(32, 1));
+        let capture = BodyCapture::complete(b"longkey=value");
+        let output =
+            redactor.redact_http_body_with_content_type_text(capture, Some("application/x-www-form-urlencoded"));
+        assert!(output.complete_text().is_ok());
     }
 
     #[test]

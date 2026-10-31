@@ -190,10 +190,11 @@ impl RedactionLimits {
     }
 
     /// Returns the maximum UTF-8 byte length of a domain field or supported
-    /// format classification key, checked after format-required decoding but
-    /// before policy normalization and value access. JSON keys retain their
-    /// independent JSON admission limits; argv heuristics are not covered by
-    /// this format-key check.
+    /// non-JSON format classification key, checked after format-required
+    /// decoding but before policy normalization and value access. JSON object
+    /// keys use `max_json_key_bytes` instead. Configure both limits
+    /// when both non-JSON classification keys and JSON keys need bounds; argv
+    /// heuristics are not covered by this format-key check.
     ///
     /// # Returns
     ///
@@ -237,7 +238,9 @@ impl RedactionLimits {
         self.json.max_sequence_items()
     }
 
-    /// Returns the maximum JSON object-key length.
+    /// Returns the maximum UTF-8 byte length of a decoded JSON object key.
+    /// This independent JSON admission limit does not inherit
+    /// [`Self::max_key_bytes`].
     ///
     /// # Returns
     ///
