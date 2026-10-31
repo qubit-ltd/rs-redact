@@ -25,6 +25,9 @@ use qubit_redact::formats::http::BodyCapture;
 
 const FUZZ_SECRET: &str = "multipart-fuzz-secret-b08761d5";
 const MAX_DIRECTED_CUTS: usize = 24;
+const OUTPUT_BUDGETS: &[usize] = &[0, 1, 8, 9, 10, 16, 32, 64, 256];
+const STRUCTURE_BUDGETS: &[usize] = &[0, 1, 2, 3, 4, 8, 16];
+const DEPTH_BUDGETS: &[usize] = &[0, 1, 2, 3, 4, 8];
 
 /// Encodes arbitrary bytes as inert multipart text.
 #[must_use]
@@ -44,6 +47,47 @@ fn random_cut(input: &[u8], body_len: usize) -> usize {
     let count = input.len().min(word.len());
     word[..count].copy_from_slice(&input[..count]);
     (u64::from_le_bytes(word) % (body_len as u64 + 1)) as usize
+}
+
+/// Selects one bounded budget deterministically, including for empty input.
+#[must_use]
+fn selected_budget(input: &[u8], index: usize, choices: &[usize]) -> usize {
+    choices[usize::from(input.get(index).copied().unwrap_or_default()) % choices.len()]
+}
+
+#[cfg(not(test))]
+fn budget_redactor(output: usize, depth: usize, nodes: usize, items: usize) -> Redactor {
+    let policy = qubit_redact::RedactionPolicy::builder()
+        .limits(|limits| {
+            limits
+                .max_input_bytes(65_536)
+                .max_output_bytes(output)
+                .max_depth(depth)
+                .max_nodes(nodes)
+                .max_collection_items(items);
+        })
+        .expect("bounded limits are valid")
+        .build()
+        .expect("bounded policy is valid");
+    Redactor::new(policy)
+}
+
+#[cfg(not(test))]
+fn selected_multipart_body(boundary: &str, noise: &str, selector: usize) -> String {
+    let nested_part = match selector % 3 {
+        0 => format!(
+            "Content-Disposition: form-data; name=\"payload\"\r\nContent-Type: application/json\r\n\r\n{{\"password\":\"{FUZZ_SECRET}\",\"visible\":\"{noise}\"}}"
+        ),
+        1 => format!(
+            "Content-Disposition: form-data; name=\"payload\"\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\npassword={FUZZ_SECRET}&visible={noise}"
+        ),
+        _ => format!(
+            "Content-Disposition: form-data; name=\"password\"\r\nContent-Type: text/plain\r\n\r\n{FUZZ_SECRET}"
+        ),
+    };
+    format!(
+        "--{boundary}\r\n{nested_part}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"public\"\r\n\r\nvisible-public\r\n--{boundary}--\r\n"
+    )
 }
 
 /// Returns a bounded set of cuts around semantic multipart boundaries.
@@ -145,12 +189,65 @@ fuzz_target!(|input: &[u8]| {
             retained < body.len(),
         );
     }
+
+    let output_budget = selected_budget(input, 17, OUTPUT_BUDGETS);
+    let depth_budget = selected_budget(input, 18, DEPTH_BUDGETS);
+    let node_budget = selected_budget(input, 19, STRUCTURE_BUDGETS);
+    let item_budget = selected_budget(input, 20, STRUCTURE_BUDGETS);
+    let budget_redactor = budget_redactor(output_budget, depth_budget, node_budget, item_budget);
+    let combination = usize::from(input.get(21).copied().unwrap_or_default());
+    let nested = selected_multipart_body(&boundary, &noise, combination);
+    let selected_cut = random_cut(input.get(22..).unwrap_or_default(), nested.len());
+    let capture = BodyCapture::prefix(nested.as_bytes(), selected_cut);
+    let one_shot = budget_redactor.redact_http_body(capture, Some(&content_type));
+    assert!(one_shot.summary().usage().output_bytes() <= output_budget);
+    assert_output_invariants(&one_shot, output_budget);
+    assert!(!one_shot.text().as_str().contains(FUZZ_SECRET));
+    assert_eq!(
+        one_shot
+            .summary()
+            .reasons()
+            .contains(RedactionReason::SourceTruncated),
+        selected_cut < nested.len(),
+    );
+
+    let mut batch = budget_redactor.diagnostic_batch();
+    let ordinary = batch.redact_field("ordinary", &noise);
+    let multipart = batch.redact_http_body(capture, Some(&content_type));
+    let batch_output = batch.finish_with_marker("<budget exhausted>");
+    assert!(batch_output.summary().usage().output_bytes() <= output_budget);
+    for handle in [ordinary, multipart] {
+        let safe_text = batch_output.text(handle).as_str();
+        assert!(!safe_text.contains(FUZZ_SECRET));
+        assert!(!safe_text.chars().any(|character| {
+            character.is_control()
+                || matches!(
+                    character,
+                    '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+                )
+        }));
+    }
 });
 
 #[cfg(test)]
 mod tests {
     use super::directed_cuts;
     use super::random_cut;
+    use super::selected_budget;
+    use super::DEPTH_BUDGETS;
+    use super::OUTPUT_BUDGETS;
+    use super::STRUCTURE_BUDGETS;
+
+    #[test]
+    fn selected_budget_defaults_and_reaches_each_choice() {
+        for choices in [OUTPUT_BUDGETS, STRUCTURE_BUDGETS, DEPTH_BUDGETS] {
+            assert_eq!(selected_budget(&[], 0, choices), choices[0]);
+            for (index, choice) in choices.iter().enumerate() {
+                assert_eq!(selected_budget(&[index as u8], 0, choices), *choice);
+            }
+        }
+        assert_eq!(selected_budget(&[0, 0, 7], 2, OUTPUT_BUDGETS), 64);
+    }
 
     #[test]
     fn random_cut_uses_full_word_and_includes_body_end() {
