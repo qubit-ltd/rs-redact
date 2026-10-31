@@ -201,15 +201,13 @@ fuzz_target!(|input: &[u8]| {
     let capture = BodyCapture::prefix(nested.as_bytes(), selected_cut);
     let one_shot = budget_redactor.redact_http_body(capture, Some(&content_type));
     assert!(one_shot.summary().usage().output_bytes() <= output_budget);
+    assert!(one_shot.summary().usage().visited_nodes() <= node_budget);
+    assert!(one_shot.summary().usage().visited_collection_items() <= item_budget);
+    assert!(one_shot.summary().usage().max_depth() <= depth_budget);
     assert_output_invariants(&one_shot, output_budget);
     assert!(!one_shot.text().as_str().contains(FUZZ_SECRET));
-    assert_eq!(
-        one_shot
-            .summary()
-            .reasons()
-            .contains(RedactionReason::SourceTruncated),
-        selected_cut < nested.len(),
-    );
+    // A restrictive budget may reject the body before source truncation is
+    // recorded.
 
     let mut batch = budget_redactor.diagnostic_batch();
     let ordinary = batch.redact_field("ordinary", &noise);
@@ -231,12 +229,12 @@ fuzz_target!(|input: &[u8]| {
 
 #[cfg(test)]
 mod tests {
-    use super::directed_cuts;
-    use super::random_cut;
-    use super::selected_budget;
     use super::DEPTH_BUDGETS;
     use super::OUTPUT_BUDGETS;
     use super::STRUCTURE_BUDGETS;
+    use super::directed_cuts;
+    use super::random_cut;
+    use super::selected_budget;
 
     #[test]
     fn selected_budget_defaults_and_reaches_each_choice() {

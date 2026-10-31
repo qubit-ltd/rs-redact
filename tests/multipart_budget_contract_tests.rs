@@ -66,34 +66,24 @@ fn assert_safe_output(text: &str) {
 #[test]
 fn test_multipart_nested_json_and_form_respect_small_budgets() {
     let sufficient = redactor(65_536, 8, 256, 256);
-    let output = sufficient
-        .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
+    let output = sufficient.redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
     assert_safe_output(output.text().as_str());
     assert!(output.text().as_str().contains("json-public"));
     assert!(output.text().as_str().contains("form-public"));
-    assert!(
-        output
-            .text()
-            .as_str()
-            .contains("note=<redacted: multipart text part>")
-    );
+    assert!(output.text().as_str().contains("note=<redacted: multipart text part>"));
     let exact_output = output.summary().usage().output_bytes();
     assert!(exact_output > 1);
 
     for output_limit in [0, 1, 8, 9, 10, 16, 32, 64, 256] {
-        let output = redactor(output_limit, 8, 256, 256).redact_http_body_with_content_type_text(
-            BodyCapture::complete(BODY),
-            Some(CONTENT_TYPE),
-        );
+        let output = redactor(output_limit, 8, 256, 256)
+            .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
         assert!(output.summary().usage().output_bytes() <= output_limit);
         assert_safe_output(output.text().as_str());
     }
 
     for (depth, nodes, items) in [(2, 256, 256), (3, 256, 256), (8, 2, 256), (8, 256, 2)] {
-        let output = redactor(65_536, depth, nodes, items).redact_http_body_with_content_type_text(
-            BodyCapture::complete(BODY),
-            Some(CONTENT_TYPE),
-        );
+        let output = redactor(65_536, depth, nodes, items)
+            .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
         assert_safe_output(output.text().as_str());
         assert!(output.summary().usage().visited_nodes() <= nodes);
         assert!(output.summary().usage().visited_collection_items() <= items);
@@ -108,20 +98,11 @@ fn test_multipart_nested_json_and_form_respect_small_budgets() {
         }
     }
 
-    let shallow = redactor(65_536, 2, 256, 256).redact_http_body_with_content_type_text(
-        BodyCapture::complete(SIMPLE_FORM_BODY),
-        Some(CONTENT_TYPE),
-    );
-    assert!(
-        shallow
-            .summary()
-            .reasons()
-            .contains(RedactionReason::DepthLimitReached)
-    );
-    let boundary = redactor(65_536, 3, 256, 256).redact_http_body_with_content_type_text(
-        BodyCapture::complete(SIMPLE_FORM_BODY),
-        Some(CONTENT_TYPE),
-    );
+    let shallow = redactor(65_536, 2, 256, 256)
+        .redact_http_body_with_content_type_text(BodyCapture::complete(SIMPLE_FORM_BODY), Some(CONTENT_TYPE));
+    assert!(shallow.summary().reasons().contains(RedactionReason::DepthLimitReached));
+    let boundary = redactor(65_536, 3, 256, 256)
+        .redact_http_body_with_content_type_text(BodyCapture::complete(SIMPLE_FORM_BODY), Some(CONTENT_TYPE));
     assert!(
         !boundary
             .summary()
@@ -130,14 +111,11 @@ fn test_multipart_nested_json_and_form_respect_small_budgets() {
     );
     assert_eq!(boundary.summary().usage().max_depth(), 3);
 
-    let exact = sufficient
-        .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
+    let exact = sufficient.redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
     let exact_size = exact.summary().usage().output_bytes();
     for limit in [exact_size, exact_size.saturating_sub(1)] {
-        let output = redactor(limit, 8, 256, 256).redact_http_body_with_content_type_text(
-            BodyCapture::complete(BODY),
-            Some(CONTENT_TYPE),
-        );
+        let output = redactor(limit, 8, 256, 256)
+            .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
         assert!(output.summary().usage().output_bytes() <= limit);
         assert_safe_output(output.text().as_str());
     }
@@ -148,12 +126,7 @@ fn test_multipart_truncation_and_batch_share_budget() {
     let sufficient = redactor(65_536, 8, 256, 256);
     let truncated = BodyCapture::prefix(BODY, BODY.len() - 2);
     let output = sufficient.redact_http_body_with_content_type_text(truncated, Some(CONTENT_TYPE));
-    assert!(
-        output
-            .summary()
-            .reasons()
-            .contains(RedactionReason::SourceTruncated)
-    );
+    assert!(output.summary().reasons().contains(RedactionReason::SourceTruncated));
     assert_safe_output(output.text().as_str());
 
     let policy = RedactionPolicy::builder()
@@ -171,8 +144,7 @@ fn test_multipart_truncation_and_batch_share_budget() {
     let redactor = Redactor::new(policy);
     let mut batch = redactor.diagnostic_batch();
     let ordinary = batch.redact_field("ordinary", &"visible-before-multipart");
-    let multipart = batch
-        .redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
+    let multipart = batch.redact_http_body_with_content_type_text(BodyCapture::complete(BODY), Some(CONTENT_TYPE));
     let output = batch.finish_with_marker("");
     assert_safe_output(output.text(ordinary).as_str());
     assert_safe_output(output.text(multipart).as_str());
