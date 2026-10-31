@@ -11,13 +11,11 @@ use std::result::Result as CrateResult;
 
 use proc_macro_crate::Error as CrateError;
 use proc_macro_crate::FoundCrate;
-use proc_macro2::Span;
-use quote::format_ident;
+use quote::quote;
 use syn::DeriveInput;
 use syn::Error;
 use syn::Path;
 use syn::Result;
-use syn::parse_quote;
 
 /// Converts a Cargo crate lookup into a generated-code path.
 ///
@@ -35,12 +33,8 @@ use syn::parse_quote;
 ///
 /// # Errors
 ///
-/// Returns a syntax error attached to `input` when the Cargo lookup failed.
-///
-/// # Panics
-///
-/// Panics if a successful Cargo lookup supplies a name that cannot become a
-/// Rust identifier after replacing hyphens with underscores.
+/// Returns a syntax error attached to `input` when the Cargo lookup failed or
+/// the resolved dependency name is not a valid Rust identifier.
 pub(crate) fn resolve(
     input: &DeriveInput,
     result: CrateResult<FoundCrate, CrateError>,
@@ -50,8 +44,21 @@ pub(crate) fn resolve(
     match result {
         Ok(FoundCrate::Itself) => Ok(itself),
         Ok(FoundCrate::Name(name)) => {
-            let identifier = format_ident!("{}", name.replace('-', "_"), span = Span::call_site());
-            Ok(parse_quote!(::#identifier))
+            let name = name.replace('-', "_");
+            let invalid_name = || {
+                Error::new_spanned(
+                    input,
+                    format!("{error_context}: invalid runtime crate name `{name}`"),
+                )
+            };
+            let identifier = if name == "gen" {
+                syn::parse_str::<syn::Ident>(&format!("r#{name}"))
+            } else {
+                syn::parse_str::<syn::Ident>(&name)
+                    .or_else(|_| syn::parse_str::<syn::Ident>(&format!("r#{name}")))
+            }
+            .map_err(|_| invalid_name())?;
+            syn::parse2(quote!(::#identifier)).map_err(|_| invalid_name())
         }
         Err(error) => Err(Error::new_spanned(input, format!("{error_context}: {error}"))),
     }

@@ -10,3 +10,4 @@
 mod attributes_tests;
 mod expand_tests;
 mod model_tests;
+mod runtime_path_tests;

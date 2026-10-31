@@ -31,3 +31,25 @@ fn test_renamed_runtime_dependency_compiles() {
 
     assert!(output.status.success(), "{stderr}");
 }
+
+/// Verifies both derives honor keyword aliases and explicit raw paths.
+#[test]
+fn test_keyword_runtime_dependency_runs() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = manifest_dir.join("tests/fixtures/crates/keyword_dependency/Cargo.toml");
+    let target_dir = manifest_dir.join("target/keyword-dependency-fixture");
+    let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let output = support::isolated_cargo::command(&cargo)
+        .args(["run", "--locked", "--manifest-path"])
+        .arg(manifest)
+        .arg("--target-dir")
+        .arg(target_dir)
+        .output()
+        .expect("the isolated cargo run starts");
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}

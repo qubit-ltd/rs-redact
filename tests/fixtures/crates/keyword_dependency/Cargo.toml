@@ -1,0 +1,10 @@
+[package]
+name = "redact-keyword-dependency-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+type = { package = "qubit-redact", version = "0.10", path = "../../../../", default-features = false, features = ["derive"] }
