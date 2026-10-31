@@ -207,6 +207,9 @@ JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 会将每个 JSON 相对深度加到这个基数；JSON 文本的预检和 decoder seed 使用相同的绝对根深度。
 独立 JSON 根从深度 1 开始，`max_json_depth` 仍相对 JSON 根计量。因此领域深度 2 中的 JSON 深度 2
 会占用共享深度 4，`max_depth` 必须允许组合后的深度。
+共享 `max_key_bytes` 限制领域字段及受支持的非 JSON 格式分类键；解码后的 JSON 对象键使用独立的
+`max_json_key_bytes`。两种范围都需要限制时应分别配置。JSON 文本、借用 `Value` 和 HTTP JSON
+使用 JSON 上限，URI 与 form 键使用通用格式键上限。
 
 严格文本契约按解码后的字符串拒绝重复对象键；负整数必须装入 `i64`，非负整数必须装入 `u64`，
 小数/指数必须是有限 `f64`。decoder 使用配置的共享和 JSON 专属深度预算，没有额外固定的 127 层容器上限。
@@ -261,6 +264,8 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 `collect_str` 格式化失败时仍会扣除已接受的 input 前缀；payload 只为转发给下游 serializer 的标量文本计费。
 每个逻辑标量载荷只计费一次；嵌套脱敏值经另一层预算 adapter 转发时也不会重复计费，
 输入和结构准入仍照常执行。
+每层 `Some` 或 `None` 投影都会消耗一个共享结构节点和一层深度。disabled 策略仍执行共享结构与深度
+限制；JSON 文本中的字符串叶子节点仍各计一个节点并占用其深度，即使 JSON 专属限制被跳过。
 
 旧式 `RedactSerialize` hook 在根调用时使用显式传入的策略，嵌套调用则加入活动 scope。裸的
 `RedactSerializeSource` 投影只借用字段、不保存策略；缺少活动 scope 时序列化会返回不含原值的

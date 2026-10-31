@@ -82,12 +82,17 @@ where
     S: Serializer,
 {
     let masked = || policy.masking().mask_opaque(crate::Sensitivity::Secret);
+    if policy.is_disabled() {
+        return super::redact_serialize_scope::serialize_structured(serializer, policy, |serializer| {
+            if !admit_input(text.len()) {
+                return super::redact_serialize_scope::serialize_payload(serializer, masked());
+            }
+            super::redact_serialize_scope::serialize_payload(serializer, text)
+        });
+    }
     if !admit_input(text.len()) {
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
-    }
-    if policy.is_disabled() {
-        return super::redact_serialize_scope::serialize_payload(serializer, text);
     }
     if text.len() > policy.limits().max_input_bytes() {
         let replacement = masked();
@@ -376,10 +381,10 @@ impl<T: RedactJsonSerialize> RedactJsonSerialize for Option<T> {
     where
         S: Serializer,
     {
-        match self {
+        super::redact_serialize_scope::serialize_structured(serializer, policy, |serializer| match self {
             Some(value) => serializer.serialize_some(&RedactedJsonSerializeRef::new(value, policy)),
             None => serializer.serialize_none(),
-        }
+        })
     }
 }
 

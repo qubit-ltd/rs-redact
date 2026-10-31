@@ -225,6 +225,11 @@ visited-node or collection-item usage. Node/item rejection closes transaction
 traversal; shared depth rejection does not. Failure precedence is
 output/input admission, shared structural preflight, then JSON-specific
 admission/materialization.
+The shared `max_key_bytes` ceiling applies to domain fields and supported
+non-JSON format classification keys; decoded JSON object keys use the
+independent `max_json_key_bytes` ceiling. Callers that need bounds for both
+scopes configure both limits. JSON text, borrowed `Value`, and HTTP JSON use
+the JSON ceiling, while URI and form keys use the shared format-key ceiling.
 
 HTTP JSON, NDJSON, and multipart rendering borrow the admitted structures
 within the operation, without rebuilding a masked `Value` tree or mutating
@@ -318,6 +323,10 @@ charged once, including when a nested redacted value forwards it through another
 budget adapter. Input and structural admission remain in force.
 For `collect_str`, formatting failure still charges the accepted input prefix; payload is charged
 only for scalar text forwarded to the downstream serializer.
+Each projected `Option` layer, whether `Some` or `None`, consumes one shared
+structural node and one depth level. Disabled policy continues to enforce
+shared structure and depth; JSON text string leaf nodes still consume one node
+and their depth even though JSON-specific limits are skipped.
 
 Direct Serialize(view/source) uses structure, input, and logical payload limits; the caller's
 serializer/writer controls final encoding. `to_json` uses the same projection plus an independent
