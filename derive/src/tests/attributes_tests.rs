@@ -127,3 +127,47 @@ fn test_field_attributes_reject_removed_plain_mode() {
 
     assert!(error.to_string().contains("unknown attribute `plain`"));
 }
+
+#[test]
+fn test_field_attributes_parse_explicit_unmarked() {
+    let inputs: [syn::DeriveInput; 2] = [
+        parse_quote! { struct Record { #[redact(unmarked)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked)] value: Option<Box<Record>> } },
+    ];
+    for input in inputs {
+        let Data::Struct(data) = &input.data else {
+            panic!("fixture is a struct");
+        };
+        let Fields::Named(fields) = &data.fields else {
+            panic!("fixture has named fields");
+        };
+        let field = fields.named.first().expect("field exists");
+        let parsed =
+            FieldAttributes::parse(field, &input.ident, "value").expect("unmarked parses");
+        assert!(matches!(parsed.mode(), FieldMode::Unmarked));
+    }
+}
+
+#[test]
+fn test_field_attributes_reject_invalid_or_conflicting_unmarked() {
+    let inputs: [syn::DeriveInput; 8] = [
+        parse_quote! { struct Record { #[redact(unmarked = true)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked())] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, unmarked)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, level = "high")] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, nested)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, map)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, skip)] value: String } },
+        parse_quote! { struct Record { #[redact(unmarked, display)] value: String } },
+    ];
+    for input in inputs {
+        let Data::Struct(data) = &input.data else {
+            panic!("fixture is a struct");
+        };
+        let Fields::Named(fields) = &data.fields else {
+            panic!("fixture has named fields");
+        };
+        let field = fields.named.first().expect("field exists");
+        assert!(FieldAttributes::parse(field, &input.ident, "value").is_err());
+    }
+}

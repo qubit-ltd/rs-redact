@@ -58,7 +58,7 @@ impl FieldAttributes {
                     type_name,
                     field_name,
                     "expected `#[redact(level = \"...\")]`, `#[redact(skip)]`, \
-                     `#[redact(nested)]`, `#[redact(map)]`, \
+                     `#[redact(nested)]`, `#[redact(unmarked)]`, `#[redact(map)]`, \
                      `#[redact(keyed_by = key)]`, or `#[redact(json)]`",
                 ));
             };
@@ -68,7 +68,7 @@ impl FieldAttributes {
                     type_name,
                     field_name,
                     "empty `#[redact()]` is not allowed; choose `level = \"...\"`, `skip`, \
-                     `nested`, `map`, `keyed_by = key`, or `json`",
+                     `nested`, `unmarked`, `map`, `keyed_by = key`, or `json`",
                 ));
             }
             attribute.parse_nested_meta(|meta| {
@@ -151,6 +151,9 @@ fn parse_mode(meta: &ParseNestedMeta<'_>, type_name: &Ident, field_name: &str) -
     } else if meta.path.is_ident("skip") {
         require_bare(meta, type_name, field_name, "bare `skip` without arguments")?;
         Ok(FieldMode::Skip)
+    } else if meta.path.is_ident("unmarked") {
+        require_bare(meta, type_name, field_name, "bare `unmarked` without arguments")?;
+        Ok(FieldMode::Unmarked)
     } else if meta.path.is_ident("nested") {
         require_bare(meta, type_name, field_name, "bare `nested` without arguments")?;
         Ok(FieldMode::Nested)
@@ -203,7 +206,7 @@ fn parse_mode(meta: &ParseNestedMeta<'_>, type_name: &Ident, field_name: &str) -
         let key = meta.path.to_token_stream().to_string();
         Err(meta.error(format!(
             "Redact derive for `{type_name}` field `{field_name}` has unknown \
-             attribute `{key}`; use `level = \"...\"`, `skip`, `nested`, `map`, \
+             attribute `{key}`; use `level = \"...\"`, `skip`, `nested`, `unmarked`, `map`, \
              `keyed_by = key`, or `json`",
         )))
     }

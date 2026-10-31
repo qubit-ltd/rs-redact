@@ -58,6 +58,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | 字段属性 | 作用与类型要求 |
 | --- | --- |
 | 无属性 | 文本使用普通 `Debug`；启用 runtime 的 `serde` feature 后，只要字段支持 Serde，视图即可按生成的脱敏投影序列化。 |
+| `unmarked` | 使用普通 `Debug` 输出该字段，并阻止自动递归 `nested` 归一化；仍受普通输出所需 trait 约束。 |
 | `level = "low"/"medium"/"high"/"secret"` | 对各叶子应用最终等级；支持基本标量、`RedactScalar` 和支持的递归容器。 |
 | `level = "...", display` | 显式按 `Display` 文本处理，不要求该类型实现 `Debug` 或普通 `Serialize`。 |
 | `skip` | 启用时省略；disabled 恢复字段。 |

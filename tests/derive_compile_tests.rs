@@ -13,6 +13,7 @@
 #[test]
 fn test_pass_fixtures() {
     let tests = trybuild::TestCases::new();
+    tests.pass("tests/fixtures/pass/explicit_unmarked.rs");
     tests.pass("tests/fixtures/pass/new_contract.rs");
     tests.pass("tests/fixtures/pass/basic_named_struct.rs");
     tests.pass("tests/fixtures/pass/enum_variants.rs");

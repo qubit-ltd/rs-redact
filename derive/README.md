@@ -58,6 +58,7 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | Field attribute | Meaning / supported values |
 | --- | --- |
 | None | Ordinary `Debug`; with the runtime `serde` feature, the view serializes through the generated redacted projection when its fields support Serde. |
+| `unmarked` | Use ordinary `Debug` for this field and prevent automatic recursive `nested` normalization. Existing output trait requirements still apply. |
 | `level = "low"/"medium"/"high"/"secret"` | Final level for each leaf; primitive scalars, `RedactScalar` and recursive supported containers. |
 | `level = "...", display` | Explicit textual representation of a `Display` value; no `Debug` or ordinary `Serialize` required. |
 | `skip` | Omit while enabled; disabled restores the field. |
