@@ -12,6 +12,7 @@ use qubit_redact::MaskPolicy;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
+use qubit_redact::RedactionReasons;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::http::BodyCapture;
@@ -176,6 +177,45 @@ fn test_multipart_binary_sensitive_part_uses_custom_opaque_masks() {
     assert!(rendered.contains("low_value=[low]"));
     assert!(rendered.contains("medium_value=[medium]"));
     assert!(!rendered.contains('\u{fffd}'));
+}
+
+/// A complete UTF-8 opaque mask is emitted only when the entire escaped part
+/// line fits in the remaining output allowance.
+#[test]
+fn test_multipart_binary_mask_keeps_complete_line_and_escaped_name_semantics() {
+    let body = b"--boundary\r\nContent-Disposition: form-data; name=\"pass\\\\word\"\r\n\r\n\xff\r\n--boundary--\r\n";
+    let make_redactor = |max_output_bytes| {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .secret_sensitive("pass\\word")
+                    .mask(Sensitivity::Secret, MaskPolicy::fixed("界"));
+            })
+            .expect("field policy setup must be valid")
+            .limits(|limits| {
+                limits.max_output_bytes(max_output_bytes);
+            })
+            .expect("output limit setup must be valid")
+            .build()
+            .expect("test policy must be valid");
+        Redactor::new(policy)
+    };
+    let content_type = Some(&HeaderValue::from_static("multipart/form-data; boundary=boundary"));
+    let complete = make_redactor(128).redact_http_body(BodyCapture::complete(body), content_type);
+    let expected = r"<multipart>\npass\\word=界\n</multipart>";
+    assert_eq!(complete.text().as_str(), expected);
+    assert_eq!(complete.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(complete.summary().reasons(), RedactionReasons::empty());
+
+    let exact = make_redactor(expected.len()).redact_http_body(BodyCapture::complete(body), content_type);
+    assert_eq!(exact.text().as_str(), expected);
+    assert_eq!(exact.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(exact.summary().reasons(), RedactionReasons::empty());
+
+    let short = make_redactor(expected.len() - 1).redact_http_body(BodyCapture::complete(body), content_type);
+    assert!(short.text().as_str().len() < expected.len());
+    assert_ne!(short.summary().completion(), RedactionCompletion::Complete);
+    assert!(short.summary().reasons().contains(RedactionReason::OutputLimitReached));
 }
 
 /// Invalid UTF-8 remains an error for a part declared as text.

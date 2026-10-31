@@ -24,6 +24,46 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     let redactor = Redactor::standard();
     let json = r#"{"account":"account-42","token":"raw-json-secret","nested":{"password":"raw-nested-secret"}}"#;
     let json_value = serde_json::from_str(json).expect("benchmark JSON must parse");
+    let mut object_128 = (0..126)
+        .map(|index| {
+            let key = if index % 2 == 0 {
+                format!("field-{index}")
+            } else {
+                format!("customer-password-{index}")
+            };
+            (key, serde_json::Value::String(format!("value-{index}")))
+        })
+        .collect::<serde_json::Map<_, _>>();
+    object_128.insert(
+        "password".to_owned(),
+        serde_json::Value::String("value-secret".to_owned()),
+    );
+    object_128.insert(
+        "PASSWORD".to_owned(),
+        serde_json::Value::String("value-normalized-secret".to_owned()),
+    );
+    let object_128 = serde_json::Value::Object(object_128);
+    let object_128_text = serde_json::to_string(&object_128).expect("benchmark object must serialize");
+    let fixture_output = redactor.redact_json_value(&object_128);
+    let fixture_json: serde_json::Value =
+        serde_json::from_str(fixture_output.text().as_ref()).expect("benchmark fixture output should be JSON");
+    let expected_mask = redactor.policy().masking().mask_opaque(Sensitivity::Secret);
+    assert_eq!(
+        fixture_json["password"], expected_mask,
+        "fixture should include a classified key",
+    );
+    assert_eq!(
+        fixture_json["PASSWORD"], expected_mask,
+        "fixture should include a normalized key",
+    );
+    assert_eq!(fixture_json.as_object().map(serde_json::Map::len), Some(128));
+    let fixture_text_output = redactor.redact_json(&object_128_text);
+    let fixture_text_json: serde_json::Value = serde_json::from_str(fixture_text_output.text().as_ref())
+        .expect("text benchmark fixture output should be JSON");
+    assert_eq!(
+        fixture_text_json, fixture_json,
+        "text and Value fixtures should redact equally",
+    );
     let truncating_policy = RedactionPolicy::builder()
         .limits(|limits| {
             let _ = limits.max_output_bytes(16);
@@ -80,6 +120,12 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     });
     group.bench_function("json/borrowed-value", |bencher| {
         bencher.iter(|| redactor.redact_json_value(black_box(&json_value)));
+    });
+    group.bench_function("json/object-128/text", |bencher| {
+        bencher.iter(|| redactor.redact_json(black_box(&object_128_text)));
+    });
+    group.bench_function("json/object-128/borrowed-value", |bencher| {
+        bencher.iter(|| redactor.redact_json_value(black_box(&object_128)));
     });
     group.bench_function("batch/single-json/borrowed-value", |bencher| {
         bencher.iter(|| {

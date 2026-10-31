@@ -76,10 +76,13 @@ impl Serialize for RedactedValue<'_, '_, '_, '_> {
             Value::Object(entries) => {
                 let mut map = serializer.serialize_map(Some(entries.len()))?;
                 for (key, value) in entries {
-                    let context = match (
-                        self.state.base_rules.resolve_field(key),
-                        self.state.context_rules.resolve_field(key),
-                    ) {
+                    let base = self.state.base_rules.resolve_field(key);
+                    let context = if std::ptr::eq(self.state.base_rules, self.state.context_rules) {
+                        base
+                    } else {
+                        self.state.context_rules.resolve_field(key)
+                    };
+                    let context = match (base, context) {
                         (ResolvedField::Sensitive { sensitivity: base }, ResolvedField::Sensitive { sensitivity }) => {
                             ValueContext::Keyed(base.max(sensitivity))
                         }
