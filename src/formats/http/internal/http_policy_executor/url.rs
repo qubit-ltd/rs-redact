@@ -17,7 +17,6 @@ use super::url_rules;
 use crate::RedactionReason;
 use crate::RedactionReasons;
 use crate::Sensitivity;
-use crate::formats::http::UrlPathPolicy;
 use crate::formats::http::internal::BoundedLogWriter;
 use crate::formats::http::internal::form;
 use crate::formats::http::internal::markers;
@@ -87,7 +86,7 @@ impl HttpPolicyExecutor<'_> {
         let _ = writer.write_str(url.scheme());
         let _ = writer.write_str(":");
         if url.cannot_be_a_base() {
-            if self.policy.http().url_path_policy() == UrlPathPolicy::Redact && !url.path().is_empty() {
+            if url_rules::should_redact_path(url, self.policy.http().url_path_policy()) {
                 let _ = writer.write_str("<redacted>");
             } else {
                 let _ = writer.write_str(url.path());
@@ -132,7 +131,7 @@ impl HttpPolicyExecutor<'_> {
             let _ = writer.write_str(":");
             let _ = writer.write_str(&port.to_string());
         }
-        if self.policy.http().url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
+        if url_rules::should_redact_path(url, self.policy.http().url_path_policy()) {
             let _ = writer.write_str("/<redacted>");
         } else {
             let _ = writer.write_str(url.path());

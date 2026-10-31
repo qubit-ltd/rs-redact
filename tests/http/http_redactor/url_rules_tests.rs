@@ -11,6 +11,7 @@ use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 
 use crate::http::support::redaction::redact_url;
 
@@ -76,6 +77,106 @@ fn test_strict_url_path_policy_redacts_opaque_url_paths() {
                 .contains_sensitive()
         );
     }
+}
+
+/// Empty opaque paths are preserved and must not be classified as sensitive.
+#[test]
+fn test_empty_opaque_url_path_is_not_sensitive() {
+    use qubit_redact::formats::http::UrlPathPolicy;
+
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .http(|http| {
+            http.url_path(UrlPathPolicy::Redact);
+        })
+        .expect("valid HTTP policy")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+
+    for input in ["data:", "mailto:", "data:?public=ok"] {
+        let output = redactor.redact_http_url(input);
+        assert_eq!(output.text().as_str(), input);
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert_eq!(
+            redactor.inspect_http_url(input).expect("valid URL").max_sensitivity(),
+            None,
+            "{input}",
+        );
+    }
+}
+
+#[test]
+fn test_url_path_policy_preserves_opaque_and_hierarchical_semantics() {
+    use qubit_redact::formats::http::UrlPathPolicy;
+
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .http(|http| {
+            http.url_path(UrlPathPolicy::Redact);
+        })
+        .expect("valid HTTP policy")
+        .build()
+        .expect("valid policy");
+    let redactor = Redactor::new(policy);
+
+    for (input, expected, sensitivity) in [
+        ("data:/", "data:///", None),
+        ("data:text/plain,raw-secret", "data:<redacted>", Some(Sensitivity::High)),
+        (
+            "mailto:private@example.com",
+            "mailto:<redacted>",
+            Some(Sensitivity::High),
+        ),
+        ("https://example.test/", "https://example.test/", None),
+        (
+            "https://example.test/private",
+            "https://example.test/<redacted>",
+            Some(Sensitivity::High),
+        ),
+    ] {
+        let output = redactor.redact_http_url(input);
+        assert_eq!(output.text().as_str(), expected, "{input}");
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete, "{input}");
+        assert_eq!(
+            redactor.inspect_http_url(input).expect("valid URL").max_sensitivity(),
+            sensitivity,
+            "{input}",
+        );
+    }
+
+    let preserve_policy = RedactionPolicy::standard()
+        .to_builder()
+        .http(|http| {
+            http.url_path(UrlPathPolicy::Preserve);
+        })
+        .expect("valid HTTP policy")
+        .build()
+        .expect("valid policy");
+    let preserve_redactor = Redactor::new(preserve_policy);
+    for input in ["data:text/plain,raw-secret", "https://example.test/private"] {
+        let output = preserve_redactor.redact_http_url(input);
+        assert_eq!(output.text().as_str(), input);
+        assert_eq!(
+            preserve_redactor
+                .inspect_http_url(input)
+                .expect("valid URL")
+                .max_sensitivity(),
+            None,
+            "{input}",
+        );
+    }
+
+    let sensitive_query = "data:?password=secret";
+    let output = redactor.redact_http_url(sensitive_query);
+    assert!(!output.text().as_str().contains("secret"));
+    assert_eq!(
+        redactor
+            .inspect_http_url(sensitive_query)
+            .expect("valid URL")
+            .max_sensitivity(),
+        Some(Sensitivity::Secret),
+    );
 }
 
 /// Invalid query escapes retain their structured reason through public APIs.

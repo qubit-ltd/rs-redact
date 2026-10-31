@@ -17,7 +17,6 @@ use url::Url;
 use super::BodyCapture;
 use super::FieldRedactor;
 use super::TextBodyPolicy;
-use super::UrlPathPolicy;
 use super::http_redaction_writer::admit_body_input;
 use super::http_redaction_writer::admit_parsed_url_structure;
 use super::internal::content_type;
@@ -194,7 +193,7 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
     if url.password().is_some() {
         session.observe_sensitivity(Sensitivity::Secret);
     }
-    if session.policy().http().url_path_policy() == UrlPathPolicy::Redact && url.path() != "/" {
+    if url_rules::should_redact_path(url, session.policy().http().url_path_policy()) {
         session.observe_sensitivity(Sensitivity::High);
     }
     if let Some(query) = url.query() {
