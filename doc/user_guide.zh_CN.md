@@ -288,6 +288,7 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 只有自己的代码使用 Serde trait 或派生宏时，才需直接声明 `serde`。
 `transparent` 要求恰好一个字段，委托该字段的表示，本身不声明标量能力。
 transparent 字段遵循原生 Serde 语义，不调用 `skip_serializing_if`，而是转发所选字段事件，包括空字符串。若旧版本输出 `null`，下游应改为接受字段本身的表示；非 JSON serializer 也可能观察到事件变化。脱敏专有的 `skip` 仍独立生效，启用时使用安全替代。
+普通单字段 newtype 同样保留 Serde 的 `newtype_struct` 事件，并忽略字段的 `skip_serializing_if`，避免空值被替换为 unit struct 的 `null`。若协议必须输出 `null`，请使用显式 serializer 或 `Option` 表示。具名字段因条件谓词被省略时，会使用生效后的 wire name 调用 serializer 的 `skip_field`；自定义 serializer 可以观察该通知，也可以返回错误。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 
 ### 选择序列化边界

@@ -304,6 +304,7 @@ remains unchanged. Enable the runtime `serde` feature; generated implementations
 require a direct Serde dependency. Add `serde` when your own code uses its traits or derives.
 `transparent` requires exactly one field and delegates its representation; it does not declare scalar capability.
 For transparent fields, `skip_serializing_if` follows native Serde behavior and is not called: the selected field event is forwarded, including an empty string. If an earlier version emitted `null`, consumers should accept the field representation; non-JSON serializers may also observe a changed event. Redaction-specific `skip` remains separate and still uses a safe replacement while enabled.
+Ordinary one-field newtypes also preserve Serde's `newtype_struct` event and ignore the field's `skip_serializing_if`; this avoids replacing an empty value with a unit-struct `null`. If a protocol requires `null`, use an explicit serializer or an `Option` representation. For named fields, a true conditional omission calls the serializer's `skip_field` with the effective wire name; custom serializers can observe this notification and may return an error.
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
 ### Choosing the serialization boundary

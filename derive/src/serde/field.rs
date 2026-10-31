@@ -39,6 +39,25 @@ pub(super) fn field_is_skipped(serde_attributes: &SerdeAttributes) -> bool {
     serde_attributes.skip()
 }
 
+/// Determines whether an omitted field should notify the serializer.
+///
+/// This only selects notification eligibility; it does not evaluate the
+/// `skip_serializing_if` predicate itself.
+#[must_use]
+pub(super) fn conditional_skip_event_allowed(
+    serde_attributes: &SerdeAttributes,
+    mode: &FieldMode,
+) -> Option<TokenStream> {
+    if field_is_skipped(serde_attributes) || serde_attributes.skip_serializing_if().is_none() {
+        return None;
+    }
+    Some(if matches!(mode, FieldMode::Skip) {
+        quote!(policy.is_disabled())
+    } else {
+        quote!(true)
+    })
+}
+
 /// Generates the condition deciding whether one field is serialized.
 ///
 /// # Parameters

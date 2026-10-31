@@ -14,6 +14,7 @@ use quote::quote_spanned;
 use syn::Path;
 use syn::spanned::Spanned;
 
+use super::field::conditional_skip_event_allowed;
 use super::field::field_context;
 use super::field::field_is_skipped;
 use super::field::projected_predicate;
@@ -246,6 +247,7 @@ fn named_struct_body(
     let mut conditions = Vec::new();
     let mut serialized_names = Vec::new();
     let mut carriers = Vec::new();
+    let mut skip_events = Vec::new();
 
     for (position, parsed) in fields.iter().enumerate() {
         if field_is_skipped(parsed.serde_attributes()) {
@@ -313,6 +315,7 @@ fn named_struct_body(
         conditions.push(quote!(#carrier.is_some()));
         serialized_names.push(serialized_name);
         carriers.push(carrier);
+        skip_events.push(conditional_skip_event_allowed(parsed.serde_attributes(), parsed.attributes().mode()));
     }
 
     let count_conditions = &conditions;
@@ -321,7 +324,13 @@ fn named_struct_body(
         .iter()
         .zip(&serialized_names)
         .zip(&carriers)
-        .map(|((_condition, field_name), carrier)| {
+        .zip(&skip_events)
+        .map(|(((_condition, field_name), carrier), allowed)| {
+            let notify = allowed.as_ref().map(|allowed| quote! {
+                else if #allowed {
+                    #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+                }
+            });
             quote! {
                 if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
                     #serde::ser::SerializeStruct::serialize_field(
@@ -330,6 +339,7 @@ fn named_struct_body(
                         carrier,
                     )?;
                 }
+                #notify
             }
         });
     quote! {
@@ -401,7 +411,6 @@ fn newtype_struct_body(
     } else {
         quote_spanned!(field.span()=> self.#projection_field)
     };
-    let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
     let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
     let context = field_context(None, None, &index.index.to_string());
     let value = serialized_carrier(
@@ -418,20 +427,10 @@ fn newtype_struct_body(
         },
         legacy_nested,
     );
-    let condition = if transparent {
-        if matches!(parsed.attributes().mode(), FieldMode::Skip) {
-            quote!(policy.is_disabled())
-        } else {
-            quote!(true)
-        }
+    let condition = if matches!(parsed.attributes().mode(), FieldMode::Skip) {
+        quote!(policy.is_disabled())
     } else {
-        serialization_condition(
-            source_context,
-            parsed.serde_attributes(),
-            parsed.attributes().mode(),
-            raw,
-            predicate,
-        )
+        quote!(true)
     };
     if transparent {
         quote! {
