@@ -10,7 +10,9 @@
 
 #![cfg(all(feature = "derive", feature = "serde"))]
 
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::internal::RedactedSerializeRef;
 use qubit_redact_derive::Redact;
@@ -36,6 +38,47 @@ struct Keyed {
     key: String,
     #[redact(keyed_by = key)]
     value: String,
+}
+
+#[derive(Redact)]
+#[redact(serde, debug)]
+struct KeyedHidden {
+    #[redact(skip)]
+    key: String,
+    #[redact(keyed_by = key)]
+    value: String,
+}
+
+#[derive(Redact)]
+#[redact(serde, debug)]
+struct KeyedShared {
+    #[redact(skip)]
+    key: String,
+    #[redact(keyed_by = key)]
+    first: String,
+    #[redact(keyed_by = key)]
+    second: String,
+}
+
+#[derive(Redact)]
+#[redact(serde, debug)]
+struct KeyedVisible {
+    key: String,
+    #[redact(keyed_by = key)]
+    value: String,
+}
+
+#[derive(Redact)]
+#[redact(serde, debug)]
+struct KeyedMultiple {
+    #[redact(skip)]
+    first_key: String,
+    #[redact(skip)]
+    second_key: String,
+    #[redact(keyed_by = first_key)]
+    first: String,
+    #[redact(keyed_by = second_key)]
+    second: String,
 }
 
 /// Builds a policy that admits only four source bytes.
@@ -83,6 +126,127 @@ fn test_keyed_passthrough_obeys_input_budget() {
         value: "x".repeat(1000),
     };
     assert!(serde_json::to_value(RedactedSerializeRef::new(&value, &policy)).is_err());
+}
+
+/// Dynamic classification keys use the structural key limit; the classified
+/// value still follows its ordinary text or Serde admission path.
+#[test]
+fn test_keyed_hidden_sibling_budget_and_key_limit_contract() {
+    fn redactor(input_bytes: usize, key_bytes: usize) -> Redactor {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields.secret_sensitive("password");
+            })
+            .expect("fields")
+            .limits(|limits| {
+                limits.max_input_bytes(input_bytes).max_key_bytes(key_bytes);
+            })
+            .expect("limits")
+            .build()
+            .expect("policy");
+        Redactor::new(policy)
+    }
+
+    for input_bytes in [0, 7, 8] {
+        let redact = redactor(input_bytes, 8);
+        let secret = KeyedHidden {
+            key: "password".into(),
+            value: "raw-secret".into(),
+        };
+        let public = KeyedHidden {
+            key: "region".into(),
+            value: "visible".into(),
+        };
+
+        let text = redact.redact_text(&secret);
+        assert!(!text.text().as_str().contains("raw-secret"));
+        assert!(text.text().as_str().contains("<redacted>"));
+        assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
+        let secret_json = serde_json::to_value(redact.redact_view(&secret)).expect("secret view");
+        assert_eq!(secret_json["value"], "<redacted>");
+        assert_eq!(
+            serde_json::to_string(&redact.redact_view(&secret)).expect("secret json"),
+            r#"{"value":"<redacted>"}"#
+        );
+
+        if input_bytes == 0 {
+            assert!(serde_json::to_value(redact.redact_view(&public)).is_err());
+            assert!(serde_json::to_string(&redact.redact_view(&public)).is_err());
+        } else {
+            let public_json = serde_json::to_value(redact.redact_view(&public)).expect("public view");
+            assert_eq!(public_json["value"], "visible");
+            assert!(
+                serde_json::to_string(&redact.redact_view(&public))
+                    .expect("public json")
+                    .contains("visible")
+            );
+        }
+    }
+
+    let over_limit = redactor(100, 7);
+    let secret = KeyedHidden {
+        key: "password".into(),
+        value: "raw-secret".into(),
+    };
+    let text = over_limit.redact_text(&secret);
+    assert!(!text.text().as_str().contains("raw-secret"));
+    assert_ne!(text.summary().completion(), RedactionCompletion::Complete);
+    assert!(serde_json::to_value(over_limit.redact_view(&secret)).is_err());
+    assert!(serde_json::to_string(&over_limit.redact_view(&secret)).is_err());
+}
+
+#[test]
+fn test_keyed_sibling_reuse_visibility_and_multiple_keys_do_not_charge_input() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.secret_sensitive("password").secret_sensitive("secret");
+        })
+        .expect("fields")
+        .limits(|limits| {
+            limits.max_input_bytes(8).max_key_bytes(8);
+        })
+        .expect("limits")
+        .build()
+        .expect("policy");
+    let redactor = Redactor::new(policy);
+
+    let visible = KeyedVisible {
+        key: "password".into(),
+        value: "raw-secret".into(),
+    };
+    let text = redactor.redact_text(&visible);
+    assert_eq!(text.summary().completion(), RedactionCompletion::Complete);
+    assert!(text.text().as_str().contains("password"));
+    assert!(!text.text().as_str().contains("raw-secret"));
+    let visible_json = serde_json::to_value(redactor.redact_view(&visible)).expect("visible key view");
+    assert_eq!(visible_json["key"], "password");
+    assert_eq!(visible_json["value"], "<redacted>");
+
+    let shared = KeyedShared {
+        key: "password".into(),
+        first: "first-secret".into(),
+        second: "second-secret".into(),
+    };
+    let shared_text = redactor.redact_text(&shared);
+    assert_eq!(shared_text.summary().completion(), RedactionCompletion::Complete);
+    assert!(!shared_text.text().as_str().contains("first-secret"));
+    assert!(!shared_text.text().as_str().contains("second-secret"));
+    let shared_json = serde_json::to_string(&redactor.redact_view(&shared)).expect("shared key JSON");
+    assert_eq!(shared_json, r#"{"first":"<redacted>","second":"<redacted>"}"#);
+
+    let multiple = KeyedMultiple {
+        first_key: "password".into(),
+        second_key: "secret".into(),
+        first: "first-secret".into(),
+        second: "second-secret".into(),
+    };
+    let multiple_text = redactor.redact_text(&multiple);
+    assert_eq!(multiple_text.summary().completion(), RedactionCompletion::Complete);
+    assert!(!multiple_text.text().as_str().contains("first-secret"));
+    assert!(!multiple_text.text().as_str().contains("second-secret"));
+    let multiple_json = serde_json::to_value(redactor.redact_view(&multiple)).expect("multiple key view");
+    assert_eq!(multiple_json["first"], "<redacted>");
+    assert_eq!(multiple_json["second"], "<redacted>");
 }
 
 #[derive(Redact)]

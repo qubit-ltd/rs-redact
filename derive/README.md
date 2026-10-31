@@ -68,6 +68,12 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `keyed_by = key` | Classify by a sibling `AsRef<str>` key on a named field; value requires level capability and `Debug`. |
 | `json` | JSON `String`/`str`/`Cow<str>`, parsed `serde_json::Value`, references and `Option`; requires `json`. |
 
+An unannotated, supported self-recursive field is normalized to `nested` so its child fields keep
+their redaction rules. This syntax-based recognition does not resolve arbitrary type aliases.
+An explicit `unmarked` attribute or custom Serde serializer opts out of the normalization. The
+Serde view projection supports direct self-recursion, `Option<Box<Self>>`, and `Vec<Box<Self>>`;
+other shapes may still be recognized by text derive without a Serde recursive projection.
+
 Container attributes: `debug`, `display`, `serde`, `transparent`, and `crate = path`.
 Cargo metadata resolves the `qubit-redact` runtime path, including when its dependency is
 renamed or when `qubit-redact-derive` is a direct dependency. Use `crate = path` only when the

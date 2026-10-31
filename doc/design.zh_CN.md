@@ -86,7 +86,11 @@ view 借用源并拥有不可变策略快照；创建不访问源，每次格式
 `#[redact(serde)]` 还会通过旧的 `RedactSerialize` 桥替换源对象的普通序列化行为。
 derive 显式 level 由领域类型定义，在 strict 下保持固定。手写
 `sensitive_at_least` 表示最低等级，与运行时分类取更强者，因此 strict 可以提高该下限；
-未标注字段保持普通表示。
+无属性字段通常保持普通表示。derive 归一化时，若字段没有 redact 属性或自定义 Serde serializer，
+且其语法匹配受支持的自递归形状，则自动标记为 `nested`；显式 `unmarked` 会阻止该处理。
+这是语法归一化，不是运行时敏感性推断；宏不会解析任意别名或跨类型递归图。文本识别覆盖直接递归及
+`Option`、`Box`、`Vec`、tuple、array 和括号等支持包装；Serde 投影仅支持直接递归、`Option<Box<Self>>`
+和 `Vec<Box<Self>>`。
 
 嵌套 view 投影使用 `RedactSerializeSource`，其泛型关联 view 允许 Option、Vec 等支持的
 容器在当前调用中借用数据。除字段普通放行模式所需能力外，源类型不必实现普通

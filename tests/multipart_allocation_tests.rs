@@ -12,9 +12,12 @@ use std::alloc::Layout;
 use std::alloc::System;
 use std::cell::Cell;
 
+use qubit_redact::MaskPolicy;
+use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
+use qubit_redact::Sensitivity;
 use qubit_redact::formats::http::BodyCapture;
 
 thread_local! {
@@ -150,6 +153,55 @@ fn test_multipart_pass_through_allocations_do_not_scale_with_body_size() {
             "content_type={content_type:?}: 64 KiB allocated {small_allocated}, 1 MiB allocated {large_allocated}"
         );
     }
+}
+
+#[test]
+fn test_multipart_binary_mask_allocations_do_not_scale_with_mask_size() {
+    let body = b"--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\n\xff\r\n--b--\r\n";
+    let make_redactor = |replacement: &str| {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .secret_sensitive("password")
+                    .mask(Sensitivity::Secret, MaskPolicy::fixed(replacement));
+            })
+            .expect("field policy should be valid")
+            .limits(|limits| {
+                limits.max_output_bytes(64);
+            })
+            .expect("limits should be valid")
+            .build()
+            .expect("policy should build");
+        Redactor::new(policy)
+    };
+    let small_mask = "x".repeat(64 * 1024);
+    let large_mask = "x".repeat(1024 * 1024);
+    let redactors = [make_redactor(&small_mask), make_redactor(&large_mask)];
+    for redactor in &redactors {
+        let _ = redactor.redact_http_body_with_content_type_text(
+            BodyCapture::complete(body),
+            Some("multipart/form-data; boundary=b"),
+        );
+    }
+    let measure_body = |redactor: &Redactor| {
+        measure(|| {
+            redactor.redact_http_body_with_content_type_text(
+                BodyCapture::complete(body),
+                Some("multipart/form-data; boundary=b"),
+            )
+        })
+    };
+    let (small_allocated, small_result) = measure_body(&redactors[0]);
+    let (large_allocated, large_result) = measure_body(&redactors[1]);
+    for result in [small_result, large_result] {
+        assert!(result.text().as_str().len() <= 64);
+        assert_ne!(result.summary().completion(), RedactionCompletion::Complete);
+        assert!(result.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    }
+    assert!(
+        large_allocated <= small_allocated + 16 * 1024,
+        "64 KiB allocated {small_allocated}, 1 MiB allocated {large_allocated}"
+    );
 }
 
 #[test]

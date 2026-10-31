@@ -327,6 +327,35 @@ fn main() {
 `to_json()`，源类型不必实现普通 `Serialize`。字段仍须满足各自脱敏模式的能力要求；缺少
 投影能力时，在请求序列化时报告，纯文本脱敏仍可使用。`to_json()` 还需要启用 `json` feature。
 
+自递归字段若没有 `redact` 属性、没有 Serde `with`/`serialize_with` adapter，且字段语法匹配受支持形状，
+derive 会自动插入 `nested`。显式 `#[redact(unmarked)]` 与无属性不同，会阻止该归一化。识别基于语法，
+不会解析任意类型别名或跨类型递归图。文本 derive 的递归识别还覆盖 `Option`、`Box`、`Vec`、tuple、array 和括号；
+Serde 自递归投影范围更窄，仅支持直接自递归、`Option<Box<Self>>` 和 `Vec<Box<Self>>`。需要清晰表达意图时可显式写 `#[redact(nested)]`。
+
+<!-- redact-example: kind=run features=derive -->
+```rust
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Redact)]
+struct Node {
+    #[redact(level = "secret")]
+    password: String,
+    next: Option<Box<Node>>,
+}
+
+fn main() {
+    let value = Node {
+        password: "parent-secret".into(),
+        next: Some(Box::new(Node { password: "child-secret".into(), next: None })),
+    };
+    let output = Redactor::standard().redact_text(&value);
+    assert!(!output.text().as_str().contains("child-secret"));
+}
+```
+
+此例中的 `next` 会自动按 `nested` 处理，因此子节点的 `password` 仍会脱敏。自定义 Serde adapter 不会触发自动归一化；
+只有当 adapter 的表示支持嵌套脱敏时，才显式添加 `nested`。
+
 内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `bigdecimal` 下的 BigDecimal。
 等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
 标准 Map 和最长 12 项 tuple。Map 的普通 level 处理 value，保留 key；要隐藏 key 使用对应属性。
@@ -506,7 +535,8 @@ fn main() {
 | derive 的 level、Display level、map key/value level | 不能：显式等级为最终等级 |
 | 手写 fields.sensitive_at_least(level, ...) | 可以：参数是最低等级 |
 | map、keyed_by、redact_field | 按运行时分类规则决定 |
-| 未标注字段、unmarked | 不分类，保持普通输出 |
+| 无属性字段 | 不分类，保持普通输出；受支持的自递归字段会自动转为 nested |
+| `unmarked` | 不分类，保持普通输出，包括自递归字段 |
 
 默认掩码：Low 保留首尾各两个字符，短串全部隐藏；Medium 保留末尾一个字符；
 High 输出 `****`；Secret 输出 `<redacted>`。例如 `abcdef` 的 Low 为 `ab****ef`，
@@ -1088,6 +1118,9 @@ fn main() {
 | `redact_json` / `redact_json_value` | 文本事务与 JSON 专有限制 | 不适用 | `max_output_bytes` |
 
 `max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
+仅用于 `keyed_by` 分类的兄弟键按 `max_key_bytes` 做结构长度准入，不累计到
+`max_input_bytes`。若该兄弟字段也作为普通字段序列化，其输出操作仍按各自现有额度计费。
+动态 map 键属于独立的 Serde 载荷事件，按该规则计入载荷。
 Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
 升级到 0.8 时，将旧的 `batch()` 调用改为 `diagnostic_batch()`。默认诊断标记使用
 `finish()`，自定义标记使用 `finish_with_marker(marker)`。使用 BigDecimal 时需显式启用

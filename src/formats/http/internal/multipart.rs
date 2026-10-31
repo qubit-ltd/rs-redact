@@ -325,11 +325,7 @@ fn redact_part(
                 false,
                 false,
             ),
-            Err(_) => (
-                Cow::Owned(redactor.masking().mask_opaque(level).to_owned()),
-                false,
-                false,
-            ),
+            Err(_) => (Cow::Borrowed(redactor.masking().mask_opaque(level)), false, false),
         }
     } else {
         redact_non_sensitive_part(

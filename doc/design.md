@@ -97,7 +97,13 @@ the source; each formatting or serialization executes afresh. Text uses `Redact`
 structured view Serde uses the hidden `RedactSerializeSource` projection capability. It borrows field data for the local serialization call. Only `#[redact(serde)]` additionally replaces ordinary source
 serialization through the legacy `RedactSerialize` bridge. Explicit derive levels belong to the domain type and remain final under strict
 policy. A hand-written `sensitive_at_least` is a minimum and combines with runtime classification
-by taking the stronger level, so strict can raise it. Unmarked fields retain ordinary representations.
+by taking the stronger level, so strict can raise it. Unannotated fields generally retain ordinary
+representations. During derive normalization, a field with no redaction attribute or custom Serde
+serializer is automatically marked `nested` when its syntax matches a supported self-recursive shape.
+Explicit `unmarked` opts out. This is syntax normalization, not runtime sensitivity inference; arbitrary
+aliases and cross-type recursion graphs are not resolved. Text recognition covers direct recursion and
+supported wrappers including `Option`, `Box`, `Vec`, tuples, arrays, and parentheses, while Serde projection
+is limited to direct recursion, `Option<Box<Self>>`, and `Vec<Box<Self>>`.
 
 Nested view projections use `RedactSerializeSource`, whose generic associated view
 allows Option, Vec, and other supported containers to borrow data for the current
