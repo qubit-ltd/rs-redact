@@ -137,10 +137,8 @@ fn test_recursive_self_predicate_is_rebound_and_lazy() {
 fn test_recursive_enum_self_predicates_cover_named_and_tuple_fields() {
     #[derive(Debug, Redact)]
     struct TupleRecord(
-        #[serde(skip_serializing_if = "Self::empty")]
-        String,
-        #[serde(skip_serializing_if = "Self::empty_bytes")]
-        Vec<u8>,
+        #[serde(skip_serializing_if = "Self::empty")] String,
+        #[serde(skip_serializing_if = "Self::empty_bytes")] Vec<u8>,
     );
 
     impl TupleRecord {
@@ -171,10 +169,7 @@ fn test_recursive_enum_self_predicates_cover_named_and_tuple_fields() {
 
     let redactor = Redactor::standard();
     let empty_tuple = TupleRecord(String::new(), vec![]);
-    assert_eq!(
-        to_value(redactor.redact_view(&empty_tuple)).unwrap(),
-        json!([])
-    );
+    assert_eq!(to_value(redactor.redact_view(&empty_tuple)).unwrap(), json!([]));
     let retained_tuple = TupleRecord("kept".to_owned(), vec![1_u8]);
     assert_eq!(
         to_value(redactor.redact_view(&retained_tuple)).unwrap(),
