@@ -495,3 +495,65 @@ fn test_composer_and_batch_summaries_respect_limited_output_budget() {
     assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
     assert!(output.summary().usage().output_bytes() <= 16);
 }
+
+fn pending_option_items<'a>(option: &'a str, prefix: bool) -> Vec<ArgvItem<'a>> {
+    if prefix {
+        vec![
+            ArgvItem::plain(OsStr::new("--password")),
+            ArgvItem::plain(OsStr::new(option)),
+            ArgvItem::plain(OsStr::new("value")),
+        ]
+    } else {
+        vec![
+            ArgvItem::plain(OsStr::new(option)),
+            ArgvItem::plain(OsStr::new("value")),
+        ]
+    }
+}
+
+#[test]
+fn test_long_pending_options_do_not_drive_field_name_allocations() {
+    let redactor = bounded_redactor();
+    let _ = Redactor::standard().redact_heuristic_argv([ArgvItem::plain(OsStr::new("--password"))]);
+    let make = |size: usize| format!("--password{}", " ".repeat(size));
+    let small = make(4 * 1024);
+    let large = make(48 * 1024);
+    for prefix in [false, true] {
+        let small_items = pending_option_items(&small, prefix);
+        let large_items = pending_option_items(&large, prefix);
+        let (small_max, small_output) = measure(|| redactor.redact_heuristic_argv(small_items));
+        let (large_max, large_output) = measure(|| redactor.redact_heuristic_argv(large_items));
+        assert!(small_max < 4 * 1024, "4 KiB pending option requested {small_max} bytes");
+        assert!(
+            large_max < 4 * 1024,
+            "48 KiB pending option requested {large_max} bytes"
+        );
+        assert!(
+            large_max <= small_max,
+            "large request {large_max} exceeded small request {small_max}"
+        );
+        for output in [small_output, large_output] {
+            assert_eq!(output.text().as_str(), "<truncated>");
+            assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+            assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        }
+
+        let small_items = pending_option_items(&small, prefix);
+        let large_items = pending_option_items(&large, prefix);
+        let (small_max, small_inspection) = measure(|| redactor.inspect_heuristic_argv(small_items));
+        let (large_max, large_inspection) = measure(|| redactor.inspect_heuristic_argv(large_items));
+        assert!(small_max < 4 * 1024, "4 KiB inspection requested {small_max} bytes");
+        assert!(large_max < 4 * 1024, "48 KiB inspection requested {large_max} bytes");
+        assert!(
+            large_max <= small_max,
+            "large inspection request {large_max} exceeded small request {small_max}"
+        );
+        for inspection in [
+            small_inspection.expect("complete inspection"),
+            large_inspection.expect("complete inspection"),
+        ] {
+            assert!(inspection.max_sensitivity().is_some());
+            assert_eq!(inspection.usage().output_bytes(), 0);
+        }
+    }
+}

@@ -453,6 +453,7 @@ impl RedactionPolicy {
     /// Resolves final sensitivity with exact-only field matching.
     #[must_use]
     #[inline(always)]
+    #[cfg(test)]
     pub(crate) fn resolve_field_exact(&self, field: &str) -> super::ResolvedField {
         self.rules.resolve_field_exact(field)
     }

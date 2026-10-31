@@ -159,10 +159,7 @@ fn redact_plain_item_bounded<'a>(
     max_output_bytes: usize,
 ) -> (Cow<'a, str>, bool) {
     let Some(value) = value.to_str() else {
-        *pending_field = Some(PendingField {
-            field: String::new(),
-            exact: false,
-        });
+        *pending_field = Some(PendingField::OpaqueSecret);
         let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
         return (Cow::Owned(masked), truncated);
     };
@@ -170,14 +167,11 @@ fn redact_plain_item_bounded<'a>(
     let option = option_field(value);
     if let Some(pending) = pending_field.take() {
         if let Some((field, exact)) = option
-            && option_is_sensitive(policy, field, exact)
+            && let Some(level) = option_sensitivity(policy, field, exact)
         {
-            *pending_field = Some(PendingField {
-                field: field.to_owned(),
-                exact,
-            });
+            *pending_field = Some(PendingField::Classified(level));
         }
-        if pending.field.is_empty() {
+        if matches!(pending, PendingField::OpaqueSecret) {
             let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
             return (Cow::Owned(masked), truncated);
         }
@@ -193,12 +187,9 @@ fn redact_plain_item_bounded<'a>(
         return value;
     }
     if let Some((field, exact)) = option
-        && option_is_sensitive(policy, field, exact)
+        && let Some(level) = option_sensitivity(policy, field, exact)
     {
-        *pending_field = Some(PendingField {
-            field: field.to_owned(),
-            exact,
-        });
+        *pending_field = Some(PendingField::Classified(level));
     }
     (Cow::Borrowed(value), false)
 }
@@ -209,12 +200,13 @@ fn option_field(value: &str) -> Option<(&str, bool)> {
     Some((name, !value.starts_with("--")))
 }
 
-/// Returns whether a policy classifies an option field as sensitive.
-fn option_is_sensitive(policy: &RedactionPolicy, field: &str, exact: bool) -> bool {
+/// Returns the matched sensitivity for an option field, preserving exact or
+/// suffix matching.
+fn option_sensitivity(policy: &RedactionPolicy, field: &str, exact: bool) -> Option<Sensitivity> {
     if exact {
-        policy.sensitivity_for_exact(field).is_some()
+        policy.sensitivity_for_exact(field)
     } else {
-        policy.sensitivity_for(field).is_some()
+        policy.sensitivity_for(field)
     }
 }
 
@@ -316,18 +308,10 @@ fn inline_item_sensitivity(policy: &RedactionPolicy, value: &str) -> Option<Sens
 /// supplies the current argv item. `Some` is the stronger applicable level;
 /// `None` means neither classification requires masking.
 fn pending_item_sensitivity(policy: &RedactionPolicy, pending: &PendingField, value: &str) -> Option<Sensitivity> {
-    if pending.field.is_empty() {
-        return Some(Sensitivity::Secret);
+    match pending {
+        PendingField::OpaqueSecret => Some(Sensitivity::Secret),
+        PendingField::Classified(level) => Some(*level).max(inline_item_sensitivity(policy, value)),
     }
-    let previous = if pending.exact {
-        match policy.resolve_field_exact(&pending.field) {
-            ResolvedField::Sensitive { sensitivity } => Some(sensitivity),
-            ResolvedField::PassThrough => None,
-        }
-    } else {
-        policy.sensitivity_for(&pending.field)
-    };
-    previous.max(inline_item_sensitivity(policy, value))
 }
 
 /// Masks one classified field, returning `None` for pass-through fields.
@@ -370,23 +354,17 @@ pub(super) fn inspect_heuristic_item(
         return Some(sensitivity);
     }
     let Some(value) = item.value().to_str() else {
-        *pending_field = Some(PendingField {
-            field: String::new(),
-            exact: false,
-        });
+        *pending_field = Some(PendingField::OpaqueSecret);
         return Some(Sensitivity::Secret);
     };
     let option = option_field(value);
     if let Some(pending) = pending_field.take() {
         if let Some((field, exact)) = option
-            && option_is_sensitive(policy, field, exact)
+            && let Some(level) = option_sensitivity(policy, field, exact)
         {
-            *pending_field = Some(PendingField {
-                field: field.to_owned(),
-                exact,
-            });
+            *pending_field = Some(PendingField::Classified(level));
         }
-        if pending.field.is_empty() {
+        if matches!(pending, PendingField::OpaqueSecret) {
             return Some(Sensitivity::Secret);
         }
         return pending_item_sensitivity(policy, &pending, value);
@@ -395,12 +373,9 @@ pub(super) fn inspect_heuristic_item(
         return Some(sensitivity);
     }
     if let Some((field, exact)) = option
-        && option_is_sensitive(policy, field, exact)
+        && let Some(level) = option_sensitivity(policy, field, exact)
     {
-        *pending_field = Some(PendingField {
-            field: field.to_owned(),
-            exact,
-        });
+        *pending_field = Some(PendingField::Classified(level));
     }
     None
 }
@@ -496,10 +471,7 @@ mod tests {
             inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("value")), &mut pending),
             Some(Sensitivity::High),
         );
-        pending = Some(PendingField {
-            field: String::from("password"),
-            exact: false,
-        });
+        pending = Some(PendingField::Classified(Sensitivity::Secret));
         assert_eq!(
             inspect_heuristic_item(
                 &policy,
@@ -508,10 +480,6 @@ mod tests {
             ),
             Some(Sensitivity::Secret),
         );
-        pending = Some(PendingField {
-            field: String::from("visible"),
-            exact: false,
-        });
         assert_eq!(
             inspect_heuristic_item(&policy, ArgvItem::plain(OsStr::new("value")), &mut pending),
             None,

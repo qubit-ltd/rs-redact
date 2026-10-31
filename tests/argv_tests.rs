@@ -278,3 +278,49 @@ proptest! {
         prop_assert_eq!(one, two);
     }
 }
+
+#[test]
+fn pending_option_semantics_survive_cached_classification() {
+    let redactor = Redactor::standard();
+    let exact = [
+        ArgvItem::plain(OsStr::new("-password")),
+        ArgvItem::plain(OsStr::new("exact-secret")),
+    ];
+    assert!(
+        !redactor
+            .redact_heuristic_argv(exact)
+            .text()
+            .as_str()
+            .contains("exact-secret")
+    );
+    assert_eq!(
+        redactor
+            .inspect_heuristic_argv(exact)
+            .expect("exact option inspection")
+            .max_sensitivity(),
+        Some(Sensitivity::Secret)
+    );
+
+    let cleared = [
+        ArgvItem::plain(OsStr::new("--password")),
+        ArgvItem::sensitive(OsStr::new("explicit-secret"), Sensitivity::Secret),
+        ArgvItem::plain(OsStr::new("visible-after-explicit")),
+    ];
+    let rendered = redactor.redact_heuristic_argv(cleared);
+    assert!(rendered.text().as_str().contains("visible-after-explicit"));
+    assert!(!rendered.text().as_str().contains("explicit-secret"));
+
+    let disabled = Redactor::new(RedactionPolicy::disabled());
+    let restored = disabled.redact_heuristic_argv([
+        ArgvItem::plain(OsStr::new("--password")),
+        ArgvItem::plain(OsStr::new("disabled-secret")),
+    ]);
+    assert!(restored.text().as_str().contains("disabled-secret"));
+
+    let trailing = [ArgvItem::plain(OsStr::new("--password"))];
+    assert_eq!(
+        redactor.redact_heuristic_argv(trailing).summary().completion(),
+        RedactionCompletion::Complete
+    );
+    assert!(redactor.inspect_heuristic_argv(trailing).is_ok());
+}
