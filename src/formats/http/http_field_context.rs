@@ -14,9 +14,9 @@ use crate::PolicyLocation;
 pub(crate) enum HttpFieldContext {
     /// HTTP header names.
     Header,
-    /// Query-string and form names.
+    /// URL query-string field names.
     Query,
-    /// Structured body field names.
+    /// Structured body field names, including form body fields.
     Body,
 }
 

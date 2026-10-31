@@ -26,13 +26,19 @@ use crate::model::VariantData;
 ///
 /// # Parameters
 ///
-/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `source_context` - Source type identity and generic context used to
+///   resolve source paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `variants` - Parsed variants in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `serde` - Resolved path to Serde.
 /// * `container_attributes` - Validated naming and representation controls.
 /// * `serializer` - Generated serializer type parameter used in error paths.
 /// * `marker` - Fresh projection-only lifetime variant to reject.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///

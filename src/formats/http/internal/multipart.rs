@@ -453,7 +453,6 @@ fn redact_non_sensitive_part<'body>(
 ///
 /// Header text and body bytes, or `None` for missing separation or invalid
 /// UTF-8.
-#[must_use]
 #[inline]
 fn split_headers_body(segment: &[u8]) -> Option<(&str, &[u8])> {
     let (header_end, body_start) = segment

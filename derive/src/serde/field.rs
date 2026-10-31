@@ -115,12 +115,18 @@ pub(super) fn projected_predicate(
 /// # Parameters
 ///
 /// * `type_name` - Type receiving the generated implementation.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `field` - Source field supplying type information and diagnostic span.
 /// * `context` - Stable field context used in generated helper names.
 /// * `mode` - Validated redaction mode.
 /// * `runtime` - Resolved path to the runtime crate.
-/// * `serialize_with` - Optional adapter used by an unmarked field.
+/// * `serialize_with` - Optional adapter used by an unmarked or redaction-skip
+///   field.
 /// * `access` - Expressions accessing the value and optional sibling key.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///

@@ -41,12 +41,10 @@ impl HttpPolicyExecutor<'_> {
     /// # Parameters
     ///
     /// - `capture`: Admitted source bytes and ingress-completeness metadata.
-    /// - `content_type`: Some supplied media type, or None for missing-type
-    ///   behavior.
     /// - `invalid_content_type`: Whether the original header could not be
     ///   interpreted as text.
-    /// - `admitted`: Parser results reused without a second structural
-    ///   admission pass.
+    /// - `admitted`: Parser results and media-type classification reused
+    ///   without a second structural admission pass.
     /// - `output_limit`: Remaining output-byte ceiling for this body.
     ///
     /// # Returns

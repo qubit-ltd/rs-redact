@@ -33,12 +33,18 @@ use crate::serde::source_function_path::SourceTypeContext;
 ///
 /// # Parameters
 ///
-/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `source_context` - Source type identity and generic context used to
+///   resolve source paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `variant_name` - Variant owning the fields.
 /// * `fields` - Parsed named fields in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
 /// * `container_attributes` - Validated container naming controls.
 /// * `variant` - Parsed variant-local naming controls.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///
@@ -158,11 +164,17 @@ pub(super) fn enum_named_parts(
 ///
 /// # Parameters
 ///
-/// * `type_name` - Enum receiving the generated serialization implementation.
+/// * `source_context` - Source type identity and generic context used to
+///   resolve source paths and helpers.
+/// * `recursive_target` - Source type name used to recognize self-recursive
+///   field projections.
 /// * `variant_name` - Variant owning the fields.
 /// * `variant_index` - Zero-based declaration index of the owning variant.
 /// * `fields` - Parsed positional fields in declaration order.
 /// * `runtime` - Resolved path to the runtime crate.
+/// * `legacy_nested` - Whether nested fields use the source serialization
+///   bridge rather than borrowed view projections, affecting field access and
+///   nested carrier selection.
 ///
 /// # Returns
 ///

@@ -165,6 +165,7 @@ pub(super) fn projection_declaration(
 ///
 /// # Parameters
 ///
+/// * `input` - Source type and generic context used to rebind adapter types.
 /// * `field` - Source field retaining its concrete generic type expression.
 /// * `attributes` - Serialization controls that may call a type-specific
 ///   function.
@@ -173,8 +174,10 @@ pub(super) fn projection_declaration(
 ///
 /// # Returns
 ///
-/// The source type for fields with predicates or adapters, otherwise the
-/// generated parameter that keeps serialization bounds conditional.
+/// The rebound source field type when a custom serializer is configured;
+/// otherwise the independent projection parameter that keeps field capability
+/// bounds conditional. Predicate-only fields retain that parameter and carry
+/// their predicate function separately in the projection member.
 #[must_use]
 pub(in crate::serde::entry) fn projection_field_type(
     input: &DeriveInput,

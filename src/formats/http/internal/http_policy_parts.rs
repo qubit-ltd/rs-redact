@@ -16,9 +16,10 @@ use crate::RedactionRules;
 pub(in crate::formats::http) struct HttpPolicyParts {
     /// Validated header classification snapshot.
     pub(in crate::formats::http) header_rules: RedactionRules,
-    /// Validated query and form classification snapshot.
+    /// Validated URL query classification snapshot.
     pub(in crate::formats::http) query_rules: RedactionRules,
-    /// Validated structured-body classification snapshot.
+    /// Validated structured-body classification snapshot, including form
+    /// fields.
     pub(in crate::formats::http) body_rules: RedactionRules,
     /// Validated URL path visibility choice.
     pub(in crate::formats::http) url_path_policy: UrlPathPolicy,

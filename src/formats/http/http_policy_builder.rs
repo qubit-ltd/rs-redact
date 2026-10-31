@@ -23,9 +23,9 @@ use crate::Sensitivity;
 pub struct HttpPolicyBuilder {
     /// Mutable header classification state.
     header: ContextRulesBuilder,
-    /// Mutable query and form classification state.
+    /// Mutable URL query classification state.
     query: ContextRulesBuilder,
-    /// Mutable structured-body classification state.
+    /// Mutable structured-body classification state, including form fields.
     body: ContextRulesBuilder,
     /// Selected URL path visibility rule.
     url_path_policy: UrlPathPolicy,

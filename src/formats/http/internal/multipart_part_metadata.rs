@@ -70,7 +70,6 @@ impl<'a> MultipartPartMetadata<'a> {
     /// # Returns
     ///
     /// A non-blank field name when present.
-    #[must_use]
     #[inline(always)]
     pub(super) fn name(&self) -> Option<&str> {
         self.name.as_deref()
@@ -81,7 +80,6 @@ impl<'a> MultipartPartMetadata<'a> {
     /// # Returns
     ///
     /// A filename or extended filename when present.
-    #[must_use]
     #[inline(always)]
     pub(super) fn filename(&self) -> Option<&str> {
         self.filename.as_deref()
@@ -92,7 +90,6 @@ impl<'a> MultipartPartMetadata<'a> {
     /// # Returns
     ///
     /// Borrowed Content-Type text when present.
-    #[must_use]
     #[inline(always)]
     pub(super) const fn content_type(&self) -> Option<&'a str> {
         self.content_type

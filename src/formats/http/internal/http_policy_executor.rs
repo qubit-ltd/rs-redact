@@ -70,7 +70,7 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// # Returns
     ///
-    /// A borrowed classifier combining root and query and form rules with the
+    /// A borrowed classifier combining root and URL query rules with the
     /// shared mask policy.
     #[must_use]
     #[inline(always)]
@@ -87,8 +87,8 @@ impl HttpPolicyExecutor<'_> {
     ///
     /// # Returns
     ///
-    /// A borrowed classifier combining root and structured-body rules with the
-    /// shared mask policy.
+    /// A borrowed classifier combining root and structured-body rules,
+    /// including form fields, with the shared mask policy.
     #[must_use]
     #[inline(always)]
     pub(super) fn body_field_redactor(&self) -> FieldRedactor<'_> {
@@ -146,9 +146,8 @@ pub(crate) fn redact_headers_with_policy(
 ///
 /// - `policy`: Immutable snapshot supplied by the parent transaction.
 /// - `capture`: Captured body and completeness metadata.
-/// - `content_type`: Optional media-type metadata; None preserves missing-type
-///   handling.
-/// - `admitted`: Parsed structure already checked by the parent transaction.
+/// - `admitted`: Parsed structure and media-type classification already checked
+///   by the parent transaction.
 /// - `output_limit`: Remaining bytes available for the escaped fragment.
 ///
 /// # Returns

@@ -123,8 +123,11 @@ pub(super) fn struct_body(
 
 /// Generates transparent serialization for a single named field.
 ///
-/// The field is emitted as the struct's direct serialized value unless its
-/// redaction or Serde attributes omit it, in which case a unit struct is used.
+/// The field is forwarded directly unless Serde unconditionally skips it, in
+/// which case a unit struct is emitted. `skip_serializing_if` is not evaluated
+/// for transparent forwarding. Redaction `skip` remains policy-dependent: it
+/// emits a unit struct while redaction is enabled and forwards the field when
+/// the policy is disabled.
 ///
 /// # Parameters
 ///
@@ -142,7 +145,8 @@ pub(super) fn struct_body(
 ///
 /// # Returns
 ///
-/// A direct serializer expression, or a unit-struct expression when omitted.
+/// A direct serializer expression, or a unit-struct expression for an
+/// unconditionally skipped field or an enabled redaction `skip`.
 #[must_use]
 fn transparent_named_struct_body(
     source_context: &SourceTypeContext<'_>,
@@ -367,8 +371,9 @@ fn named_struct_body(
 ///
 /// # Returns
 ///
-/// A direct transparent value or a newtype serializer expression, or a unit
-/// struct when omitted.
+/// A direct transparent value or a newtype serializer expression. A
+/// unit-struct expression is used for an unconditionally skipped field or, in
+/// transparent mode, an enabled redaction `skip`.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 fn newtype_struct_body(
