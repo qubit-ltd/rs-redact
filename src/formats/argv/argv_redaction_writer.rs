@@ -104,6 +104,9 @@ impl<'session> ArgvRedactionWriter<'session> {
     /// # Returns
     ///
     /// This writer for further operations in the same transaction.
+    /// Classifies supported argv forms heuristically. Compact short options
+    /// are not split, and `--` does not stop classification; see the
+    /// [argv guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md#redact-argv-environment-and-process-diagnostics).
     pub fn heuristic_items<'items, I>(&mut self, items: I) -> &mut Self
     where
         I: IntoIterator<Item = ArgvItem<'items>>,

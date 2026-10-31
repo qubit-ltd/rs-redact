@@ -920,8 +920,22 @@ fn main() {
 
 Explicitly classified argv is preferable when the caller knows the argument
 contract. Heuristic argv recognizes supported option forms but is not a shell
-parser and does not validate complete command-line syntax. With redaction
-enabled, heuristic argv mode treats unclassified non-Unicode arguments as
+parser and does not validate complete command-line syntax.
+
+| argv form | Heuristic behavior |
+| --- | --- |
+| `NAME=value` | Classifies `NAME` using field rules. |
+| `--name=value` | Classifies `name` and processes its inline value. |
+| `-Dname=value` | Treats this as a JVM property and classifies `name`. |
+| `--name value` | A sensitive option establishes a pending classification for the next item. |
+| `-name value` | A single-dash option uses exact field matching. |
+| `-pCOMPACT` | Does not split compact options from values; standard policy may preserve the whole item. |
+| Items after `--` | `--` does not stop heuristic classification; later supported forms continue to be processed. |
+
+Heuristic processing works on argv elements, not complete CLI syntax. For a known
+sensitive compact argument, mark the entire item explicitly with
+`ArgvItem::sensitive`. With redaction enabled, heuristic argv mode treats
+unclassified non-Unicode arguments as
 Secret. Explicit argv mode preserves `ArgvItem::plain` values using lossy
 Unicode conversion; mark sensitive values explicitly or select heuristic mode.
 Non-Unicode OS arguments include invalid UTF-8 on Unix and unpaired UTF-16
@@ -947,11 +961,11 @@ use qubit_redact::formats::argv::ArgvItem;
 fn main() {
     let arguments = [
         ArgvItem::plain(OsStr::new("--server=example.test")),
-        ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+        ArgvItem::sensitive(OsStr::new("-pCOMPACT"), Sensitivity::Secret),
     ];
     let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
     let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
-    assert!(!output.text().as_str().contains("raw-"));
+    assert!(!output.text().as_str().contains("COMPACT"));
 }
 ```
 

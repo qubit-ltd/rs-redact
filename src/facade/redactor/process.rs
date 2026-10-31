@@ -80,6 +80,10 @@ impl Redactor {
 
     /// Redacts argv items using heuristic option classification.
     ///
+    /// This recognizes supported argv element forms, not complete CLI syntax.
+    /// Compact short options are not split, and `--` does not stop heuristic
+    /// classification. See the [argv guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md#redact-argv-environment-and-process-diagnostics).
+    ///
     /// # Type Parameters
     ///
     /// - `'items`: Borrow of argument item contents.
@@ -114,7 +118,9 @@ impl Redactor {
     /// secret. Returns [`RedactionInspectionError`] when a shared resource
     /// limit prevents complete inspection. Heuristic classification recognizes
     /// supported option forms but does not validate complete command-line
-    /// syntax; a trailing sensitive option without a following value remains
+    /// syntax. Compact short options are not split, and `--` does not stop
+    /// heuristic classification; see the [argv guide](https://github.com/qubit-ltd/rs-redact/blob/main/doc/user_guide.md#redact-argv-environment-and-process-diagnostics).
+    /// A trailing sensitive option without a following value remains
     /// pending and does not by itself make inspection fail.
     ///
     /// # Type Parameters

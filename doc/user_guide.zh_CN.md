@@ -844,7 +844,22 @@ fn main() {
 ### 处理 argv、环境变量和进程诊断
 
 调用方知道参数契约时，应优先显式标记 argv。启发式 argv 能识别受支持的 option 形式，但不是
-shell parser，也不校验完整命令行语法。启用脱敏时，启发式 argv 模式对未分类的非 Unicode 参数
+shell parser，也不校验完整命令行语法。
+
+| argv 形式 | 启发式行为 |
+| --- | --- |
+| `NAME=value` | 按字段规则分类 `NAME`。 |
+| `--name=value` | 分类 `name` 并处理 inline value。 |
+| `-Dname=value` | 作为 JVM property 处理，并分类 `name`。 |
+| `--name value` | 敏感 option 为下一项建立待定分类。 |
+| `-name value` | 单横线 option 只使用 exact 字段匹配。 |
+| `-pCOMPACT` | 不拆分紧凑短选项和值；standard 策略可能保留整个参数。 |
+| `--` 后的参数 | `--` 不会终止启发式分类，后续支持形式仍会处理。 |
+
+启发式处理对象是 argv 元素，不是完整 CLI 语法。已知紧凑参数敏感时，请将整个参数显式标记为
+`ArgvItem::sensitive`。
+
+启用脱敏时，启发式 argv 模式对未分类的非 Unicode 参数
 保守地按 Secret 处理。显式 argv 模式保留 `ArgvItem::plain` 的内容，并以有损 Unicode 转换展示；
 敏感内容应显式标记，或选择启发式模式。跨平台的非 Unicode OS 参数在 Unix 上包括非法 UTF-8，
 在 Windows 上包括未配对的 UTF-16 surrogate。非 UTF-8 环境变量名仍会保守地按 Secret 处理，不会仅
@@ -861,11 +876,11 @@ use qubit_redact::formats::argv::ArgvItem;
 fn main() {
     let arguments = [
         ArgvItem::plain(OsStr::new("--server=example.test")),
-        ArgvItem::sensitive(OsStr::new("raw-token"), Sensitivity::Secret),
+        ArgvItem::sensitive(OsStr::new("-pCOMPACT"), Sensitivity::Secret),
     ];
     let variables = [(OsStr::new("PASSWORD"), OsStr::new("raw-password"))];
     let output = Redactor::standard().redact_process(OsStr::new("client"), arguments, variables);
-    assert!(!output.text().as_str().contains("raw-"));
+    assert!(!output.text().as_str().contains("COMPACT"));
 }
 ```
 
