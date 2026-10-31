@@ -61,7 +61,7 @@ struct NativeConditionalNewtype(#[serde(skip_serializing_if = "count_if_empty")]
 #[serde(rename = "ConditionalNewtype")]
 struct ConditionalNewtype(#[serde(skip_serializing_if = "count_if_empty")] String);
 
-fn serialize_string<S: serde::Serializer>(value: &String, serializer: S) -> Result<S::Ok, S::Error> {
+fn serialize_string<S: serde::Serializer>(value: &str, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(value)
 }
 
@@ -73,7 +73,11 @@ struct AdaptedNewtype(#[serde(skip_serializing_if = "count_if_empty", serialize_
 #[derive(Redact)]
 #[redact(crate = qubit_redact, serde)]
 #[serde(rename = "SkippedNewtype")]
-struct SkippedNewtype(#[redact(skip)] #[serde(skip_serializing_if = "count_if_empty")] String);
+struct SkippedNewtype(
+    #[redact(skip)]
+    #[serde(skip_serializing_if = "count_if_empty")]
+    String,
+);
 
 #[derive(Serialize)]
 #[serde(rename = "ConditionalSkipStruct")]
@@ -306,7 +310,9 @@ fn test_ordinary_newtype_ignores_serde_skip_predicate() {
         let native = NativeConditionalNewtype(input.to_owned());
         let source = ConditionalNewtype(input.to_owned());
         let tokens = [
-            Token::NewtypeStruct { name: "ConditionalNewtype" },
+            Token::NewtypeStruct {
+                name: "ConditionalNewtype",
+            },
             Token::Str(input),
         ];
         TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
@@ -340,11 +346,19 @@ fn test_ordinary_newtype_ignores_serde_skip_predicate() {
     let secret = OrdinaryNewtype(String::from("secret-value"));
     serde_test::assert_ser_tokens(
         &standard.redact_view(&secret),
-        &[Token::NewtypeStruct { name: "OrdinaryNewtype" }, Token::Str("<redacted>")],
+        &[
+            Token::NewtypeStruct {
+                name: "OrdinaryNewtype",
+            },
+            Token::Str("<redacted>"),
+        ],
     );
     #[cfg(feature = "json")]
     {
-        assert_eq!(serde_json::to_string(&NativeConditionalNewtype(String::new())).unwrap(), "\"\"");
+        assert_eq!(
+            serde_json::to_string(&NativeConditionalNewtype(String::new())).unwrap(),
+            "\"\""
+        );
         assert_eq!(standard.to_json(&ConditionalNewtype(String::new())).unwrap(), "\"\"");
     }
 }
@@ -354,23 +368,43 @@ fn test_conditional_skip_field_emits_serde_event_for_named_struct_and_variant() 
     fn observed<T: Serialize>(value: &T) -> (Vec<(&'static str, &'static str)>, Vec<usize>) {
         let mut events = Vec::new();
         let mut counts = Vec::new();
-        value.serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None)).unwrap();
+        value
+            .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None))
+            .unwrap();
         (events, counts)
     }
     let struct_value = || NativeConditionalSkipStruct {
-        optional: String::new(), visible: String::from("visible"), never: String::new(),
+        optional: String::new(),
+        visible: String::from("visible"),
+        never: String::new(),
     };
     let struct_source = || ConditionalSkipStruct {
-        optional: String::new(), visible: String::from("visible"), never: String::new(),
+        optional: String::new(),
+        visible: String::from("visible"),
+        never: String::new(),
     };
     let variant_value = || NativeConditionalSkipEvent::Payload {
-        optional: String::new(), visible: String::from("visible"), never: String::new(),
+        optional: String::new(),
+        visible: String::from("visible"),
+        never: String::new(),
     };
     let variant_source = || ConditionalSkipEvent::Payload {
-        optional: String::new(), visible: String::from("visible"), never: String::new(),
+        optional: String::new(),
+        visible: String::from("visible"),
+        never: String::new(),
     };
-    let expected_struct = vec![("begin", "ConditionalSkipStruct"), ("skip", "wire_optional"), ("field", "visible"), ("end", "")];
-    let expected_variant = vec![("begin", "payload"), ("skip", "wire_optional"), ("field", "visible"), ("end", "")];
+    let expected_struct = vec![
+        ("begin", "ConditionalSkipStruct"),
+        ("skip", "wire_optional"),
+        ("field", "visible"),
+        ("end", ""),
+    ];
+    let expected_variant = vec![
+        ("begin", "payload"),
+        ("skip", "wire_optional"),
+        ("field", "visible"),
+        ("end", ""),
+    ];
     let native_struct = struct_value();
     let source_struct = struct_source();
     let native_variant = variant_value();
@@ -392,37 +426,70 @@ fn test_conditional_skip_field_emits_serde_event_for_named_struct_and_variant() 
 #[test]
 fn test_conditional_skip_field_redact_skip_predicate_scope_and_errors() {
     let source = ConditionalSkipStruct {
-        optional: String::new(), visible: String::from("yes"), never: String::new(),
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
     };
     let mut source_events = Vec::new();
     let mut source_counts = Vec::new();
     let source_result = source.serialize(&mut VariantIndexProbe::new(
-        &mut source_events, &mut source_counts, true, None,
+        &mut source_events,
+        &mut source_counts,
+        true,
+        None,
     ));
     assert!(matches!(source_result, Err(ProbeError)));
     assert!(source_events.contains(&("skip", "wire_optional")));
-    assert!(serde_json::to_string(&source).is_ok(), "failed source serialization must release its scope");
+    assert!(
+        serde_json::to_string(&source).is_ok(),
+        "failed source serialization must release its scope"
+    );
 
-    let value = RedactSkipConditional { optional: String::new(), visible: String::from("yes") };
+    let value = RedactSkipConditional {
+        optional: String::new(),
+        visible: String::from("yes"),
+    };
     TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
-    let mut events = Vec::new(); let mut counts = Vec::new();
-    Redactor::standard().redact_view(&value)
-        .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None)).unwrap();
-    assert_eq!(events, vec![("begin", "RedactSkipConditional"), ("field", "visible"), ("end", "")]);
+    let mut events = Vec::new();
+    let mut counts = Vec::new();
+    Redactor::standard()
+        .redact_view(&value)
+        .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None))
+        .unwrap();
+    assert_eq!(
+        events,
+        vec![("begin", "RedactSkipConditional"), ("field", "visible"), ("end", "")]
+    );
     assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
 
-    let mut events = Vec::new(); let mut counts = Vec::new();
-    Redactor::new(RedactionPolicy::disabled()).redact_view(&value)
-        .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None)).unwrap();
-    assert_eq!(events, vec![("begin", "RedactSkipConditional"), ("skip", "wire_optional"), ("field", "visible"), ("end", "")]);
+    let mut events = Vec::new();
+    let mut counts = Vec::new();
+    Redactor::new(RedactionPolicy::disabled())
+        .redact_view(&value)
+        .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None))
+        .unwrap();
+    assert_eq!(
+        events,
+        vec![
+            ("begin", "RedactSkipConditional"),
+            ("skip", "wire_optional"),
+            ("field", "visible"),
+            ("end", "")
+        ]
+    );
     assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 1);
 
-    let mut events = Vec::new(); let mut counts = Vec::new();
-    let result = Redactor::new(RedactionPolicy::disabled()).redact_view(&value)
+    let mut events = Vec::new();
+    let mut counts = Vec::new();
+    let result = Redactor::new(RedactionPolicy::disabled())
+        .redact_view(&value)
         .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, true, None));
     assert!(matches!(result, Err(ProbeError)));
     assert!(events.contains(&("skip", "wire_optional")));
-    assert!(serde_json::to_string(&Redactor::standard().redact_view(&value)).is_ok(), "failed serialization must release its scope");
+    assert!(
+        serde_json::to_string(&Redactor::standard().redact_view(&value)).is_ok(),
+        "failed serialization must release its scope"
+    );
 }
 
 #[test]
@@ -750,11 +817,13 @@ impl serde::ser::Error for ProbeError {
     }
 }
 
+type RecordedVariantIndex<'a> = Option<&'a std::cell::Cell<Option<(&'static str, u32, &'static str)>>>;
+
 struct VariantIndexProbe<'a> {
     events: &'a mut Vec<(&'static str, &'static str)>,
     field_counts: &'a mut Vec<usize>,
     fail_on_skip: bool,
-    recorded: Option<&'a std::cell::Cell<Option<(&'static str, u32, &'static str)>>>,
+    recorded: RecordedVariantIndex<'a>,
 }
 
 impl<'a> VariantIndexProbe<'a> {
@@ -762,9 +831,14 @@ impl<'a> VariantIndexProbe<'a> {
         events: &'a mut Vec<(&'static str, &'static str)>,
         field_counts: &'a mut Vec<usize>,
         fail_on_skip: bool,
-        recorded: Option<&'a std::cell::Cell<Option<(&'static str, u32, &'static str)>>>,
+        recorded: RecordedVariantIndex<'a>,
     ) -> Self {
-        Self { events, field_counts, fail_on_skip, recorded }
+        Self {
+            events,
+            field_counts,
+            fail_on_skip,
+            recorded,
+        }
     }
 }
 
@@ -783,7 +857,11 @@ impl serde::ser::SerializeStruct for ProbeStruct<'_, '_> {
 
     fn skip_field(&mut self, key: &'static str) -> Result<(), Self::Error> {
         self.probe.events.push(("skip", key));
-        if self.probe.fail_on_skip { Err(ProbeError) } else { Ok(()) }
+        if self.probe.fail_on_skip {
+            Err(ProbeError)
+        } else {
+            Ok(())
+        }
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
@@ -803,7 +881,11 @@ impl serde::ser::SerializeStructVariant for ProbeStruct<'_, '_> {
 
     fn skip_field(&mut self, key: &'static str) -> Result<(), Self::Error> {
         self.probe.events.push(("skip", key));
-        if self.probe.fail_on_skip { Err(ProbeError) } else { Ok(()) }
+        if self.probe.fail_on_skip {
+            Err(ProbeError)
+        } else {
+            Ok(())
+        }
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
@@ -893,7 +975,9 @@ impl<'probe, 'a> serde::Serializer for &'probe mut VariantIndexProbe<'a> {
         index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        if let Some(recorded) = self.recorded { recorded.set(Some((name, index, variant))); }
+        if let Some(recorded) = self.recorded {
+            recorded.set(Some((name, index, variant)));
+        }
         Ok(())
     }
 
