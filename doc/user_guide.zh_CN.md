@@ -1134,6 +1134,9 @@ fn main() {
 | `redact_json` / `redact_json_value` | 文本事务与 JSON 专有限制 | 不适用 | `max_output_bytes` |
 
 `max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
+`max_key_bytes` 限制领域字段名及受支持的非 JSON 格式分类键；`max_json_key_bytes` 独立限制
+解码后 JSON 对象键的 UTF-8 字节数。两种范围都需要限制时应分别配置。JSON 文本、借用 `Value`
+和 HTTP JSON 使用 JSON 限制；URI 与 form 键使用通用限制。
 仅用于 `keyed_by` 分类的兄弟键按 `max_key_bytes` 做结构长度准入，不累计到
 `max_input_bytes`。若该兄弟字段也作为普通字段序列化，其输出操作仍按各自现有额度计费。
 动态 map 键属于独立的 Serde 载荷事件，按该规则计入载荷。
@@ -1149,7 +1152,8 @@ Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
 JSON 专属限制（`max_json_depth`、节点数、集合项、key/string/number 字节和 JSON 载荷字节）。
 这些限制按字段检查，不跨 JSON 字段累计；通用 Serde 结构与载荷限制仍在活动 Serde scope
 中跨整个序列化结果累计。策略 disabled 时跳过这项新增 JSON 专属检查；既有通用 Serde scope
-计量和最终输出限制仍照常生效。每层 Some/None 投影都会计入一个结构节点和一层深度；显式
+计量和最终输出限制仍照常生效。每层 `Some` 或 `None` 投影都会计入一个结构节点和一层深度。
+disabled 模式下，JSON 文本的字符串叶子节点仍计入共享结构与深度，但会跳过 JSON 专属限制。显式
 Display 标量必须先通过结构准入，随后才会调用 formatter。拒绝时沿用现有安全结构替代，或在
 其他限制不允许安全输出时返回 serializer 错误。disabled 策略仍执行结构限制。需要完整值时，按
 实际投影结构设置足够的 `max_nodes` 和 `max_depth`；关闭脱敏不会绕过这些限制。递归类型的

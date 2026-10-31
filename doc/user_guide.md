@@ -1248,6 +1248,10 @@ already own; replacement does not retroactively toggle in-flight work.
 
 `max_input_bytes` defaults to 64 KiB; each output-related limit defaults to 16 KiB.
 All accept zero. Policy construction rejects Serde payload or final output ceilings above `isize::MAX`.
+`max_key_bytes` bounds domain field names and supported non-JSON format classification keys;
+`max_json_key_bytes` independently bounds decoded JSON object-key UTF-8 bytes. Configure both
+when both scopes need limits. JSON text, borrowed `Value`, and HTTP JSON use the JSON limit;
+URI and form keys use the general limit.
 Sibling keys used only for `keyed_by` classification are admitted against
 `max_key_bytes` and do not accumulate into `max_input_bytes`; if the sibling is
 also serialized as an ordinary field, that output operation is charged under its
@@ -1266,7 +1270,9 @@ are checked against that field's complete tree. They are not accumulated across 
 When the policy is disabled, this added JSON-specific check is skipped; the existing general
 Serde scope accounting and final output limits still apply.
 These general limits accumulate in the active Serde scope across the serialized value. Each
-projected Option layer contributes one structural node and one depth level. An explicit Display
+projected `Option` layer, whether `Some` or `None`, contributes one structural node and one depth
+level. In disabled mode, JSON text string leaf nodes still count toward shared structure and depth,
+while JSON-specific limits are skipped. An explicit Display
 scalar must pass structural admission before its formatter runs. Rejection uses the existing safe
 structural replacement or returns the serializer error required by other limits. Disabled policy
 still enforces structural limits. Applications that need the full value should size `max_nodes`
