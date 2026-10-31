@@ -28,10 +28,11 @@ pub(super) fn parse_parameters<const N: usize>(value: &str, names: [&str; N]) ->
     if value.bytes().any(is_forbidden_header_byte) {
         return None;
     }
-    let segments = segments(value)?;
+    let mut segments = SegmentCursor::new(value);
+    let _ = segments.next_segment().ok()??;
     let mut result = std::array::from_fn(|_| None);
     let mut seen = BTreeSet::new();
-    for segment in segments.into_iter().skip(1) {
+    while let Some(segment) = segments.next_segment().ok()? {
         let (name, raw) = segment.split_once('=')?;
         let name = trim_ows(name);
         if name.is_empty() || !name.bytes().all(is_token_byte) {
@@ -41,11 +42,12 @@ pub(super) fn parse_parameters<const N: usize>(value: &str, names: [&str; N]) ->
         if !seen.insert(canonical_name) {
             return None;
         }
-        let decoded = decode(trim_ows(raw))?;
-        let Some(index) = names.iter().position(|wanted| name.eq_ignore_ascii_case(wanted)) else {
-            continue;
-        };
-        result[index] = Some(decoded);
+        let index = names.iter().position(|wanted| name.eq_ignore_ascii_case(wanted));
+        let mut decoded = String::new();
+        validate_and_decode(trim_ows(raw), index.map(|_| &mut decoded))?;
+        if let Some(index) = index {
+            result[index] = Some(decoded);
+        }
     }
     Some(result)
 }
@@ -65,8 +67,9 @@ pub(super) fn leading_token(value: &str) -> Option<&str> {
     if value.bytes().any(is_forbidden_header_byte) {
         return None;
     }
-    let segments = segments(value)?;
-    let leading = *segments.first()?;
+    let mut segments = SegmentCursor::new(value);
+    let leading = segments.next_segment().ok()??;
+    while segments.next_segment().ok()?.is_some() {}
     (!leading.is_empty() && leading.bytes().all(is_token_byte)).then_some(leading)
 }
 
@@ -85,72 +88,118 @@ pub(super) fn leading_value(value: &str) -> Option<&str> {
     if value.bytes().any(is_forbidden_header_byte) {
         return None;
     }
-    segments(value)?.first().copied()
+    let mut segments = SegmentCursor::new(value);
+    let leading = segments.next_segment().ok()??;
+    while segments.next_segment().ok()?.is_some() {}
+    Some(leading)
 }
 
-/// Splits semicolon parameters while respecting quoted strings.
-///
-/// # Parameters
-///
-/// * `value` - Header text to split.
-///
-/// # Returns
-///
-/// Trimmed segments, or `None` for malformed quoting.
-#[must_use]
-fn segments(value: &str) -> Option<Vec<&str>> {
-    let mut result = Vec::new();
-    let mut start = 0;
-    let mut quoted = false;
-    let mut escaped = false;
-    for (index, character) in value.char_indices() {
-        if escaped {
-            escaped = false;
-        } else if quoted && character == '\\' {
-            escaped = true;
-        } else if character == '"' {
-            quoted = !quoted;
-        } else if character == ';' && !quoted {
-            result.push(trim_ows(&value[start..index]));
-            start = index + 1;
+/// Borrows semicolon-delimited segments while validating quote balance.
+struct SegmentCursor<'a> {
+    value: &'a str,
+    start: usize,
+    position: usize,
+    quoted: bool,
+    escaped: bool,
+    finished: bool,
+}
+
+impl<'a> SegmentCursor<'a> {
+    /// Creates a cursor over the complete header value.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Header text whose segments will be borrowed.
+    ///
+    /// # Returns
+    ///
+    /// A cursor positioned before the leading segment.
+    fn new(value: &'a str) -> Self {
+        Self {
+            value,
+            start: 0,
+            position: 0,
+            quoted: false,
+            escaped: false,
+            finished: false,
         }
     }
-    if quoted || escaped {
-        return None;
+
+    /// Returns the next borrowed segment or a quoting error.
+    ///
+    /// # Returns
+    ///
+    /// The next OWS-trimmed segment, normal end of input, or an error for an
+    /// unterminated quoted string or trailing quoted-pair escape.
+    fn next_segment(&mut self) -> Result<Option<&'a str>, ()> {
+        if self.finished {
+            return Ok(None);
+        }
+        let bytes = self.value.as_bytes();
+        while self.position < bytes.len() {
+            let index = self.position;
+            let byte = bytes[index];
+            self.position += 1;
+            if self.escaped {
+                self.escaped = false;
+            } else if self.quoted && byte == b'\\' {
+                self.escaped = true;
+            } else if byte == b'"' {
+                self.quoted = !self.quoted;
+            } else if byte == b';' && !self.quoted {
+                let start = self.start;
+                self.start = self.position;
+                return Ok(Some(trim_ows(&self.value[start..index])));
+            }
+        }
+        self.finished = true;
+        if self.quoted || self.escaped {
+            return Err(());
+        }
+        Ok(Some(trim_ows(&self.value[self.start..])))
     }
-    result.push(trim_ows(&value[start..]));
-    Some(result)
 }
 
-/// Decodes an unquoted token or quoted string.
+/// Validates a parameter value and optionally decodes it into an output sink.
 ///
 /// # Parameters
 ///
 /// * `value` - Raw parameter value.
+/// * `output` - Optional destination for a decoded value. When absent, syntax
+///   is checked without constructing a decoded string.
 ///
 /// # Returns
 ///
-/// Decoded text, or `None` for malformed quoting or line controls.
+/// `Some(())` when the value is valid, or `None` for malformed syntax.
 #[must_use]
-fn decode(value: &str) -> Option<String> {
+fn validate_and_decode(value: &str, mut output: Option<&mut String>) -> Option<()> {
     if !value.starts_with('"') {
-        return (!value.is_empty() && value.bytes().all(is_token_byte)).then(|| value.to_string());
+        if value.is_empty() || !value.bytes().all(is_token_byte) {
+            return None;
+        }
+        if let Some(output) = output {
+            output.push_str(value);
+        }
+        return Some(());
     }
-    let mut result = String::new();
     let mut chars = value[1..].char_indices();
     while let Some(character) = chars.next() {
         let (index, character) = character;
         if character == '"' {
-            return trim_ows(&value[index + 2..]).is_empty().then_some(result);
+            return trim_ows(&value[index + 2..]).is_empty().then_some(());
         }
         if character == '\\' {
             let (_, escaped) = chars.next()?;
             if !is_quoted_pair_character(escaped) {
                 return None;
             }
-            result.push(escaped);
+            if let Some(output) = output.as_deref_mut() {
+                output.push(escaped);
+            }
         } else if is_qdtext_character(character) {
-            result.push(character);
+            if let Some(output) = output.as_deref_mut() {
+                output.push(character);
+            }
         } else {
             return None;
         }

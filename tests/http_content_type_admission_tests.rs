@@ -207,3 +207,72 @@ fn test_invalid_content_type_truncation_and_disabled_policy_keep_existing_semant
     );
     assert_eq!(disabled.summary().completion(), RedactionCompletion::Complete);
 }
+
+#[test]
+fn test_parameter_syntax_is_checked_without_decoding_unknown_values() {
+    let redactor = Redactor::standard();
+    let body = BodyCapture::complete(b"password=raw-secret&public=ok");
+    let valid = "application/x-www-form-urlencoded;unknown=\"left;right\\\"quoted\";other=token";
+    let header = HeaderValue::from_str(valid).expect("valid quoted metadata fits a header value");
+    let native = redactor.redact_http_body(body, Some(&header));
+    let textual = redactor.redact_http_body_with_content_type_text(body, Some(valid));
+    assert_eq!(native.text().as_str(), textual.text().as_str());
+    assert_eq!(native.summary().completion(), textual.summary().completion());
+    assert_eq!(native.summary().reasons(), textual.summary().reasons());
+    assert_eq!(native.summary().usage(), textual.summary().usage());
+    assert!(native.text().as_str().contains("public=ok"));
+    assert!(!native.text().as_str().contains("raw-secret"));
+
+    let composed = redactor
+        .text_composer()
+        .http(|http| {
+            http.body_with_content_type_text(body, Some(valid));
+        })
+        .finish();
+    assert_eq!(native.text().as_str(), composed.text().as_str());
+    assert_eq!(native.summary().completion(), composed.summary().completion());
+    assert_eq!(native.summary().reasons(), composed.summary().reasons());
+    assert_eq!(native.summary().usage(), composed.summary().usage());
+
+    let mut batch = redactor.diagnostic_batch();
+    let handle = batch.redact_http_body_with_content_type_text(body, Some(valid));
+    let report = batch.finish();
+    assert_eq!(native.text().as_str(), report.text(handle).as_str());
+    assert_eq!(native.summary().completion(), report.summary().completion());
+    assert_eq!(native.summary().reasons(), report.summary().reasons());
+    assert_eq!(native.summary().usage(), report.summary().usage());
+
+    for invalid in [
+        "application/x-www-form-urlencoded;Unknown=one;unknown=two",
+        "application/x-www-form-urlencoded;unknown=\"unfinished",
+        "application/x-www-form-urlencoded;unknown=two words",
+        "application/x-www-form-urlencoded;bad name=value",
+        "application/x-www-form-urlencoded;unknown=\"trailing\\\"",
+        "application/x-www-form-urlencoded;unknown=a\x01",
+    ] {
+        let rendered = redactor.redact_http_body_with_content_type_text(body, Some(invalid));
+        assert!(
+            rendered
+                .summary()
+                .reasons()
+                .contains(RedactionReason::InvalidContentType),
+            "metadata should be rejected: {invalid:?}",
+        );
+    }
+}
+
+#[test]
+fn test_multipart_boundary_metadata_is_retained_and_missing_boundary_fails_closed() {
+    let redactor = Redactor::standard();
+    let body = BodyCapture::complete(
+        b"--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nraw-secret\r\n--b--\r\n",
+    );
+    let valid = redactor
+        .redact_http_body_with_content_type_text(body, Some("multipart/form-data; boundary=b; profile=unknown"));
+    assert!(valid.text().as_str().contains("<redacted>"));
+    assert!(!valid.text().as_str().contains("raw-secret"));
+
+    let missing = redactor.redact_http_body_with_content_type_text(body, Some("multipart/form-data; profile=unknown"));
+    assert!(missing.summary().reasons().contains(RedactionReason::InvalidMultipart));
+    assert!(!missing.text().as_str().contains("raw-secret"));
+}

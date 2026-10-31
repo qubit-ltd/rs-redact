@@ -122,7 +122,6 @@ pub(crate) fn redact_body_with_content_type_text(
     let result = super::internal::http_policy_executor::redact_admitted_body_with_content_type_text_with_policy(
         session.policy(),
         capture,
-        content_type,
         admitted,
         remaining,
     );

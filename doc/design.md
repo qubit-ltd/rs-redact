@@ -418,6 +418,10 @@ HTTP body implementation is split by responsibility:
 
 Native `HeaderValue` and text Content-Type inspection atomically admit the captured body and metadata bytes before decoding or inspecting metadata. A rejected input records its admission reason without reporting `InvalidContentType`; an admitted but invalid native header is charged before that reason is recorded.
 
+Body admission parses top-level Content-Type metadata once and retains its typed classification for rendering. Successful multipart admission also retains the validated boundary and form-data requirement beside its admitted parts. The renderer reuses this metadata; a separate inspection operation performs its own classification. Header-parameter scanning uses a borrowed segment cursor, validates every value, and decodes only values requested by the caller while preserving case-insensitive duplicate detection.
+
+HTTP URL inspection and rendering share one path-redaction predicate. It treats a non-empty opaque path as redactable, preserves a hierarchical root path, and does not classify an empty opaque path as sensitive by itself.
+
 These modules share a private `HttpPolicyExecutor`. It borrows the parent
 session policy, owns no session, and produces no public HTTP result. Invalid
 content types, missing multipart boundaries, invalid JSON/NDJSON, and truncated
@@ -464,6 +468,29 @@ controlled comparison.
 an HTTP body atomically when its captured bytes exceed the remaining input
 allowance; renderers therefore do not model a second partial-input state. Content-Type bytes share
 that atomic admission in both native and text inspection paths.
+
+### 8.5 RRD-02 controlled measurements
+
+One controlled run used Rust/Cargo 1.94.0 on x86_64 Linux. Allocation counts came from the public HTTP body APIs in the test profile (`opt-level=0`, `debug=0`); input, policy, and native `HeaderValue` construction were outside each counter window. Values below are alloc/realloc calls and cumulative requested bytes, not peak memory:
+
+| Workload and entry point | Before | After |
+| --- | --- | --- |
+| 2,000 unknown parameters, native/text/composer | 8,674 / 492,547 B | 2,326 / 99,497 B |
+| 2,000 unknown parameters, batch | 8,675 / 492,952 B | 2,327 / 99,902 B |
+| 2,000 unknown parameters, inspection | 4,336 / 246,158 B | 2,316 / 99,214 B |
+| 100 unknown parameters, native/text/composer | 474 / 28,179 B | 134 / 5,393 B |
+| 16 KiB unknown quoted value, native/text/composer | 50 / 66,685 B | 20 / 622 B |
+
+The 2,000-parameter rendering case reduced calls by 73.2% and requested bytes by 79.8%. A separate Criterion run used the release bench profile, `http,uri`, 30 samples, a 1-second warm-up, and a 2-second measurement window per workload. The values are means with 95% confidence intervals in nanoseconds:
+
+| Workload | Before | After |
+| --- | --- | --- |
+| Form metadata, short | 3,088.97 [3,058.76, 3,122.63] | 2,643.79 [2,622.07, 2,670.74] |
+| Form metadata, 100 parameters | 54,763.99 [54,383.04, 55,166.29] | 24,404.54 [24,231.43, 24,601.92] |
+| Form metadata, 2,000 parameters | 1,243,963.11 [1,236,343.94, 1,252,333.94] | 746,418.72 [701,032.48, 796,303.31] |
+| Multipart metadata | 6,183.59 [6,064.10, 6,332.86] | 6,960.05 [6,587.75, 7,372.58] |
+
+These are implementation observations from one environment, not latency or allocation guarantees for other platforms. The form workloads improved in this run; the multipart workload did not show a latency improvement.
 
 ## 9. Features and compatibility
 

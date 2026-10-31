@@ -48,6 +48,53 @@ fn benchmark_http_uri(criterion: &mut Criterion) {
     });
     group.finish();
 
+    let metadata = [
+        ("form/short", String::from("application/x-www-form-urlencoded")),
+        ("form/dense-100", parameterized_form_content_type(100)),
+        ("form/dense-2000", parameterized_form_content_type(2_000)),
+        (
+            "multipart/metadata",
+            String::from("multipart/form-data; boundary=benchmark; profile=verbose"),
+        ),
+    ];
+    let form_body: &[u8] = b"password=raw-secret&public=ok";
+    let multipart_body: &[u8] =
+        b"--benchmark\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\nraw-secret\r\n--benchmark--\r\n";
+    for (name, content_type) in &metadata {
+        let body = if name.starts_with("multipart/") {
+            multipart_body
+        } else {
+            form_body
+        };
+        let output = redactor.redact_http_body_with_content_type_text(BodyCapture::complete(body), Some(content_type));
+        assert!(output.complete_text().is_ok(), "{name} body should complete");
+        assert!(
+            !output.text().as_str().contains("raw-secret"),
+            "{name} should redact its secret"
+        );
+        if name.starts_with("form/") {
+            assert!(
+                output.text().as_str().contains("public=ok"),
+                "{name} should preserve public data"
+            );
+        }
+    }
+    let mut group = criterion.benchmark_group("http-content-type");
+    for (name, content_type) in &metadata {
+        let is_multipart = name.starts_with("multipart/");
+        let body = if is_multipart { multipart_body } else { form_body };
+        group.throughput(Throughput::Bytes((body.len() + content_type.len()) as u64));
+        group.bench_function(*name, |bencher| {
+            bencher.iter(|| {
+                black_box(redactor.redact_http_body_with_content_type_text(
+                    BodyCapture::complete(black_box(body)),
+                    Some(black_box(content_type.as_str())),
+                ))
+            });
+        });
+    }
+    group.finish();
+
     let long_query = (0..128)
         .map(|index| format!("field{index}=value{index}"))
         .collect::<Vec<_>>()
@@ -117,6 +164,14 @@ fn benchmark_http_uri(criterion: &mut Criterion) {
         bencher.iter(|| boundary.inspect_uri(black_box(uri)));
     });
     group.finish();
+}
+
+fn parameterized_form_content_type(count: usize) -> String {
+    let mut value = String::from("application/x-www-form-urlencoded");
+    for index in 0..count {
+        value.push_str(&format!(";p{index}=abcdefgh"));
+    }
+    value
 }
 
 criterion_group!(benches, benchmark_http_uri);

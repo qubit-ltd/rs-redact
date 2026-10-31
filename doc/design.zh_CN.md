@@ -322,6 +322,14 @@ native `HeaderValue` 与文本 Content-Type inspection 都先原子准入 body c
 之后才解码或检查 metadata。输入被拒绝时只记录真实准入原因，不报告 `InvalidContentType`；
 准入成功但 native header 非法时，先计费再记录该原因。
 
+Body 准入阶段只解析一次顶层 Content-Type metadata，并保留其分类供渲染复用。Multipart 准入成功后，
+还会将已校验的 boundary 和 form-data 要求与准入的 parts 一并保留。Renderer 复用这些 metadata；
+独立的 inspection 操作仍自行分类。Header 参数扫描使用借用分段游标，校验每个参数值，只解码调用方
+请求的值，并保留大小写不敏感的重复检测。
+
+HTTP URL inspection 与 renderer 共用路径脱敏判定：非空 opaque path 可脱敏，hierarchical 根路径保留，
+空 opaque path 本身不会被判为敏感。
+
 这些模块共享私有 `HttpPolicyExecutor`，它只借用父 session 的 policy，不拥有 session，也不产生
 公开 HTTP result。无效 content type、缺失 multipart boundary、非法 JSON/NDJSON 和截断输入均
 通过安全 marker 与结构化 reason 表达。
@@ -357,6 +365,32 @@ NDJSON 只保存非空值及其源行索引，空行单独计数，使连续空�
 Content-Type 字节也与 body 一起原子准入。已解析的来源截断 body 会保留
 `SourceTruncated`；若输出也无法容纳，则同时报告 `OutputLimitReached`。URL 和 form
 渲染发生输出截断时报告 `OutputLimitReached`，不会标为 `Complete`。
+
+### 8.5 RRD-02 受控测量
+
+一次受控测量使用 Rust/Cargo 1.94.0、x86_64 Linux。分配计数来自 test profile（`opt-level=0`、
+`debug=0`）下的 HTTP 公共 body API；输入、策略和 native `HeaderValue` 均在每个计数窗口外构造。
+以下为 alloc/realloc 调用数与累计请求字节，不是峰值内存：
+
+| 工作负载与入口 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 2,000 个未知参数，native/text/composer | 8,674 / 492,547 B | 2,326 / 99,497 B |
+| 2,000 个未知参数，batch | 8,675 / 492,952 B | 2,327 / 99,902 B |
+| 2,000 个未知参数，inspection | 4,336 / 246,158 B | 2,316 / 99,214 B |
+| 100 个未知参数，native/text/composer | 474 / 28,179 B | 134 / 5,393 B |
+| 16 KiB 未知 quoted 值，native/text/composer | 50 / 66,685 B | 20 / 622 B |
+
+2,000 参数渲染场景的调用数下降 73.2%，请求字节下降 79.8%。独立 Criterion 测量使用 release bench profile、
+`http,uri` features、30 个样本、1 秒预热及每个 workload 2 秒测量。数值为均值与 95% 置信区间，单位纳秒：
+
+| 工作负载 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 短 form metadata | 3,088.97 [3,058.76, 3,122.63] | 2,643.79 [2,622.07, 2,670.74] |
+| 100 参数 form metadata | 54,763.99 [54,383.04, 55,166.29] | 24,404.54 [24,231.43, 24,601.92] |
+| 2,000 参数 form metadata | 1,243,963.11 [1,236,343.94, 1,252,333.94] | 746,418.72 [701,032.48, 796,303.31] |
+| Multipart metadata | 6,183.59 [6,064.10, 6,332.86] | 6,960.05 [6,587.75, 7,372.58] |
+
+这些数据是单一环境中的实现观测，不构成其他平台的延迟或分配保证。本次 form workload 有改善；multipart workload 未显示延迟收益。
 
 ## 9. Feature 与兼容性
 

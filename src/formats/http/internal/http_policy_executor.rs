@@ -163,16 +163,9 @@ pub(in crate::formats::http) fn redact_admitted_body_with_policy(
     admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    let (content_type, invalid_content_type) = match content_type {
-        Some(value) => match value.to_str() {
-            Ok(value) => (Some(value), false),
-            Err(_) => (None, true),
-        },
-        None => (None, false),
-    };
+    let invalid_content_type = content_type.is_some_and(|value| value.to_str().is_err());
     HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(
         capture,
-        content_type,
         invalid_content_type,
         admitted,
         output_limit,
@@ -200,15 +193,8 @@ pub(in crate::formats::http) fn redact_admitted_body_with_policy(
 pub(in crate::formats::http) fn redact_admitted_body_with_content_type_text_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
-    content_type: Option<&str>,
     admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(
-        capture,
-        content_type,
-        false,
-        admitted,
-        output_limit,
-    )
+    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(capture, false, admitted, output_limit)
 }

@@ -274,7 +274,6 @@ impl<'session> HttpRedactionWriter<'session> {
         let result = super::internal::http_policy_executor::redact_admitted_body_with_content_type_text_with_policy(
             self.session.policy(),
             capture,
-            content_type,
             admitted,
             remaining,
         );
@@ -332,7 +331,7 @@ pub(crate) fn admit_body_structure(
     content_type: Option<&[u8]>,
 ) -> Option<AdmittedBody> {
     if session.policy().is_disabled() {
-        return session.admit_format_node(1).then_some(AdmittedBody::Other);
+        return session.admit_format_node(1).then_some(AdmittedBody::Other(None));
     }
     let (has_content_type, content_type) = match content_type {
         Some(value) => match std::str::from_utf8(value)
@@ -350,7 +349,9 @@ pub(crate) fn admit_body_structure(
         // An incomplete body cannot provide trustworthy structure. Admit
         // only its enclosing format node and let the renderer publish the
         // source provenance without scanning the captured prefix.
-        return session.admit_format_node(1).then_some(AdmittedBody::Other);
+        return session
+            .admit_format_node(1)
+            .then_some(AdmittedBody::Other(content_type));
     }
     let inferred_json = !has_content_type
         && matches!(
@@ -397,33 +398,41 @@ pub(crate) fn admit_body_structure(
     if !session.admit_format_node(1) {
         return None;
     }
-    let admitted = match content_type {
+    match content_type {
         Some(super::internal::content_type::ContentType::Form) => {
-            super::internal::multipart::admit_form_fields(session, capture.bytes(), 2)
+            if super::internal::multipart::admit_form_fields(session, capture.bytes(), 2) {
+                Some(AdmittedBody::Other(Some(
+                    super::internal::content_type::ContentType::Form,
+                )))
+            } else {
+                None
+            }
         }
         Some(super::internal::content_type::ContentType::Multipart {
             boundary: Some(boundary),
             require_form_data,
         }) => {
-            return match super::internal::multipart::admit_structure(
-                session,
-                &boundary,
-                require_form_data,
-                capture.bytes(),
-            ) {
-                Ok(parts) => Some(AdmittedBody::Multipart(parts)),
+            match super::internal::multipart::admit_structure(session, &boundary, require_form_data, capture.bytes()) {
+                Ok(parts) => Some(AdmittedBody::Multipart {
+                    boundary,
+                    require_form_data,
+                    parts,
+                }),
                 Err(crate::formats::json::JsonAdmissionError::Invalid) => Some(AdmittedBody::InvalidMultipartJson),
                 Err(crate::formats::json::JsonAdmissionError::Limit) => None,
-            };
+            }
         }
-        Some(super::internal::content_type::ContentType::Multipart { boundary: None, .. })
-        | Some(super::internal::content_type::ContentType::Text)
-        | Some(super::internal::content_type::ContentType::Other)
-        | None => true,
-        Some(super::internal::content_type::ContentType::Json)
-        | Some(super::internal::content_type::ContentType::Ndjson) => true,
-    };
-    admitted.then_some(AdmittedBody::Other)
+        Some(value @ super::internal::content_type::ContentType::Multipart { boundary: None, .. }) => {
+            Some(AdmittedBody::Other(Some(value)))
+        }
+        Some(
+            value @ (super::internal::content_type::ContentType::Text
+            | super::internal::content_type::ContentType::Other
+            | super::internal::content_type::ContentType::Json
+            | super::internal::content_type::ContentType::Ndjson),
+        ) => Some(AdmittedBody::Other(Some(value))),
+        None => Some(AdmittedBody::Other(None)),
+    }
 }
 
 /// Counts bytes presented by a body operation before parser dispatch.

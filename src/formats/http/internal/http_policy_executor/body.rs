@@ -56,9 +56,8 @@ impl HttpPolicyExecutor<'_> {
     pub(super) fn redact_body_with_content_type_and_admission(
         &self,
         capture: BodyCapture<'_>,
-        content_type: Option<&str>,
         invalid_content_type: bool,
-        mut admitted: AdmittedBody,
+        admitted: AdmittedBody,
         output_limit: usize,
     ) -> HttpRendered {
         if self.policy.is_disabled() {
@@ -74,17 +73,30 @@ impl HttpPolicyExecutor<'_> {
         let parsed = if invalid_content_type {
             Self::invalid_content_type_body()
         } else {
-            match &mut admitted {
-                AdmittedBody::Json(value) => self.redact_json_value(value, truncated, output_limit),
+            match admitted {
+                AdmittedBody::Json(mut value) => self.redact_json_value(&mut value, truncated, output_limit),
                 AdmittedBody::InvalidContentType => Self::invalid_content_type_body(),
                 AdmittedBody::InvalidJson => Self::invalid_json_body(),
                 AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
-                AdmittedBody::Ndjson(lines) => self.redact_ndjson_values(lines, truncated, output_limit),
+                AdmittedBody::Ndjson(mut lines) => self.redact_ndjson_values(&mut lines, truncated, output_limit),
                 AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Multipart(parts) => {
-                    self.redact_body_inner(bounded, content_type, truncated, output_limit, Some(parts))
+                AdmittedBody::Multipart {
+                    boundary,
+                    require_form_data,
+                    mut parts,
+                } => self.redact_body_inner(
+                    bounded,
+                    Some(content_type::ContentType::Multipart {
+                        boundary: Some(boundary),
+                        require_form_data,
+                    }),
+                    truncated,
+                    output_limit,
+                    Some(&mut parts),
+                ),
+                AdmittedBody::Other(content_type) => {
+                    self.redact_body_inner(bounded, content_type, truncated, output_limit, None)
                 }
-                AdmittedBody::Other => self.redact_body_inner(bounded, content_type, truncated, output_limit, None),
             }
         };
         Self::finish_body_redaction(parsed, capture, output_limit)
@@ -95,8 +107,8 @@ impl HttpPolicyExecutor<'_> {
     /// # Parameters
     ///
     /// - `bounded`: Admitted source bytes.
-    /// - `content_type`: Some media type to parse, or None to use sniffing and
-    ///   fallback rules.
+    /// - `content_type`: Classification retained during admission, or None to
+    ///   use sniffing and fallback rules.
     /// - `truncated`: Whether the captured source was incomplete.
     /// - `output_limit`: Remaining output-byte ceiling.
     /// - `admitted`: Some reusable multipart admission state, or None for other
@@ -109,18 +121,11 @@ impl HttpPolicyExecutor<'_> {
     fn redact_body_inner(
         &self,
         bounded: &[u8],
-        content_type: Option<&str>,
+        content_type: Option<content_type::ContentType>,
         truncated: bool,
         output_limit: usize,
         admitted: Option<&mut crate::formats::http::internal::AdmittedMultipart>,
     ) -> ParsedBody {
-        let content_type = match content_type {
-            Some(value) => match content_type::parse(value) {
-                Some(value) => Some(value),
-                None => return Self::invalid_content_type_body(),
-            },
-            None => None,
-        };
         if bounded.is_empty() {
             return ParsedBody::new(String::new(), BodyRenderStatus::Empty, false);
         }
