@@ -105,6 +105,9 @@ impl RedactionLimits {
 
     /// Returns the maximum source bytes one transaction may inspect.
     ///
+    /// Dynamically supplied sibling keys used only for field classification
+    /// use the structural `max_key_bytes` ceiling and do not accumulate here.
+    ///
     /// # Returns
     ///
     /// Cumulative source bytes admitted by one transaction.
@@ -194,7 +197,7 @@ impl RedactionLimits {
     ///
     /// # Returns
     ///
-    /// `Some(maximum)` bounds admitted classification-key bytes;
+    /// `Some(maximum)` bounds admitted structural classification-key bytes;
     /// `None` disables this limit.
     #[inline(always)]
     pub const fn max_key_bytes(&self) -> Option<usize> {

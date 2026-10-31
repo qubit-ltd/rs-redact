@@ -68,6 +68,11 @@ assert!(!output.text().as_str().contains("raw-secret"));
 | `keyed_by = key` | 按实现 `AsRef<str>` 的兄弟 key 分类，仅用于具名字段；value 需具备等级能力和 `Debug`。 |
 | `json` | 支持 JSON `String`/`str`/`Cow<str>`、已解析 `serde_json::Value`、引用和 `Option`；需要 `json` feature。 |
 
+没有属性的受支持自递归字段会归一化为 `nested`，以继续应用子字段的脱敏规则。该识别基于语法，
+不会解析任意类型别名。显式 `unmarked` 或自定义 Serde serializer 不触发此归一化。Serde view
+投影支持直接自递归、`Option<Box<Self>>` 和 `Vec<Box<Self>>`；文本派生可识别的其他形状不一定
+具备 Serde 递归投影能力。
+
 容器属性包括 `debug`、`display`、`serde`、`transparent` 和 `crate = path`。
 derive 会通过 Cargo metadata 查找 `qubit-redact` runtime；直接依赖 `qubit-redact-derive`
 或重命名 runtime 依赖本身都不需要额外配置。只有 Cargo metadata 无法发现 runtime，或

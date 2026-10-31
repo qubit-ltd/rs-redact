@@ -24,6 +24,11 @@ mod tests;
 /// Derives the borrowing `qubit_redact::Redact` implementation.
 ///
 /// Fields without an attribute intentionally use ordinary `Debug` formatting.
+/// Supported self-recursive fields without a redaction attribute are an
+/// exception: the derive normalizes them to `nested` so child redaction rules
+/// continue to apply. An explicit `unmarked` attribute and custom Serde
+/// serializers are not normalized this way. Recognition is syntax-based and
+/// does not resolve arbitrary aliases.
 /// Sensitivity is downstream business-domain knowledge that the macro cannot
 /// infer reliably from a field name or Rust type. Ordinary fields are the large
 /// majority, so an explicit "not sensitive" attribute on every field would add

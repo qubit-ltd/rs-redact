@@ -39,7 +39,11 @@
 //! does not run redaction again. [`DiagnosticRedactionBatch`] shares a budget
 //! across related values; [`RedactedTextComposer`] builds one ordered message.
 //!
-//! Unmarked fields remain ordinary output. Explicit derive levels are final;
+//! Unmarked fields generally remain ordinary output, with one derive exception:
+//! supported self-recursive fields without a redaction attribute are treated as
+//! nested automatically so child fields retain their redaction rules. Explicit
+//! `unmarked` opts out of that normalization, as do custom Serde serializers.
+//! Explicit derive levels are final;
 //! runtime field rules, floors, and strict mode do not override them. Disabled
 //! policy deliberately restores source values. Generated ordinary formatting
 //! and serialization read the application default at each call; explicit

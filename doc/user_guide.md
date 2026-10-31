@@ -349,6 +349,42 @@ capability rules still apply; a missing projection capability is reported when
 serialization is requested, while text-only redaction remains available.
 `to_json()` additionally requires the `json` feature.
 
+For a self-recursive field, derive automatically inserts `nested` when the field
+has no `redact` attribute, no custom Serde `with`/`serialize_with` adapter, and
+its syntax matches a supported self-recursive shape. An explicit
+`#[redact(unmarked)]` is an attribute and therefore opts out; it differs from
+leaving the field unannotated. Recognition does not resolve arbitrary type
+aliases or arbitrary cross-type recursion graphs. Text derive recognizes
+recursion through direct types and supported wrappers such as `Option`, `Box`,
+`Vec`, tuples, arrays, and parentheses. The Serde recursive projection has a
+narrower set: direct self-recursion, `Option<Box<Self>>`, and `Vec<Box<Self>>`.
+Use `#[redact(nested)]` to make the intended behavior explicit when applicable.
+
+<!-- redact-example: kind=run features=derive -->
+```rust
+use qubit_redact::{Redact, Redactor};
+
+#[derive(Redact)]
+struct Node {
+    #[redact(level = "secret")]
+    password: String,
+    next: Option<Box<Node>>,
+}
+
+fn main() {
+    let value = Node {
+        password: "parent-secret".into(),
+        next: Some(Box::new(Node { password: "child-secret".into(), next: None })),
+    };
+    let output = Redactor::standard().redact_text(&value);
+    assert!(!output.text().as_str().contains("child-secret"));
+}
+```
+
+Here `next` is normalized to `nested`, so a child node's `password` remains
+redacted. A custom Serde adapter is not normalized automatically; annotate the
+field explicitly when the adapter's representation supports nested redaction.
+
 Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
 with `bigdecimal`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,
 VecDeque, LinkedList, sets, heaps, standard maps, and tuples up to 12 elements. Ordinary level
@@ -542,7 +578,8 @@ fn main() {
 | Derived level, Display level, map key/value level | No: the explicit level is final |
 | Manual fields.sensitive_at_least(level, ...) | Yes: the argument is a minimum |
 | map, keyed_by, redact_field | Classified by runtime rules |
-| Unmarked fields and `unmarked` | No classification; ordinary output |
+| Unannotated fields | No classification; ordinary output, except supported self-recursive fields automatically become nested |
+| `unmarked` | No classification; ordinary output, including on self-recursive fields |
 
 Default Low retains two leading and two trailing characters, fully hiding short strings;
 Medium retains one trailing character; High emits `****`; Secret emits `<redacted>`.
@@ -1196,6 +1233,11 @@ already own; replacement does not retroactively toggle in-flight work.
 
 `max_input_bytes` defaults to 64 KiB; each output-related limit defaults to 16 KiB.
 All accept zero. Policy construction rejects Serde payload or final output ceilings above `isize::MAX`.
+Sibling keys used only for `keyed_by` classification are admitted against
+`max_key_bytes` and do not accumulate into `max_input_bytes`; if the sibling is
+also serialized as an ordinary field, that output operation is charged under its
+own existing limits. Dynamic map keys are separate Serde payload events and are
+counted there.
 In 0.8, replace former `batch()` calls with `diagnostic_batch()`. Use `finish()`
 for the default diagnostic marker or `finish_with_marker(marker)` for a custom one.
 Enable `bigdecimal` explicitly when using BigDecimal; enabling `serde` alone no longer suffices.
