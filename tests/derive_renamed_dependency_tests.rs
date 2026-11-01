@@ -21,7 +21,7 @@ fn test_renamed_runtime_dependency_compiles() {
     let target_dir = manifest_dir.join("target/renamed-dependency-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(manifest)
         .arg("--target-dir")
         .arg(target_dir)

@@ -22,7 +22,7 @@ fn test_missing_direct_serde_dependency_compiles() {
     let target_dir = manifest_dir.join("target/serde-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target_dir)
@@ -39,7 +39,7 @@ fn test_renamed_serde_dependency_compiles() {
     let target_dir = manifest_dir.join("target/serde-renamed-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target_dir)

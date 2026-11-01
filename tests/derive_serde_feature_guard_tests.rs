@@ -22,7 +22,7 @@ fn test_serde_feature_guard_is_single_and_targeted() {
     let target_dir = manifest_dir.join("target/serde-disabled-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target_dir)

@@ -27,7 +27,7 @@ fn test_runtime_path_reports_missing_dependency() {
     let target_dir = manifest_dir.join("target/runtime-missing-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target_dir)
@@ -53,7 +53,7 @@ fn test_runtime_path_resolves_itself() {
     let target_dir = manifest_dir.join("target/runtime-itself-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["check", "--manifest-path"])
+        .args(["check", "--locked", "--manifest-path"])
         .arg(&manifest)
         .arg("--target-dir")
         .arg(target_dir)
@@ -77,7 +77,7 @@ fn test_runtime_path_itself_expands_and_runs() {
     let target_dir = manifest_dir.join("target/runtime-itself-success-fixture");
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = support::isolated_cargo::command(&cargo)
-        .args(["run", "--manifest-path"])
+        .args(["run", "--locked", "--manifest-path"])
         .arg(manifest)
         .arg("--target-dir")
         .arg(target_dir)
