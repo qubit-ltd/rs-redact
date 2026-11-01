@@ -29,6 +29,9 @@ from Rust types or current values.
    classification precedes lazy value access or formatting.
 5. Depth, nodes, collection items, input bytes, JSON values, and output bytes
    are charged to the same transaction.
+   Each transparent domain value is a structured scope and consumes one node
+   and one depth level before its field callback runs; its field keeps the
+   ordinary field admission rules.
 6. Only a completed transaction constructs public summaries. Parsers and
    format executors never publish a second result model.
 7. `RedactionPolicy::disabled()` is an explicit debugging escape hatch that

@@ -1239,6 +1239,13 @@ already own; replacement does not retroactively toggle in-flight work.
 
 ## Budget Units and Migration to 0.8
 
+Each transparent domain wrapper consumes one structural node and one depth
+level before its field callback runs. The field continues to consume its usual
+field budget. Calls that relied on a transparent wrapper fitting exactly at a
+depth or node limit may now truncate or fail inspection; allow one additional
+depth level and root node for each transparent wrapper in the traversed value.
+With sufficient budgets, the text representation and API remain unchanged.
+
 | Entry point | Structure and input limits | Logical Serde payload | Final encoded bytes |
 | --- | --- | --- | --- |
 | Fields, domain text, composer, batch | Shared transaction admission per entry point | Not applicable | `max_output_bytes` |
