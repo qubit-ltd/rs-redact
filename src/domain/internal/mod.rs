@@ -69,6 +69,8 @@ mod redacted_projection_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod redacted_serialize_ref;
 #[cfg(any(feature = "serde", feature = "json"))]
+mod scalar_payload_len;
+#[cfg(any(feature = "serde", feature = "json"))]
 mod serde_admission;
 #[cfg(any(feature = "serde", feature = "json"))]
 mod serde_node_guard;
