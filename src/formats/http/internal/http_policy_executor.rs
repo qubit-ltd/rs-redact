@@ -27,7 +27,6 @@ mod url;
 pub(in crate::formats::http) mod url_rules;
 
 use http::HeaderMap;
-use http::HeaderValue;
 
 use super::AdmittedBody;
 use super::HttpRendered;
@@ -158,17 +157,10 @@ pub(crate) fn redact_headers_with_policy(
 pub(in crate::formats::http) fn redact_admitted_body_with_policy(
     policy: &RedactionPolicy,
     capture: BodyCapture<'_>,
-    content_type: Option<&HeaderValue>,
     admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    let invalid_content_type = content_type.is_some_and(|value| value.to_str().is_err());
-    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(
-        capture,
-        invalid_content_type,
-        admitted,
-        output_limit,
-    )
+    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(capture, admitted, output_limit)
 }
 
 /// Redacts a captured body selected by text Content-Type while reusing
@@ -195,5 +187,5 @@ pub(in crate::formats::http) fn redact_admitted_body_with_content_type_text_with
     admitted: AdmittedBody,
     output_limit: usize,
 ) -> HttpRendered {
-    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(capture, false, admitted, output_limit)
+    HttpPolicyExecutor { policy }.redact_body_with_content_type_and_admission(capture, admitted, output_limit)
 }

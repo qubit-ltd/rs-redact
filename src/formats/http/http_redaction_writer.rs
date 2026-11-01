@@ -217,8 +217,7 @@ impl<'session> HttpRedactionWriter<'session> {
         {
             return self;
         }
-        let Some(admitted) = admit_body_structure(self.session, capture, content_type.map(|value| value.as_bytes()))
-        else {
+        let Some(admitted) = admit_native_body_structure(self.session, capture, content_type) else {
             self.session
                 .append_rendered_operation(OperationSink::complete("<truncated>").finish());
             return self;
@@ -227,7 +226,6 @@ impl<'session> HttpRedactionWriter<'session> {
         let result = super::internal::http_policy_executor::redact_admitted_body_with_policy(
             self.session.policy(),
             capture,
-            content_type,
             admitted,
             remaining,
         );
@@ -432,6 +430,26 @@ pub(crate) fn admit_body_structure(
             | super::internal::content_type::ContentType::Ndjson),
         ) => Some(AdmittedBody::Other(Some(value))),
         None => Some(AdmittedBody::Other(None)),
+    }
+}
+
+/// Validates native Content-Type text before admitting the captured body.
+///
+/// The caller must already have admitted the input bytes. Disabled policies
+/// retain the existing single-node body admission without inspecting metadata.
+/// An unrepresentable native header admits one format node and returns
+/// `InvalidContentType`; `None` means the structural budget rejected admission.
+pub(in crate::formats::http) fn admit_native_body_structure(
+    session: &mut dyn RuntimeSession,
+    capture: BodyCapture<'_>,
+    content_type: Option<&HeaderValue>,
+) -> Option<AdmittedBody> {
+    if session.policy().is_disabled() {
+        return admit_body_structure(session, capture, None);
+    }
+    match content_type.map(HeaderValue::to_str).transpose() {
+        Ok(text) => admit_body_structure(session, capture, text.map(str::as_bytes)),
+        Err(_) => session.admit_format_node(1).then_some(AdmittedBody::InvalidContentType),
     }
 }
 

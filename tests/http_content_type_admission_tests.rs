@@ -29,6 +29,77 @@ fn redactor_with_limits(max_input_bytes: usize, max_nodes: usize, max_output_byt
     Redactor::new(policy)
 }
 
+#[test]
+fn test_non_ascii_native_content_type_is_rejected_before_json_admission() {
+    let header =
+        HeaderValue::from_bytes(b"application/json;x=\"\xc3\xa9\"").expect("obs-text is permitted in a native header");
+    assert!(header.to_str().is_err());
+    let redactor = redactor_with_limits(1_000_000, 1, 1_000_000);
+    let capture = BodyCapture::complete(b"[0]");
+    let direct = redactor.redact_http_body(capture, Some(&header));
+    let composed = redactor
+        .text_composer()
+        .http(|http| {
+            http.body(capture, Some(&header));
+        })
+        .finish();
+    for output in [direct, composed] {
+        let summary = output.summary();
+        assert!(summary.reasons().contains(RedactionReason::InvalidContentType));
+        assert!(!summary.reasons().contains(RedactionReason::TraversalLimitReached));
+        assert_eq!(summary.usage().visited_nodes(), 1);
+    }
+    let error = redactor
+        .inspect_http_body(capture, Some(&header))
+        .expect_err("native metadata is invalid before inspecting JSON");
+    assert!(error.reasons().contains(RedactionReason::InvalidContentType));
+}
+
+#[test]
+fn test_invalid_native_metadata_leaves_nodes_for_the_next_batch_body() {
+    let invalid = HeaderValue::from_bytes(b"application/json;x=\"\xc3\xa9\"").expect("native header is constructible");
+    let valid = HeaderValue::from_static("application/json");
+    let redactor = redactor_with_limits(1_000_000, 3, 1_000_000);
+    let mut batch = redactor.diagnostic_batch();
+    let first = batch.redact_http_body(BodyCapture::complete(b"[0]"), Some(&invalid));
+    let second = batch.redact_http_body(BodyCapture::complete(b"[0]"), Some(&valid));
+    let report = batch.finish();
+    assert!(!report.text(first).as_str().contains("[0]"));
+    assert_eq!(report.text(second).as_str(), "[0]");
+    assert!(report.summary().reasons().contains(RedactionReason::InvalidContentType));
+    assert!(
+        !report
+            .summary()
+            .reasons()
+            .contains(RedactionReason::TraversalLimitReached)
+    );
+    assert_eq!(report.summary().usage().visited_nodes(), 3);
+}
+
+#[test]
+fn test_native_admission_keeps_textual_utf8_and_disabled_behavior() {
+    let redactor = Redactor::standard();
+    let capture = BodyCapture::complete(b"[0]");
+    let textual = redactor.redact_http_body_with_content_type_text(capture, Some("application/json;x=\"é\""));
+    assert_eq!(textual.text().as_str(), "[0]");
+    assert!(
+        !textual
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidContentType)
+    );
+
+    let invalid = HeaderValue::from_bytes(b"application/json;x=\"\xc3\xa9\"").expect("native header is constructible");
+    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_http_body(capture, Some(&invalid));
+    assert_eq!(disabled.text().as_str(), "[0]");
+    assert!(
+        !disabled
+            .summary()
+            .reasons()
+            .contains(RedactionReason::InvalidContentType)
+    );
+}
+
 fn has_invalid_content_type(reasons: RedactionReasons) -> bool {
     reasons.contains(RedactionReason::InvalidContentType)
 }

@@ -13,6 +13,7 @@ use http::HeaderValue;
 use super::BodyCapture;
 use super::http_redaction_writer::admit_body_input;
 use super::http_redaction_writer::admit_body_structure;
+use super::http_redaction_writer::admit_native_body_structure;
 use super::http_redaction_writer::admit_url_structure;
 use super::http_redaction_writer::collect_admitted_headers;
 use crate::runtime::BatchSession;
@@ -85,14 +86,13 @@ pub(crate) fn redact_body(
     if !admit_body_input(session, capture, content_type.map(|value| value.as_bytes().len())) {
         return session.stage_accounted_text(String::new());
     }
-    let Some(admitted) = admit_body_structure(session, capture, content_type.map(|value| value.as_bytes())) else {
+    let Some(admitted) = admit_native_body_structure(session, capture, content_type) else {
         return session.stage_accounted_text("<truncated>");
     };
     let remaining = session.remaining_output_bytes();
     let result = super::internal::http_policy_executor::redact_admitted_body_with_policy(
         session.policy(),
         capture,
-        content_type,
         admitted,
         remaining,
     );

@@ -41,8 +41,6 @@ impl HttpPolicyExecutor<'_> {
     /// # Parameters
     ///
     /// - `capture`: Admitted source bytes and ingress-completeness metadata.
-    /// - `invalid_content_type`: Whether the original header could not be
-    ///   interpreted as text.
     /// - `admitted`: Parser results and media-type classification reused
     ///   without a second structural admission pass.
     /// - `output_limit`: Remaining output-byte ceiling for this body.
@@ -54,7 +52,6 @@ impl HttpPolicyExecutor<'_> {
     pub(super) fn redact_body_with_content_type_and_admission(
         &self,
         capture: BodyCapture<'_>,
-        invalid_content_type: bool,
         admitted: AdmittedBody,
         output_limit: usize,
     ) -> HttpRendered {
@@ -68,33 +65,29 @@ impl HttpPolicyExecutor<'_> {
         }
         let bounded = capture.bytes();
         let truncated = capture.is_source_truncated();
-        let parsed = if invalid_content_type {
-            Self::invalid_content_type_body()
-        } else {
-            match admitted {
-                AdmittedBody::Json(mut value) => self.redact_json_value(&mut value, truncated, output_limit),
-                AdmittedBody::InvalidContentType => Self::invalid_content_type_body(),
-                AdmittedBody::InvalidJson => Self::invalid_json_body(),
-                AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
-                AdmittedBody::Ndjson(mut lines) => self.redact_ndjson_values(&mut lines, truncated, output_limit),
-                AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
-                AdmittedBody::Multipart {
-                    boundary,
+        let parsed = match admitted {
+            AdmittedBody::Json(mut value) => self.redact_json_value(&mut value, truncated, output_limit),
+            AdmittedBody::InvalidContentType => Self::invalid_content_type_body(),
+            AdmittedBody::InvalidJson => Self::invalid_json_body(),
+            AdmittedBody::InvalidMultipartJson => Self::invalid_json_body(),
+            AdmittedBody::Ndjson(mut lines) => self.redact_ndjson_values(&mut lines, truncated, output_limit),
+            AdmittedBody::InvalidNdjson => Self::invalid_ndjson_body(),
+            AdmittedBody::Multipart {
+                boundary,
+                require_form_data,
+                mut parts,
+            } => self.redact_body_inner(
+                bounded,
+                Some(content_type::ContentType::Multipart {
+                    boundary: Some(boundary),
                     require_form_data,
-                    mut parts,
-                } => self.redact_body_inner(
-                    bounded,
-                    Some(content_type::ContentType::Multipart {
-                        boundary: Some(boundary),
-                        require_form_data,
-                    }),
-                    truncated,
-                    output_limit,
-                    Some(&mut parts),
-                ),
-                AdmittedBody::Other(content_type) => {
-                    self.redact_body_inner(bounded, content_type, truncated, output_limit, None)
-                }
+                }),
+                truncated,
+                output_limit,
+                Some(&mut parts),
+            ),
+            AdmittedBody::Other(content_type) => {
+                self.redact_body_inner(bounded, content_type, truncated, output_limit, None)
             }
         };
         Self::finish_body_redaction(parsed, capture, output_limit)
