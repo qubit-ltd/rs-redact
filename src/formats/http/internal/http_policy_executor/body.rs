@@ -57,7 +57,7 @@ impl HttpPolicyExecutor<'_> {
     ) -> HttpRendered {
         if self.policy.is_disabled() {
             let parsed = ParsedBody::new(
-                String::from_utf8_lossy(capture.bytes()).into_owned(),
+                bounded_lossy_body_text(capture.bytes(), output_limit),
                 BodyRenderStatus::Structured,
                 false,
             );
@@ -225,6 +225,36 @@ impl HttpPolicyExecutor<'_> {
         }
         HttpRendered::new(operation)
     }
+}
+
+/// Decodes body bytes lossily while retaining only the prefix needed by the
+/// bounded publisher.
+///
+/// The temporary string grows only with retained text, stopping at the output
+/// limit plus one truncated marker and a byte of evidence. UTF-8 characters
+/// are appended whole and invalid chunks use the standard replacement
+/// character. The extra marker space preserves the publisher's existing
+/// trailing-marker handling. Scanning may still visit the full admitted input
+/// when it contains a long valid prefix.
+#[must_use]
+fn bounded_lossy_body_text(bytes: &[u8], output_limit: usize) -> String {
+    let threshold = output_limit.saturating_add(markers::TRUNCATED.len()).saturating_add(1);
+    let mut output = String::new();
+    for chunk in bytes.utf8_chunks() {
+        for character in chunk.valid().chars() {
+            output.push(character);
+            if output.len() >= threshold {
+                return output;
+            }
+        }
+        if !chunk.invalid().is_empty() {
+            output.push(char::REPLACEMENT_CHARACTER);
+            if output.len() >= threshold {
+                return output;
+            }
+        }
+    }
+    output
 }
 
 /// Trims ASCII whitespace without decoding the input.
