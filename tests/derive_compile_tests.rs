@@ -80,6 +80,7 @@ fn test_compile_fail_fixtures() {
     tests.compile_fail("tests/fixtures/fail/removed_attributes.rs");
     tests.compile_fail("tests/fixtures/fail/level_struct.rs");
     tests.compile_fail("tests/fixtures/fail/sensitive_serde_adapter.rs");
+    tests.compile_fail("tests/fixtures/fail/nested_serde_adapter.rs");
     tests.compile_fail("tests/fixtures/fail/map_wrong_key.rs");
     tests.compile_fail("tests/fixtures/fail/keyed_by_missing.rs");
     tests.compile_fail("tests/fixtures/fail/keyed_by_self.rs");

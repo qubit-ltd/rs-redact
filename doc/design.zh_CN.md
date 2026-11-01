@@ -158,6 +158,9 @@ builder 编辑组合 floor 时只修改可编辑层，其他层及其 matching/f
 `DiagnosticRedactionBatch` 在一个共享预算内创建多个独立 item。每个操作立即返回只在该 batch 内有效的
 handle；`finish_with_marker(self, marker)` 发布诊断视图：完整 item 保留安全文本，不完整、
 缺失或来自其他 batch 的 handle 统一解析为已转义 marker。诊断视图同时保留 batch 聚合摘要。
+摘要等价且用量为零的成功空结果可以共用结果槽和 handle，解析后仍是空文本。空失败项仍解析为
+rejected marker，所有实际用量仍按操作累计。handle 引用结果而非调用序号；需要调用顺序时由调用方
+另行保留输入位置。这种复用不构成 batch 内存的通用硬上限。
 
 ### 5.3 Inspection
 
@@ -253,8 +256,9 @@ OperationSink 负责安全替代和最终状态。输入拒绝或 formatter 错�
 发布层不从泛化失败推断输出超限，也不丢弃前序安全文本。Exhausted 在构造边界必有输出原因。
 
 输入失败项允许后项在剩余预算内继续，aggregate summary 仍不完整；空失败 batch item 使用不占结果
-槽位的 rejected handle，整批摘要仍累计每次拒绝的原因和用量。真实输出拒绝或恰好用尽额度关闭
-后续输入访问。发布后的调用方 marker 会转义，但不计入原事务输出额度。
+槽位的 rejected handle，整批摘要仍累计每次拒绝的原因和用量。用量为零且等价的成功空项也可共用
+结果槽和 handle，但解析后是空文本；所有实际用量仍逐项累计。这项优化不构成 batch 内存的通用硬上限。
+真实输出拒绝或恰好用尽额度关闭后续输入访问。发布后的调用方 marker 会转义，但不计入原事务输出额度。
 
 ### 6.2 Serde 载荷与最终编码
 

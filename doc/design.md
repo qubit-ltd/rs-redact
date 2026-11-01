@@ -179,7 +179,12 @@ budget. Each operation returns a handle valid only for that batch.
 `finish_with_marker(self, marker)` publishes a diagnostics view: complete
 items retain their safe text, while incomplete, missing, and cross-batch
 handles resolve to the escaped marker. The view also retains the aggregate
-summary.
+summary. Equivalent successful empty results with zero usage may share a result
+slot and handle, while resolving the handle still returns empty text. Empty
+failed items still resolve to the rejected marker, and all actual usage remains
+accumulated per operation. Handles refer to results rather than call sequence
+numbers; callers that need call order retain input positions separately. This
+reuse does not establish a general hard limit on batch memory.
 
 ### 5.3 Inspection
 
@@ -312,8 +317,11 @@ Exhausted always has an output reason at its construction boundary.
 
 An input-failing item allows later admitted work within the remaining budget; the aggregate
 summary stays incomplete. Empty failed batch items use a shared rejected handle without allocating
-a result slot; the batch summary still accumulates each rejection reason and usage. Actual output rejection or exact capacity closes subsequent input
-access. Caller-supplied post-publication markers are escaped but outside transaction output limits.
+a result slot; the batch summary still accumulates each rejection reason and usage. Equivalent
+successful empty items with zero usage may also share a result slot and handle, but resolve to empty
+text. All actual usage remains charged per operation. This optimization does not impose a general
+hard limit on batch memory. Actual output rejection or exact capacity closes subsequent input access.
+Caller-supplied post-publication markers are escaped but outside transaction output limits.
 
 ### 6.2 Serde payload and final encoding
 

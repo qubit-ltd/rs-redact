@@ -1,0 +1,15 @@
+error: Redact serde for `Named` field `child` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only on unmarked fields or with `redact(skip)`
+  --> tests/fixtures/fail/nested_serde_adapter.rs:14:5
+   |
+14 | /     #[redact(nested)]
+15 | |     #[serde(serialize_with = "encode")]
+16 | |     child: String,
+   | |_________________^
+
+error: Redact serde for `Tuple` field `0` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only on unmarked fields or with `redact(skip)`
+  --> tests/fixtures/fail/nested_serde_adapter.rs:22:5
+   |
+22 | /     #[redact(nested)]
+23 | |     #[serde(with = "adapter")]
+24 | |     String,
+   | |__________^

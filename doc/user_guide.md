@@ -212,10 +212,13 @@ Both share one policy snapshot and one transaction budget, but they answer diffe
 
 Batch handles are valid only for the batch that created them. Resolving a handle from an earlier
 batch through a later `finish_with_marker` returns the escaped fallback marker, not the original
-text. Composers do not expose handles; the entire message succeeds or degrades as one unit. An empty
-failed item may share a rejected handle with other failures instead of storing a result slot. The
-batch summary still records every rejection reason and its usage, and a rejected item does not prevent
-later work while budget remains.
+text. Composers do not expose handles; the entire message succeeds or degrades as one unit. Equivalent
+successful empty results with zero usage may share a result slot and handle; resolving that handle
+still returns empty text. Empty failed items still resolve to the rejected marker, and the batch
+summary continues to accumulate every operation's actual usage and rejection reasons. Handles are
+result references, not call sequence numbers; retain input positions separately when call order
+matters. This reuse is limited to equivalent zero-usage successes and does not impose a general hard
+limit on batch memory. A rejected item does not prevent later work while budget remains.
 
 Environment variables follow the same split: compose inline assignments with `.env(...)`, or add
 `redact_env(name, value)` items to a batch when each name may need separate inspection later.
@@ -383,8 +386,12 @@ fn main() {
 ```
 
 Here `next` is normalized to `nested`, so a child node's `password` remains
-redacted. A custom Serde adapter is not normalized automatically; annotate the
-field explicitly when the adapter's representation supports nested redaction.
+redacted. Custom Serde adapters are not normalized to nested redaction. A field
+using `serialize_with` or `with` cannot also use `nested`; adapters are supported
+only on unmarked fields or with `redact(skip)`. To redact a child's structure,
+remove the adapter and use a supported nested projection. Unmarked fields do not
+receive field redaction; `redact(skip)` omits the field while redaction is enabled.
+With a disabled policy, the original value is serialized through the adapter.
 
 Built-in level leaves include strings, characters, booleans, integers, floats, and BigDecimal
 with `bigdecimal`. Level containers include references, Option, Vec, slices, arrays, Box/Rc/Arc,

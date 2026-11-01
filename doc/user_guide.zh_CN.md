@@ -200,8 +200,10 @@ fn main() {
 
 batch 句柄只对创建它的 batch 有效。在后续 batch 的 `finish_with_marker` 中解析旧句柄，
 会得到已转义的降级 marker，而不是原文。composer 不提供句柄；整条消息作为一个整体成功或降级。
-空失败项可能共用 rejected handle，不会各自占用结果槽位；整批摘要仍累计每次拒绝的原因和用量。
-只要预算仍有余量，失败项不会阻止后续操作。
+用量为零且摘要等价的成功空结果可以共用结果槽和句柄，解析后仍是空文本。空失败项仍解析为
+rejected marker；batch 摘要照常累计每次操作的实际用量和拒绝原因。句柄引用结果，不代表调用序号；
+若业务需要调用顺序，应自行保留输入位置。这种复用只适用于等价的零用量成功结果，不构成 batch
+内存的通用硬上限。只要预算仍有余量，失败项不会阻止后续操作。
 
 环境变量同样如此：行内展示用 `.env(...)`，需要逐项检查时用 batch 的 `redact_env(name, value)`。
 
@@ -354,8 +356,11 @@ fn main() {
 }
 ```
 
-此例中的 `next` 会自动按 `nested` 处理，因此子节点的 `password` 仍会脱敏。自定义 Serde adapter 不会触发自动归一化；
-只有当 adapter 的表示支持嵌套脱敏时，才显式添加 `nested`。
+此例中的 `next` 会自动按 `nested` 处理，因此子节点的 `password` 仍会脱敏。自定义 Serde adapter
+不会自动归一化为 `nested`。使用 `serialize_with` 或 `with` 的字段不能同时标记 `nested`；adapter
+只支持未标记字段或 `redact(skip)`。需要按子值结构脱敏时，应移除 adapter，改用受支持的 nested 投影。
+未标记字段不提供该字段的脱敏保护；脱敏启用时，`redact(skip)` 会省略字段。disabled 策略下，仍按原值
+及 adapter 序列化。
 
 内置等级叶子包括字符串、字符、布尔、整数、浮点数，以及 `bigdecimal` 下的 BigDecimal。
 等级容器包括引用、Option、Vec、切片、数组、Box/Rc/Arc、VecDeque、LinkedList、集合、堆、
