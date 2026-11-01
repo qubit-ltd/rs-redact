@@ -12,7 +12,9 @@
 /// Debug output contains only transaction metadata, never item text. The public
 /// [`crate::DiagnosticRedactionHandle`] is created from this private token
 /// before an operation returns to the caller. Rejected empty items share an
-/// invalid item index, so handles are not guaranteed to be unique.
+/// invalid item index. Equivalent successful empty results with zero usage may
+/// also share a handle. A handle identifies a result, not an invocation
+/// number; track input positions separately when needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RedactionHandle {
     /// Identity of the batch transaction that created this handle.

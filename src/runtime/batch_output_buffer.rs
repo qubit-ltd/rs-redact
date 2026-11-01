@@ -8,8 +8,11 @@
 //! Unpublished independently resolvable text owned by the batch path.
 
 use crate::RedactedText;
+use crate::RedactionCompletion;
+use crate::RedactionReasons;
 use crate::RedactionSummary;
 use crate::RedactionTextOutput;
+use crate::RedactionUsage;
 
 /// Accumulates unpublished text outputs for one batch transaction.
 pub(super) struct BatchOutputBuffer {
@@ -17,6 +20,8 @@ pub(super) struct BatchOutputBuffer {
     items: Vec<RedactionTextOutput>,
     /// First item whose output capacity was exhausted, if one exists.
     exhausted_item: Option<usize>,
+    /// First equivalent successful empty item with no recorded usage.
+    zero_usage_complete_item: Option<usize>,
 }
 
 impl BatchOutputBuffer {
@@ -24,13 +29,14 @@ impl BatchOutputBuffer {
     ///
     /// # Returns
     ///
-    /// An empty buffer with no exhausted-item sentinel.
+    /// An empty buffer with no exhausted-item sentinel or reusable empty item.
     #[must_use]
     #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             items: Vec::new(),
             exhausted_item: None,
+            zero_usage_complete_item: None,
         }
     }
 
@@ -56,7 +62,10 @@ impl BatchOutputBuffer {
         self.exhausted_item
     }
 
-    /// Appends one rendered item and returns its stable batch index.
+    /// Appends one rendered item and returns its batch index.
+    ///
+    /// Equivalent successful empty items with zero usage share one stored
+    /// item. Their summaries must match completely, including disabled state.
     ///
     /// # Parameters
     ///
@@ -65,12 +74,26 @@ impl BatchOutputBuffer {
     ///
     /// # Returns
     ///
-    /// The stable insertion index of the new item.
+    /// The insertion index of the new item, or the shared index for an
+    /// equivalent successful empty item with zero usage.
     #[inline]
     pub(super) fn push(&mut self, text: String, summary: RedactionSummary) -> usize {
+        let reusable = text.is_empty()
+            && summary.completion() == RedactionCompletion::Complete
+            && summary.reasons() == RedactionReasons::empty()
+            && summary.usage() == RedactionUsage::empty();
+        if reusable
+            && let Some(index) = self.zero_usage_complete_item
+            && self.items[index].summary() == &summary
+        {
+            return index;
+        }
         let index = self.items.len();
         self.items
             .push(RedactionTextOutput::new(RedactedText::from_escaped(text), summary));
+        if reusable {
+            self.zero_usage_complete_item = Some(index);
+        }
         index
     }
 
@@ -94,5 +117,61 @@ impl BatchOutputBuffer {
     #[inline(always)]
     pub(super) fn publish(self) -> Vec<RedactionTextOutput> {
         self.items
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BatchOutputBuffer;
+    use crate::RedactionCompletion;
+    use crate::RedactionReason;
+    use crate::RedactionReasons;
+    use crate::RedactionSummary;
+    use crate::RedactionUsage;
+
+    fn summary(disabled: bool, reasons: RedactionReasons, usage: RedactionUsage) -> RedactionSummary {
+        RedactionSummary::from_parts(disabled, RedactionCompletion::Complete, reasons, usage)
+    }
+
+    #[test]
+    fn test_only_equivalent_zero_usage_successful_empty_items_share_a_slot() {
+        let neutral = summary(false, RedactionReasons::empty(), RedactionUsage::empty());
+        let charged = summary(
+            false,
+            RedactionReasons::empty(),
+            RedactionUsage::empty().with_domain_node(1),
+        );
+        let with_reason = summary(
+            false,
+            RedactionReasons::empty().with(RedactionReason::InvalidUri),
+            RedactionUsage::empty(),
+        );
+        let disabled = summary(true, RedactionReasons::empty(), RedactionUsage::empty());
+        let mut buffer = BatchOutputBuffer::new();
+
+        let neutral_index = buffer.push(String::new(), neutral);
+        assert_eq!(buffer.push(String::new(), neutral), neutral_index);
+        let nonempty_index = buffer.push("text".to_owned(), neutral);
+        assert_ne!(nonempty_index, neutral_index);
+        assert_eq!(buffer.push(String::new(), neutral), neutral_index);
+
+        let charged_index = buffer.push(String::new(), charged);
+        assert_ne!(charged_index, neutral_index);
+        let charged_again_index = buffer.push(String::new(), charged);
+        assert_ne!(charged_again_index, charged_index);
+        let reason_index = buffer.push(String::new(), with_reason);
+        assert_ne!(reason_index, neutral_index);
+        let reason_again_index = buffer.push(String::new(), with_reason);
+        assert_ne!(reason_again_index, reason_index);
+        let disabled_index = buffer.push(String::new(), disabled);
+        assert_ne!(disabled_index, neutral_index);
+        assert_eq!(buffer.push(String::new(), disabled), disabled_index);
+        assert_eq!(buffer.len(), 7);
+
+        let items = buffer.publish();
+        assert_eq!(items[charged_index].summary(), &charged);
+        assert_eq!(items[charged_again_index].summary(), &charged);
+        assert_eq!(items[reason_index].summary(), &with_reason);
+        assert_eq!(items[reason_again_index].summary(), &with_reason);
     }
 }

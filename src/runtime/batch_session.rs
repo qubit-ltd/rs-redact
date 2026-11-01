@@ -685,8 +685,26 @@ mod tests {
     use std::sync::Arc;
 
     use super::BatchSession;
+    use crate::Redact;
+    use crate::RedactionCompletion;
     use crate::RedactionPolicy;
     use crate::RedactionReason;
+    use crate::RedactionUsage;
+    use crate::RedactionWriter;
+
+    struct EmptyLiteral;
+
+    impl Redact for EmptyLiteral {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.literal("");
+        }
+    }
+
+    struct EmptyNoop;
+
+    impl Redact for EmptyNoop {
+        fn write_redacted(&self, _: &mut RedactionWriter<'_>) {}
+    }
 
     #[test]
     fn test_rejected_empty_items_do_not_allocate_slots() {
@@ -711,5 +729,45 @@ mod tests {
                 .contains(RedactionReason::TraversalLimitReached)
         );
         assert_eq!(output.summary().usage().output_bytes(), 0);
+    }
+
+    #[test]
+    fn test_zero_usage_successes_share_one_slot() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_nodes(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let mut batch = BatchSession::new(Arc::new(policy));
+        let first = batch.redact_value(&EmptyLiteral);
+        let mut last = first;
+        for _ in 1..10_000 {
+            last = batch.redact_value(&EmptyLiteral);
+        }
+        assert_eq!(batch.output.len(), 1);
+        assert_eq!(first, last);
+        let output = batch.finish();
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert_eq!(output.summary().usage(), RedactionUsage::empty());
+        assert_eq!(output.resolve(first).unwrap().text().as_str(), "");
+        assert_eq!(output.resolve(last).unwrap().text().as_str(), "");
+    }
+
+    #[test]
+    fn test_noop_success_storage_preserves_policy_summary() {
+        for policy in [RedactionPolicy::standard(), RedactionPolicy::disabled()] {
+            let disabled = policy.is_disabled();
+            let mut batch = BatchSession::new(Arc::new(policy));
+            for _ in 0..10_000 {
+                let _ = batch.redact_value(&EmptyNoop);
+            }
+            assert_eq!(batch.output.len(), 1);
+            let output = batch.finish();
+            assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+            assert_eq!(output.summary().is_redaction_disabled(), disabled);
+            assert_eq!(output.summary().usage(), RedactionUsage::empty());
+        }
     }
 }

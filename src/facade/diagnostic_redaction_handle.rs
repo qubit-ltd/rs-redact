@@ -10,8 +10,9 @@
 /// Opaque reference to one unpublished item in a
 /// [`crate::DiagnosticRedactionBatch`].
 ///
-/// Empty rejected items may share a handle, so callers must not rely on every
-/// operation receiving a unique handle.
+/// Empty rejected items and equivalent successful empty results with zero
+/// usage may share a handle. A handle identifies a result, not an invocation
+/// number; track input positions separately when needed.
 ///
 /// # Examples
 ///

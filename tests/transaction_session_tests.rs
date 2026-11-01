@@ -15,6 +15,7 @@ use qubit_redact::Redact;
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
+use qubit_redact::RedactionUsage;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::formats::argv::ArgvItem;
@@ -34,6 +35,14 @@ struct PanickingValue;
 impl Redact for PanickingValue {
     fn write_redacted(&self, _: &mut RedactionWriter<'_>) {
         panic!("test-only redaction panic");
+    }
+}
+
+struct EmptyLiteral;
+
+impl Redact for EmptyLiteral {
+    fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+        writer.literal("");
     }
 }
 
@@ -170,6 +179,55 @@ fn test_batch_resolves_items_only_from_its_own_output() {
     assert_eq!(output.text(first).as_str(), "Ada");
     assert!(output.text(second).as_str().contains("SafeValue"));
     assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+}
+
+#[test]
+fn test_empty_success_and_rejection_remain_distinct() {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(0);
+        })
+        .unwrap()
+        .build()
+        .unwrap();
+    let mut batch = Redactor::new(policy).diagnostic_batch();
+    let success = batch.redact_value(&EmptyLiteral);
+    let rejected = batch.redact_env("A", "x");
+    let success_again = batch.redact_value(&EmptyLiteral);
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(output.text(success).as_str(), "");
+    assert_eq!(output.text(success_again).as_str(), "");
+    assert_eq!(output.text(rejected).as_str(), "<incomplete>");
+}
+
+#[test]
+fn test_empty_success_handles_reject_foreign_batches_and_survive_interleaving() {
+    let mut first = Redactor::standard().diagnostic_batch();
+    let empty = first.redact_value(&EmptyLiteral);
+    let nonempty = first.redact_field("name", "Ada");
+    let repeated = first.redact_value(&EmptyLiteral);
+    let output = first.finish_with_marker("<incomplete>");
+    assert_eq!(output.text(empty).as_str(), "");
+    assert_eq!(output.text(repeated).as_str(), "");
+    assert_eq!(output.text(nonempty).as_str(), "Ada");
+    let foreign = Redactor::standard().diagnostic_batch().finish_with_marker("<foreign>");
+    assert_eq!(foreign.text(empty).as_str(), "<foreign>");
+}
+
+#[test]
+fn test_panic_discards_cached_empty_success_handle() {
+    let mut batch = Redactor::standard().diagnostic_batch();
+    let stale = batch.redact_value(&EmptyLiteral);
+    let panic = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let _ = batch.redact_value(&PanickingValue);
+    }));
+    assert!(panic.is_err());
+    let current = batch.redact_value(&EmptyLiteral);
+    let output = batch.finish_with_marker("<incomplete>");
+    assert_eq!(output.text(stale).as_str(), "<incomplete>");
+    assert_eq!(output.text(current).as_str(), "");
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(output.summary().usage(), RedactionUsage::empty());
 }
 
 #[cfg(feature = "json")]
