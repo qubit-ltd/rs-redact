@@ -750,6 +750,366 @@ fn test_conditional_skip_field_emits_serde_event_for_named_struct_and_variant() 
     }
 }
 
+#[derive(Serialize)]
+#[serde(tag = "kind", rename = "RR001Internal")]
+enum NativeRR001Internal {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind", rename = "RR001Internal")]
+enum RR001Internal {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+fn rr001_observed<T: Serialize>(value: &T) -> (Vec<(&'static str, &'static str)>, Vec<usize>) {
+    let mut events = Vec::new();
+    let mut counts = Vec::new();
+    value
+        .serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, false, None))
+        .unwrap();
+    (events, counts)
+}
+
+#[test]
+fn test_conditional_skip_rr001_internal() {
+    let native = NativeRR001Internal::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source = RR001Internal::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let expected = rr001_observed(&native);
+    assert_eq!(
+        expected.0,
+        vec![
+            ("begin", "RR001Internal"),
+            ("field", "kind"),
+            ("skip", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+        ]
+    );
+    assert_eq!(expected.1, vec![2]);
+    assert_eq!(rr001_observed(&source), expected);
+    for policy in [RedactionPolicy::standard(), RedactionPolicy::disabled()] {
+        assert_eq!(rr001_observed(&Redactor::new(policy).redact_view(&source)), expected);
+    }
+    rr001_assert_skip_error(&source);
+    rr001_assert_skip_error(&Redactor::standard().redact_view(&source));
+    rr001_assert_skip_error(&Redactor::new(RedactionPolicy::disabled()).redact_view(&source));
+}
+
+#[derive(Serialize)]
+#[serde(untagged, rename = "RR001Untagged")]
+enum NativeRR001Untagged {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(untagged, rename = "RR001Untagged")]
+enum RR001Untagged {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", content = "data", rename = "RR001Adjacent")]
+enum NativeRR001Adjacent {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind", content = "data", rename = "RR001Adjacent")]
+enum RR001Adjacent {
+    Payload {
+        #[serde(rename = "wire_optional", skip_serializing_if = "String::is_empty")]
+        optional: String,
+        visible: String,
+        #[serde(skip)]
+        never: String,
+    },
+}
+
+fn rr001_assert_skip_error<T: Serialize>(value: &T) {
+    let mut events = Vec::new();
+    let mut counts = Vec::new();
+    let result = value.serialize(&mut VariantIndexProbe::new(&mut events, &mut counts, true, None));
+    assert!(matches!(result, Err(ProbeError)));
+    assert!(events.contains(&("skip", "wire_optional")));
+    assert!(!events.contains(&("field", "visible")));
+    assert!(!events.contains(&("end", "")));
+    assert!(
+        serde_json::to_string(value).is_ok(),
+        "error must release serialization scope"
+    );
+}
+
+fn rr001_assert_value<T, U>(native: &T, source: &U, expected: &[(&'static str, &'static str)], counts: &[usize])
+where
+    T: Serialize,
+    U: Serialize + qubit_redact::domain::internal::RedactSerializeSource,
+    for<'a> <U as qubit_redact::domain::internal::RedactSerializeSource>::RedactedFields<'a>: Serialize,
+{
+    let native_observed = rr001_observed(native);
+    assert_eq!(native_observed.0, expected);
+    assert_eq!(native_observed.1, counts);
+    assert_eq!(rr001_observed(source), native_observed);
+    for policy in [RedactionPolicy::standard(), RedactionPolicy::disabled()] {
+        assert_eq!(
+            rr001_observed(&Redactor::new(policy).redact_view(source)),
+            native_observed
+        );
+    }
+}
+
+#[test]
+fn test_conditional_skip_rr001_untagged() {
+    let native_empty = NativeRR001Untagged::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source_empty = RR001Untagged::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_value(
+        &native_empty,
+        &source_empty,
+        &[
+            ("begin", "RR001Untagged"),
+            ("skip", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+        ],
+        &[1],
+    );
+    rr001_assert_skip_error(&source_empty);
+    rr001_assert_skip_error(&Redactor::standard().redact_view(&source_empty));
+    rr001_assert_skip_error(&Redactor::new(RedactionPolicy::disabled()).redact_view(&source_empty));
+    let native_full = NativeRR001Untagged::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source_full = RR001Untagged::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_value(
+        &native_full,
+        &source_full,
+        &[
+            ("begin", "RR001Untagged"),
+            ("field", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+        ],
+        &[2],
+    );
+}
+
+#[test]
+fn test_conditional_skip_rr001_adjacent() {
+    let native_empty = NativeRR001Adjacent::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source_empty = RR001Adjacent::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_value(
+        &native_empty,
+        &source_empty,
+        &[
+            ("begin", "RR001Adjacent"),
+            ("field", "kind"),
+            ("field", "data"),
+            ("begin", "Payload"),
+            ("skip", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+            ("end", ""),
+        ],
+        &[2, 1],
+    );
+    rr001_assert_skip_error(&source_empty);
+    rr001_assert_skip_error(&Redactor::standard().redact_view(&source_empty));
+    rr001_assert_skip_error(&Redactor::new(RedactionPolicy::disabled()).redact_view(&source_empty));
+    let native_full = NativeRR001Adjacent::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source_full = RR001Adjacent::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_value(
+        &native_full,
+        &source_full,
+        &[
+            ("begin", "RR001Adjacent"),
+            ("field", "kind"),
+            ("field", "data"),
+            ("begin", "Payload"),
+            ("field", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+            ("end", ""),
+        ],
+        &[2, 2],
+    );
+}
+
+#[test]
+fn test_conditional_skip_rr001_internal_nonempty_and_errors() {
+    let native = NativeRR001Internal::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    let source = RR001Internal::Payload {
+        optional: String::from("present"),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_value(
+        &native,
+        &source,
+        &[
+            ("begin", "RR001Internal"),
+            ("field", "kind"),
+            ("field", "wire_optional"),
+            ("field", "visible"),
+            ("end", ""),
+        ],
+        &[3],
+    );
+    let empty = RR001Internal::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+        never: String::new(),
+    };
+    rr001_assert_skip_error(&empty);
+    rr001_assert_skip_error(&Redactor::standard().redact_view(&empty));
+    rr001_assert_skip_error(&Redactor::new(RedactionPolicy::disabled()).redact_view(&empty));
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind", rename = "RR001InternalPredicate")]
+enum RR001InternalPredicate {
+    Payload {
+        #[redact(skip)]
+        #[serde(rename = "wire_optional", skip_serializing_if = "count_if_empty")]
+        optional: String,
+        visible: String,
+    },
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(untagged, rename = "RR001UntaggedPredicate")]
+enum RR001UntaggedPredicate {
+    Payload {
+        #[redact(skip)]
+        #[serde(rename = "wire_optional", skip_serializing_if = "count_if_empty")]
+        optional: String,
+        visible: String,
+    },
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind", content = "data", rename = "RR001AdjacentPredicate")]
+enum RR001AdjacentPredicate {
+    Payload {
+        #[redact(skip)]
+        #[serde(rename = "wire_optional", skip_serializing_if = "count_if_empty")]
+        optional: String,
+        visible: String,
+    },
+}
+
+#[test]
+fn test_conditional_skip_rr001_redact_skip_predicate_boundary() {
+    let internal = RR001InternalPredicate::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+    };
+    let untagged = RR001UntaggedPredicate::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+    };
+    let adjacent = RR001AdjacentPredicate::Payload {
+        optional: String::new(),
+        visible: String::from("yes"),
+    };
+    macro_rules! check_boundary {
+        ($value:expr) => {{
+            TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+            let events = rr001_observed(&$value).0;
+            assert!(!events.contains(&("skip", "wire_optional")));
+            assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+            TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+            let events = rr001_observed(&Redactor::standard().redact_view(&$value)).0;
+            assert!(!events.contains(&("skip", "wire_optional")));
+            assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+            TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+            let events = rr001_observed(&Redactor::new(RedactionPolicy::disabled()).redact_view(&$value)).0;
+            assert!(events.contains(&("skip", "wire_optional")));
+            assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 1);
+        }};
+    }
+    check_boundary!(internal);
+    check_boundary!(untagged);
+    check_boundary!(adjacent);
+}
+
 #[test]
 fn test_conditional_skip_field_redact_skip_predicate_scope_and_errors() {
     let source = ConditionalSkipStruct {

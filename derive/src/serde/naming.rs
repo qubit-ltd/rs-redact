@@ -47,6 +47,9 @@ pub(super) fn serialized_variant_name(
 /// * `serde` - Resolved path to Serde.
 /// * `names` - Serialized field names in carrier order.
 /// * `carriers` - Optional serialized carrier identifiers.
+/// * `skip_events` - Optional eligibility expressions aligned with `carriers`;
+///   expressions are evaluated while constructing the proxy value and do not
+///   evaluate field omission predicates.
 ///
 /// # Returns
 ///
@@ -59,6 +62,7 @@ pub(super) fn named_content_proxy(
     serde: &Path,
     names: &[String],
     carriers: &[Ident],
+    skip_events: &[Option<TokenStream>],
 ) -> (TokenStream, TokenStream) {
     let unraw_variant_name = variant_name.unraw();
     let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
@@ -97,7 +101,12 @@ pub(super) fn named_content_proxy(
         .map(|index| format_ident!("value_{index}"))
         .collect::<Vec<_>>();
     let count_fields = &value_fields;
-    let calls = names.iter().zip(&value_fields).map(|(name, value)| {
+    let skip_event_values = skip_events
+        .iter()
+        .map(|allowed| allowed.clone().unwrap_or_else(|| quote!(false)))
+        .collect::<Vec<_>>();
+    let carrier_count = carriers.len();
+    let calls = names.iter().zip(&value_fields).enumerate().map(|(index, (name, value))| {
         quote! {
             if let ::core::option::Option::Some(value) = self.#value.as_ref() {
                 #serde::ser::SerializeStruct::serialize_field(
@@ -105,12 +114,15 @@ pub(super) fn named_content_proxy(
                     #name,
                     value,
                 )?;
+            } else if self.__qubit_redact_skip_events[#index] {
+                #serde::ser::SerializeStruct::skip_field(&mut state, #name)?;
             }
         }
     });
     let definition = quote! {
         struct #proxy<#(#value_types),*> {
             #(#value_fields: ::core::option::Option<#value_types>,)*
+            __qubit_redact_skip_events: [bool; #carrier_count],
         }
         impl<#(#value_types),*> #serde::Serialize for #proxy<#(#value_types),*>
         where
@@ -148,6 +160,7 @@ pub(super) fn named_content_proxy(
     let value = quote! {
         #proxy {
             #(#value_fields: #carriers,)*
+            __qubit_redact_skip_events: [#(#skip_event_values),*],
         }
     };
     (definition, value)

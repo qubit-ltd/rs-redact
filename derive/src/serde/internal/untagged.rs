@@ -18,6 +18,8 @@ use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
+use crate::serde::field::conditional_skip_event_allowed;
+use crate::serde::field::field_is_skipped;
 /// Generates one untagged variant arm.
 ///
 /// # Parameters
@@ -59,12 +61,28 @@ pub(in crate::serde) fn untagged_variant_arm(
                 variant,
                 legacy_nested,
             );
+            let skip_events = fields
+                .iter()
+                .filter(|field| !field_is_skipped(field.serde_attributes()))
+                .map(|field| {
+                    conditional_skip_event_allowed(
+                        field.serde_attributes(),
+                        field.attributes().mode(),
+                    )
+                })
+                .collect::<Vec<_>>();
             let count_conditions = &conditions;
             let calls = conditions
                 .iter()
                 .zip(&names)
                 .zip(&carriers)
-                .map(|((_condition, field_name), carrier)| {
+                .zip(&skip_events)
+                .map(|(((_condition, field_name), carrier), allowed)| {
+                    let notify = allowed.as_ref().map(|allowed| quote! {
+                        else if #allowed {
+                            #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+                        }
+                    });
                     quote! {
                         if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
                             #serde::ser::SerializeStruct::serialize_field(
@@ -73,6 +91,7 @@ pub(in crate::serde) fn untagged_variant_arm(
                                 carrier,
                             )?;
                         }
+                        #notify
                     }
                 });
             quote! {

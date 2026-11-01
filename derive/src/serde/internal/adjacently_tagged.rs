@@ -19,6 +19,8 @@ use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
+use crate::serde::field::conditional_skip_event_allowed;
+use crate::serde::field::field_is_skipped;
 use crate::serde::naming::named_content_proxy;
 use crate::serde::naming::serialized_variant_name;
 use crate::serde::naming::tuple_content_proxy;
@@ -70,8 +72,25 @@ pub(in crate::serde) fn adjacent_variant_arm(
                 variant,
                 legacy_nested,
             );
-            let (proxy_definition, proxy_value) =
-                named_content_proxy(rust_name, &variant_name, runtime, serde, &names, &carriers);
+            let skip_events = fields
+                .iter()
+                .filter(|field| !field_is_skipped(field.serde_attributes()))
+                .map(|field| {
+                    conditional_skip_event_allowed(
+                        field.serde_attributes(),
+                        field.attributes().mode(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let (proxy_definition, proxy_value) = named_content_proxy(
+                rust_name,
+                &variant_name,
+                runtime,
+                serde,
+                &names,
+                &carriers,
+                &skip_events,
+            );
             quote! {
                 Self::#rust_name #pattern => {
                     #tag_serializer
