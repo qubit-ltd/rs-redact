@@ -7,6 +7,17 @@
 // =============================================================================
 //! Compile-time regression tests for optional format APIs.
 
+// These fixed consumer manifests only need to run in the minimal core feature
+// configuration; optional feature jobs retain their behavior tests separately.
+#![cfg(not(any(
+    feature = "derive",
+    feature = "serde",
+    feature = "bigdecimal",
+    feature = "json",
+    feature = "http",
+    feature = "uri",
+)))]
+
 mod support;
 
 use std::env;

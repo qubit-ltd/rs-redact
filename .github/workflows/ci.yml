@@ -36,6 +36,8 @@ jobs:
         run: ./.infra/bin/prepare-local-path-dependencies.sh
       - name: Test Windows OS strings
         run: cargo test --locked -p qubit-redact --no-default-features --test windows_os_string_tests
+      - name: Test Windows command input fixtures
+        run: cargo test --locked --manifest-path fuzz/Cargo.toml --bin command_inputs
   rust-ci:
     permissions:
       contents: read

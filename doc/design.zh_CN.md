@@ -292,8 +292,11 @@ trait 与借用 adapter 覆盖标量、可选值、引用、常用容器、tuple
 Option、Vec、固定数组和 tuple 等已有容器；切片不支持 nested 投影。切片能力属于显式 level
 脱敏，level 模式切片序列化为 sequence，通过准入的固定数组序列化为 tuple。投影要求已有
 scope；缺少 scope 时，即使容器为空，也返回不含原值的 serializer 错误。因此直接构造
-不能跳过集合、深度、节点和输入准入。internally tagged serializer 只接受能够保持目标结构的 map/struct 形态，不支持的
-Serde shape 返回明确错误而不是猜测表示。
+不能跳过集合、深度、节点和输入准入。internally tagged serializer 接受 map/struct、unit 和 unit struct；
+后两者编码为仅含 tag 的 map。newtype struct 会转发到同一 adapter，因此包装的 map/struct 仍受原预算约束，
+包装标量仍拒绝。其他不支持的 Serde shape 返回明确错误而不是猜测表示。枚举 newtype 字段遵循原生
+Serde 表示，不调用 `skip_serializing_if`；tuple 和 struct 字段仍执行谓词。此修正可能改变旧数据 wire shape，
+调用方需先用旧格式解码持久化数据，再重新编码。
 
 ## 8. 格式层
 

@@ -91,7 +91,7 @@ a serializable redacted projection.
 For transparent types, `skip_serializing_if` is ignored just as it is by native Serde transparent serialization; the selected field event is forwarded. This can change an earlier `null` output back to the field's representation. The redaction-specific `skip` mode remains independent: it uses the safe replacement while enabled and restores the field when disabled.
 Derived Serde output follows Serde's effective representation events and names for transparent types and tagged or untagged enums; JSON shape remains unchanged.
 Redact attributes are supported on containers and fields, not enum variants. Put field behavior on the variant's fields; remove an attribute from a unit variant, which has no fields to redact.
-For internally tagged variants, the payload must emit a map/struct event. A regular tuple newtype wrapper may emit `serialize_newtype_struct` and be rejected; see the [Serde representation guide](../doc/user_guide.md#internally-tagged-variants-and-newtype-payloads) for a runnable comparison and the direct-struct alternative.
+Internally tagged variants accept map/struct, unit, unit-struct, and map/struct-wrapped newtype payloads. Scalar wrappers remain unsupported; see the [Serde representation guide](../doc/user_guide.md#internally-tagged-variants-and-newtype-payloads).
 Do not derive ordinary `Debug` together with `debug`, or ordinary `Serialize` together with `serde`.
 
 ## Scalar Value Objects

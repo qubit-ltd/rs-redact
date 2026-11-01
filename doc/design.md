@@ -367,7 +367,16 @@ an existing scope, and return a value-free serializer error when it is absent, e
 construction therefore cannot skip collection, depth, node, or input admission.
 The internally tagged serializer accepts only map and struct shapes that
 preserve the intended structure; unsupported Serde shapes return explicit
-errors.
+errors. It also accepts unit and unit-struct payloads as tag-only maps, and
+forwards newtype-struct wrappers through the same adapter so wrapped maps and
+structs remain subject to the active structural and payload budget. Scalar
+wrappers remain unsupported.
+
+Enum newtype fields preserve native Serde representation: their
+`skip_serializing_if` predicate is not evaluated, while tuple and struct fields
+continue to apply it. This can change persisted wire shape from an omitted
+payload to the native newtype representation; callers reading old persisted
+data must decode it with the old format before re-encoding.
 
 Redacted serialization preserves the source Serde event shape: `Option::Some`
 uses `serialize_some`, level slices serialize as sequences, fixed arrays serialize as tuples, and wrappers forward the

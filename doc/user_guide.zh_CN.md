@@ -419,13 +419,11 @@ adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型�
 ### 内部标签枚举与 newtype 载荷
 
 内部标签变体需要把载荷序列化成 map 或 struct，才能把标签写入同一个对象。嵌套值的生成投影
-如果本身是 struct，就可以直接使用。普通 tuple newtype 包装器则可能发出 Serde 的
-`serialize_newtype_struct` 事件；内部标签 adapter 收到的不是 map/struct 事件，因此会拒绝。
-这里限制的是普通 newtype 包装。`transparent` 包装会委托字段的表示，属于另一种表示选择。只有当
-这种 wire 表示符合应用协议时，才改用直接载荷或 `transparent`。
+如果本身是 struct，就可以直接使用。内部标签 adapter 也接受 unit 和 unit struct（编码为只含标签的 map），
+以及包装 map/struct 的 newtype struct。包装层继续受当前深度、节点、输入和 payload 预算约束；包装标量仍拒绝。
+`transparent` 包装则委托字段的表示。
 
-下面的完整程序先展示普通包装器被拒绝，再展示直接使用 struct 载荷的写法。第一次
-`to_json()` 必须返回错误；第二次保留内部标签，并掩码敏感字段。
+下面的完整程序分别验证 newtype 包装器和直接 struct 载荷。两种写法都会保留内部标签并掩码敏感字段。
 
 <!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
@@ -459,7 +457,10 @@ enum DirectEvent {
 fn main() {
     let redactor = Redactor::standard();
     let wrapped = WrappedEvent::V(Wrapper(Payload { password: "raw-secret".into() }));
-    assert!(redactor.to_json(&wrapped).is_err());
+    let wrapped_json = redactor.to_json(&wrapped).expect("wrapped struct payload");
+    let wrapped_value: serde_json::Value = serde_json::from_str(&wrapped_json).unwrap();
+    assert_eq!(wrapped_value["kind"], "V");
+    assert_eq!(wrapped_value["password"], "<redacted>");
 
     let direct = DirectEvent::V(Payload { password: "raw-secret".into() });
     let json = redactor.to_json(&direct).expect("direct struct payload");
@@ -471,6 +472,22 @@ fn main() {
 ```
 
 ### 标量 newtype
+
+对调用方直接提供分类键的标量，可使用
+`Redactor::redact_field_at_least(level, field, value)`，或在 composer 中调用
+`field_at_least(level, field, value)`。启用策略时，显式最低级别与策略分类取较强者；
+disabled 策略恢复原值，但仍受资源限制。High 和 Secret 值不会调用格式化器。
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{Redactor, Sensitivity};
+fn main() {
+    let output = Redactor::standard().redact_field_at_least(
+        Sensitivity::Secret, "detail", "private text",
+    );
+    assert!(!output.text().as_str().contains("private text"));
+}
+```
 
 <!-- redact-example: kind=run features=derive,serde,json -->
 ```rust

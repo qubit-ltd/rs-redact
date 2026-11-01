@@ -87,8 +87,8 @@ runtime 的 `serde` feature 会为每个派生类型生成 `redact_view()` 的�
 transparent 类型会像原生 Serde 一样忽略 `skip_serializing_if` 并转发所选字段事件。此前错误输出为 `null` 的空字段会恢复为字段本身的表示。脱敏专有的 `skip` 模式仍独立生效：启用时使用安全替代，disabled 时恢复字段。
 derive 生成的 Serde 输出遵循 transparent 类型及 tagged/untagged enum 的标准表示事件和生效名称；JSON 结构形状保持不变。
 `redact` 属性支持放在容器和字段上，不支持放在 enum variant 上。请把字段行为标注到 variant 内的字段；unit variant 没有可脱敏字段，应移除该属性。
-内部标签变体要求载荷发出 map/struct 事件。普通 tuple newtype 包装器可能发出
-`serialize_newtype_struct`，因而被拒绝。完整对照示例和直接 struct 载荷的替代写法见
+内部标签变体支持 map/struct、unit、unit struct，以及包装 map/struct 的 newtype 载荷；标量包装仍拒绝。
+表示说明见
 [Serde 表示说明](../doc/user_guide.zh_CN.md#内部标签枚举与-newtype-载荷)。
 `debug` 不应与普通 `Debug` 派生同时使用，`serde` 不应与普通 `Serialize` 派生同时使用。
 

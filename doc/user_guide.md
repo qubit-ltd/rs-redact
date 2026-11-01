@@ -457,17 +457,13 @@ remove the attribute from a unit variant.
 
 ### Internally Tagged Variants and Newtype Payloads
 
-An internally tagged variant must serialize its payload as a map or struct so the tag can be
-added to that object. A nested value whose generated projection is a struct works directly. A
-regular tuple newtype wrapper can instead emit Serde's `serialize_newtype_struct` event, which
-the internally tagged adapter rejects because it is not itself a map/struct event. This limit
-applies to ordinary newtype wrappers; a `transparent` wrapper delegates its field's
-representation and is a different representation choice. Use a direct payload or `transparent`
-only when that wire representation matches the application's protocol.
+An internally tagged variant accepts map and struct payloads, unit and unit-struct payloads
+(encoded as a tag-only map), and newtype wrappers around maps or structs. Wrapper layers retain
+the active depth, node, input, and payload budget. Scalar wrappers remain unsupported. A
+`transparent` wrapper delegates its field's representation.
 
-The complete example below contrasts the rejected wrapper with a direct struct payload. The
-first `to_json()` call must return an error; the second keeps the internal tag and masks the
-secret field.
+The complete example below verifies both a newtype wrapper and a direct struct payload. Both
+keep the internal tag and mask the secret field.
 
 <!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
@@ -501,7 +497,10 @@ enum DirectEvent {
 fn main() {
     let redactor = Redactor::standard();
     let wrapped = WrappedEvent::V(Wrapper(Payload { password: "raw-secret".into() }));
-    assert!(redactor.to_json(&wrapped).is_err());
+    let wrapped_json = redactor.to_json(&wrapped).expect("wrapped struct payload");
+    let wrapped_value: serde_json::Value = serde_json::from_str(&wrapped_json).unwrap();
+    assert_eq!(wrapped_value["kind"], "V");
+    assert_eq!(wrapped_value["password"], "<redacted>");
 
     let direct = DirectEvent::V(Payload { password: "raw-secret".into() });
     let json = redactor.to_json(&direct).expect("direct struct payload");
@@ -513,6 +512,24 @@ fn main() {
 ```
 
 ### Scalar Newtypes
+
+For a direct scalar whose classification key is supplied by the caller, use
+`Redactor::redact_field_at_least(level, field, value)` or chain
+`RedactedTextComposer::field_at_least(level, field, value)`. The minimum combines
+with policy classification by taking the stronger sensitivity; disabled policies
+restore the original value while retaining resource limits. High and Secret
+values are not formatted.
+
+<!-- redact-example: kind=run features=none -->
+```rust
+use qubit_redact::{Redactor, Sensitivity};
+fn main() {
+    let output = Redactor::standard().redact_field_at_least(
+        Sensitivity::Secret, "detail", "private text",
+    );
+    assert!(!output.text().as_str().contains("private text"));
+}
+```
 
 <!-- redact-example: kind=run features=derive,serde,json -->
 ```rust
