@@ -15,8 +15,10 @@ use std::os::windows::ffi::OsStrExt;
 
 /// Converts an OS string lossily without retaining more than `maximum` bytes.
 ///
-/// The returned boolean is true when the complete lossy representation did
-/// not fit. Decoding stops as soon as the output limit is crossed.
+/// The returned boolean is true when the complete lossy representation does not
+/// fit. The byte limit bounds retained output, not the amount of source
+/// examined. On Unix, UTF-8 validation may scan the remaining input before an
+/// output-limit rejection is detected.
 #[must_use]
 pub(crate) fn capture(value: &OsStr, maximum: usize) -> (String, bool) {
     let mut output = String::with_capacity(maximum.min(1024));
