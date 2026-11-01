@@ -22,6 +22,11 @@ fn count_if_empty<T: AsRef<str>>(value: &T) -> bool {
     value.as_ref().is_empty()
 }
 
+fn count_unit_if(_: &()) -> bool {
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+    true
+}
+
 #[derive(Serialize)]
 #[serde(transparent)]
 struct NativeConditionalNamed {
@@ -208,8 +213,167 @@ enum GenericAdjacent<__QubitRedactAdjacentTag> {
     Data(__QubitRedactAdjacentTag),
 }
 
+#[derive(Serialize)]
+#[serde(rename = "ConditionalEnum")]
+enum NativeConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(rename = "ConditionalEnum")]
+enum ConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", content = "data")]
+enum NativeAdjacentConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind", content = "data")]
+enum AdjacentConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum NativeUntaggedConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(untagged)]
+enum UntaggedConditionalEnum {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String),
+}
+
+fn serialize_marked_string<S: serde::Serializer>(value: &str, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(if value.is_empty() {
+        "custom-empty"
+    } else {
+        "custom-value"
+    })
+}
+
+#[allow(dead_code)]
+fn count_self_if_empty(value: &str) -> bool {
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+    value.is_empty()
+}
+
+#[derive(Serialize)]
+#[serde(rename = "SelfPredicateEnum")]
+enum NativeSelfPredicateEnum {
+    Payload(
+        #[serde(
+            skip_serializing_if = "Self::skip_if_empty",
+            serialize_with = "serialize_marked_string"
+        )]
+        String,
+    ),
+}
+
+impl NativeSelfPredicateEnum {
+    #[allow(dead_code)]
+    fn skip_if_empty(value: &str) -> bool {
+        count_self_if_empty(value)
+    }
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(rename = "SelfPredicateEnum")]
+enum SelfPredicateEnum {
+    Payload(
+        #[serde(
+            skip_serializing_if = "Self::skip_if_empty",
+            serialize_with = "serialize_marked_string"
+        )]
+        String,
+    ),
+}
+
+impl SelfPredicateEnum {
+    #[allow(dead_code)]
+    fn skip_if_empty(value: &str) -> bool {
+        count_self_if_empty(value)
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename = "RedactSkipEnum")]
+enum NativeRedactSkipEnum {
+    Payload(String),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(rename = "RedactSkipEnum")]
+enum RedactSkipEnum {
+    Payload(
+        #[redact(skip)]
+        #[serde(skip_serializing_if = "count_if_empty")]
+        String,
+    ),
+}
+
+#[derive(Serialize)]
+#[serde(rename = "ConditionalTupleVariant")]
+enum NativeConditionalTupleVariant {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String, String),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(rename = "ConditionalTupleVariant")]
+enum ConditionalTupleVariant {
+    Payload(#[serde(skip_serializing_if = "count_if_empty")] String, String),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+enum NativeInternalUnit {
+    Payload(#[serde(skip_serializing_if = "count_unit_if")] ()),
+}
+
+#[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+#[serde(tag = "kind")]
+enum InternalUnit {
+    Payload(#[serde(skip_serializing_if = "count_unit_if")] ()),
+}
+
 fn check_transparent_tokens<T: serde::Serialize>(value: &T, token: serde_test::Token) {
     serde_test::assert_ser_tokens(value, &[token]);
+}
+
+fn assert_enum_newtype_matches_native<N, R, S, D>(native: &N, source: &R, expected: &str, standard: S, disabled: D)
+where
+    N: Serialize,
+    R: Serialize,
+    S: Serialize,
+    D: Serialize,
+{
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(native).unwrap(), expected);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(source).unwrap(), expected);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(&standard).unwrap(), expected);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(&disabled).unwrap(), expected);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
 }
 
 #[test]
@@ -231,6 +395,169 @@ fn test_transparent_named_source_and_view_forward_inner_event() {
         serde_json::to_value(disabled.redact_view(&source)).expect("disabled transparent JSON should serialize"),
         serde_json::json!("raw-secret")
     );
+}
+
+#[test]
+fn test_enum_newtype_does_not_apply_skip_predicate() {
+    use serde_test::Token;
+
+    for input in ["", "visible"] {
+        let native = NativeConditionalEnum::Payload(input.to_owned());
+        let value = ConditionalEnum::Payload(input.to_owned());
+        let expected = format!(r#"{{"Payload":"{input}"}}"#);
+        assert_enum_newtype_matches_native(
+            &native,
+            &value,
+            &expected,
+            Redactor::standard().redact_view(&value),
+            Redactor::new(RedactionPolicy::disabled()).redact_view(&value),
+        );
+
+        TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+        serde_test::assert_ser_tokens(
+            &value,
+            &[
+                Token::NewtypeVariant {
+                    name: "ConditionalEnum",
+                    variant: "Payload",
+                },
+                Token::Str(input),
+            ],
+        );
+        assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+    }
+}
+
+#[test]
+fn test_adjacent_and_untagged_newtypes_do_not_apply_skip_predicate() {
+    for input in ["", "visible"] {
+        let adjacent_native = NativeAdjacentConditionalEnum::Payload(input.to_owned());
+        let adjacent = AdjacentConditionalEnum::Payload(input.to_owned());
+        let adjacent_expected = format!(r#"{{"kind":"Payload","data":"{input}"}}"#);
+        assert_enum_newtype_matches_native(
+            &adjacent_native,
+            &adjacent,
+            &adjacent_expected,
+            Redactor::standard().redact_view(&adjacent),
+            Redactor::new(RedactionPolicy::disabled()).redact_view(&adjacent),
+        );
+
+        let untagged_native = NativeUntaggedConditionalEnum::Payload(input.to_owned());
+        let untagged = UntaggedConditionalEnum::Payload(input.to_owned());
+        let untagged_expected = format!("{input:?}");
+        assert_enum_newtype_matches_native(
+            &untagged_native,
+            &untagged,
+            &untagged_expected,
+            Redactor::standard().redact_view(&untagged),
+            Redactor::new(RedactionPolicy::disabled()).redact_view(&untagged),
+        );
+    }
+}
+
+#[test]
+fn test_enum_newtype_serialize_with_and_self_predicate_are_preserved() {
+    for (input, expected_payload) in [("", "custom-empty"), ("visible", "custom-value")] {
+        let native = NativeSelfPredicateEnum::Payload(input.to_owned());
+        let source = SelfPredicateEnum::Payload(input.to_owned());
+        let expected = format!(r#"{{"Payload":"{expected_payload}"}}"#);
+        assert_enum_newtype_matches_native(
+            &native,
+            &source,
+            &expected,
+            Redactor::standard().redact_view(&source),
+            Redactor::new(RedactionPolicy::disabled()).redact_view(&source),
+        );
+    }
+}
+
+#[test]
+fn test_enum_newtype_redact_skip_respects_enabled_and_disabled_policy() {
+    use serde_test::Token;
+
+    let native = NativeRedactSkipEnum::Payload(String::from("private"));
+    let source = RedactSkipEnum::Payload(String::from("private"));
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(&native).unwrap(), r#"{"Payload":"private"}"#);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(&source).unwrap(), r#""Payload""#);
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    serde_test::assert_ser_tokens(
+        &source,
+        &[Token::UnitVariant {
+            name: "RedactSkipEnum",
+            variant: "Payload",
+        }],
+    );
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    serde_test::assert_ser_tokens(
+        &Redactor::standard().redact_view(&source),
+        &[Token::UnitVariant {
+            name: "RedactSkipEnum",
+            variant: "Payload",
+        }],
+    );
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    serde_test::assert_ser_tokens(
+        &Redactor::new(RedactionPolicy::disabled()).redact_view(&source),
+        &[
+            Token::NewtypeVariant {
+                name: "RedactSkipEnum",
+                variant: "Payload",
+            },
+            Token::Str("private"),
+        ],
+    );
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
+}
+
+#[test]
+fn test_multi_field_tuple_enum_still_applies_skip_predicate() {
+    let native = NativeConditionalTupleVariant::Payload(String::new(), String::from("visible"));
+    let source = ConditionalTupleVariant::Payload(String::new(), String::from("visible"));
+    let expected = serde_json::to_string(&native).unwrap();
+    assert!(!expected.is_empty());
+
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(serde_json::to_string(&source).unwrap(), expected);
+    assert!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get) > 0);
+
+    for policy in [RedactionPolicy::standard(), RedactionPolicy::disabled()] {
+        TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+        assert_eq!(
+            serde_json::to_string(&Redactor::new(policy).redact_view(&source)).unwrap(),
+            expected,
+        );
+        assert!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get) > 0);
+    }
+}
+
+#[test]
+fn test_internally_tagged_unit_newtype_does_not_apply_predicate() {
+    let native = NativeInternalUnit::Payload(());
+    let value = InternalUnit::Payload(());
+    let expected = serde_json::to_string(&native).unwrap();
+    TRANSPARENT_PREDICATE_CALLS.with(|calls| calls.set(0));
+    assert_eq!(expected, r#"{"kind":"Payload"}"#);
+    assert_eq!(serde_json::to_string(&value).unwrap(), expected);
+    assert_eq!(
+        serde_json::to_string(&Redactor::standard().redact_view(&value)).unwrap(),
+        expected
+    );
+    assert_eq!(
+        serde_json::to_string(&Redactor::new(RedactionPolicy::disabled()).redact_view(&value)).unwrap(),
+        expected,
+    );
+    assert_eq!(TRANSPARENT_PREDICATE_CALLS.with(std::cell::Cell::get), 0);
 }
 
 #[test]

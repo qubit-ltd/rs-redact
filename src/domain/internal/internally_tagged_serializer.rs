@@ -429,7 +429,7 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     fn serialize_bytes(self, _value: &[u8]) -> Result<Self::Ok, Self::Error> {
         self.unsupported()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Rejects an option payload without invoking a value serializer.
     ///
     /// # Errors
     ///
@@ -442,15 +442,11 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         self.unsupported()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Rejects an option payload with a value without invoking its serializer.
     ///
     /// # Errors
     ///
     /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `T`: Possibly unsized serializable source type.
     ///
     /// # Parameters
     ///
@@ -463,38 +459,37 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     fn serialize_some<T: ?Sized + Serialize>(self, _value: &T) -> Result<Self::Ok, Self::Error> {
         self.unsupported()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Serializes a unit payload as a tag-only map.
     ///
     /// # Errors
     ///
-    /// Always returns an error because the payload is not a map or struct.
+    /// Returns a destination error if tag admission or map serialization fails.
     ///
     /// # Returns
     ///
-    /// No success value; this unsupported shape is always rejected.
+    /// The destination serializer's successful map result.
     #[inline(always)]
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
+        self.serialize_map(Some(0))?.end()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Serializes a unit struct using the accepted unit representation.
     ///
     /// # Errors
     ///
-    /// Always returns an error because the payload is not a map or struct.
+    /// Returns a destination error if tag admission or map serialization fails.
     ///
     /// # Parameters
     ///
-    /// - `_name`: Static source type name. Ignored because this shape is
-    ///   rejected.
+    /// - `_name`: Static source type name, unused by the map representation.
     ///
     /// # Returns
     ///
-    /// No success value; this unsupported shape is always rejected.
+    /// The destination serializer's successful map result.
     #[inline(always)]
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
+        self.serialize_unit()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Rejects a unit enum variant payload, which is not a map or struct.
     ///
     /// # Errors
     ///
@@ -502,7 +497,7 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     ///
     /// # Parameters
     ///
-    /// - `_name`: Static source type name. Ignored because this shape is
+    /// - `_name`: Static enum type name. Ignored because this shape is
     ///   rejected.
     /// - `_variant_index`: Source variant index. Ignored because this shape is
     ///   rejected.
@@ -521,11 +516,12 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     ) -> Result<Self::Ok, Self::Error> {
         self.unsupported()
     }
-    /// Rejects a non-map payload without invoking its value serializer.
+    /// Forwards a newtype wrapper to this adapter.
     ///
     /// # Errors
     ///
-    /// Always returns an error because the payload is not a map or struct.
+    /// Returns the destination result for wrapped maps or structs. Other
+    /// underlying shapes produce the adapter's unsupported-shape error.
     ///
     /// # Type Parameters
     ///
@@ -533,20 +529,19 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     ///
     /// # Parameters
     ///
-    /// - `_name`: Static source type name. Ignored because this shape is
-    ///   rejected.
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
+    /// - `_name`: Static wrapper name, which does not alter the payload event.
+    /// - `value`: Wrapped source value serialized through this adapter.
     ///
     /// # Returns
     ///
-    /// No success value; this unsupported shape is always rejected.
+    /// The destination serializer's result for the wrapped payload.
     #[inline(always)]
     fn serialize_newtype_struct<T: ?Sized + Serialize>(
         self,
         _name: &'static str,
-        _value: &T,
+        value: &T,
     ) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
+        value.serialize(self)
     }
     /// Rejects a non-map payload without invoking its value serializer.
     ///

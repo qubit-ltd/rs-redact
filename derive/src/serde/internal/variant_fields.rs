@@ -241,13 +241,21 @@ pub(super) fn enum_unnamed_parts(
             },
             legacy_nested,
         );
-        let condition = serialization_condition(
-            source_context,
-            parsed.serde_attributes(),
-            parsed.attributes().mode(),
-            raw,
-            predicate,
-        );
+        let condition = if fields.len() == 1 {
+            if matches!(parsed.attributes().mode(), FieldMode::Skip) {
+                quote!(policy.is_disabled())
+            } else {
+                quote!(true)
+            }
+        } else {
+            serialization_condition(
+                source_context,
+                parsed.serde_attributes(),
+                parsed.attributes().mode(),
+                raw,
+                predicate,
+            )
+        };
         setups.push(quote_spanned! {field.span()=>
             let #carrier = if #condition {
                 ::core::option::Option::Some(#value)
