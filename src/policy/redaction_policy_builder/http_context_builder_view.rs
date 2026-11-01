@@ -205,12 +205,16 @@ impl HttpContextBuilderView<'_> {
         self
     }
 
-    /// Adds a context floor. Base protection remains independently
-    /// effective.
+    /// Replaces this context's explicit floor.
+    ///
+    /// The last call wins; protection from a previous context floor is not
+    /// accumulated. Base-policy protection remains independently effective.
+    /// To retain several custom protections, construct one floor containing
+    /// their rules with `RedactionFloorBuilder` before installing it here.
     ///
     /// # Parameters
     ///
-    /// * `floor` — the minimum protections to add to this context.
+    /// * `floor` — the complete explicit floor to install for this context.
     ///
     /// # Returns
     ///

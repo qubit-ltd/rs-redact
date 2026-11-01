@@ -7,6 +7,7 @@
 // =============================================================================
 //! Tests for HTTP policy builder behavior.
 
+use qubit_redact::RedactionFloor;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::formats::http::TextBodyPolicy;
@@ -36,4 +37,32 @@ fn test_http_policy_builder_rejects_an_ignored_context_error() {
     });
 
     assert!(result.is_err(), "an invalid HTTP draft must not be committed");
+}
+
+#[test]
+fn test_context_floor_replaces_previous_custom_rules() {
+    let first = RedactionFloor::builder()
+        .raise("x-alpha", Sensitivity::Secret)
+        .expect("valid first rule")
+        .build()
+        .expect("valid first floor");
+    let second = RedactionFloor::builder()
+        .raise("x-beta", Sensitivity::High)
+        .expect("valid second rule")
+        .build()
+        .expect("valid second floor");
+    let policy = RedactionPolicy::standard()
+        .to_builder()
+        .http(|http| {
+            http.header().floor(first).floor(second);
+        })
+        .expect("valid HTTP draft")
+        .build()
+        .expect("valid policy");
+    assert_eq!(policy.http().header_rules().sensitivity_for("x-alpha"), None);
+    assert_eq!(
+        policy.http().header_rules().sensitivity_for("x-beta"),
+        Some(Sensitivity::High)
+    );
+    assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret));
 }
