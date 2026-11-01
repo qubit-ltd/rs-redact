@@ -141,6 +141,9 @@ fn starts_with_http_scheme(value: &str) -> bool {
 /// Returns the safely decoded UTF-8 prefix when an escape is incomplete,
 /// contains a non-hexadecimal byte, or produces invalid UTF-8.
 fn percent_decode_once(value: &str) -> Result<Option<String>, String> {
+    if !value.as_bytes().contains(&b'%') {
+        return Ok(None);
+    }
     let bytes = value.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
     let mut index = 0;

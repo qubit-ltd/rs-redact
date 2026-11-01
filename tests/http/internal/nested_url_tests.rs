@@ -65,9 +65,14 @@ fn test_nested_url_malformed_escape_variants_fail_closed() {
 #[test]
 fn test_nested_url_detector_ignores_non_http_values() {
     let redactor = Redactor::standard();
+    let plain_nested_url = redact_url(
+        &redactor,
+        "https://outer.test/?next=http://inner.test/path?token=raw-secret",
+    );
     let non_http = redact_url(&redactor, "https://outer.test/?next=ftp://inner.test/public");
     let malformed_text = redact_url(&redactor, "https://outer.test/?next=note%25FFpublic");
 
+    assert!(!plain_nested_url.contains("raw-secret"));
     assert!(non_http.contains("ftp"));
     assert!(malformed_text.contains("note"));
 }

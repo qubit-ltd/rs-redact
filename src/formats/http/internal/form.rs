@@ -170,6 +170,9 @@ fn append_bounded_piece(output: &mut String, piece: &str, limit: usize) -> bool 
 /// `true` when percent escapes and decoded UTF-8 are valid.
 #[must_use]
 fn is_valid_component(component: &[u8]) -> bool {
+    if !component.iter().any(|byte| matches!(*byte, b'%' | b'+')) {
+        return std::str::from_utf8(component).is_ok();
+    }
     let mut decoded = Vec::with_capacity(component.len());
     let mut index = 0;
     while index < component.len() {
