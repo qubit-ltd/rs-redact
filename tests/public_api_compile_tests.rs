@@ -12,6 +12,7 @@ mod support;
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
+use std::path::PathBuf;
 use std::process;
 use std::process::Output;
 
@@ -39,12 +40,34 @@ fn check_dependent(case: &str, source: &str, features: &[&str]) -> Output {
     .expect("the dependent manifest should be writable");
     fs::write(directory.join("src/main.rs"), source).expect("the dependent source should be writable");
     let mut command = support::isolated_cargo::command(OsStr::new(env!("CARGO")));
-    command.args(["check", "--message-format=json"]).current_dir(&directory);
+    command
+        .args(["check", "--message-format=json"])
+        .env("CARGO_TARGET_DIR", dependent_target_dir())
+        .current_dir(&directory);
     let output = command
         .output()
         .expect("cargo check for the dependent crate should run");
     fs::remove_dir_all(directory).expect("the dependent crate should be removable");
     output
+}
+
+/// Selects the stable target directory for temporary public API consumers.
+fn dependent_target_dir() -> PathBuf {
+    match env::var_os("CARGO_TARGET_DIR") {
+        Some(value) => {
+            let path = PathBuf::from(value);
+            if path.is_absolute() {
+                path
+            } else {
+                env::current_dir()
+                    .expect("the parent test working directory should be readable")
+                    .join(path)
+            }
+        }
+        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("public-api-fixtures"),
+    }
 }
 
 /// Asserts an intentionally removed API cannot be named by a dependent crate.
