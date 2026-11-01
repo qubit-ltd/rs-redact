@@ -395,6 +395,14 @@ fn test_option_layers_consume_nodes_and_depth() {
 
 #[test]
 fn test_option_budget_preserves_secret_masking_for_source_view_and_json() {
+    #[cfg(feature = "json")]
+    let _lock = APPLICATION_DEFAULT_LOCK.lock().expect("application-default test lock");
+    #[cfg(feature = "json")]
+    let original = Redactor::application_default();
+    #[cfg(feature = "json")]
+    let _restore = ApplicationDefaultRestore(original);
+    #[cfg(feature = "json")]
+    let _ = Redactor::replace_application_default(Redactor::standard());
     let source = Some(Credential {
         password: "raw-secret".into(),
     });
