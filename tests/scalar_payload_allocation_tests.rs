@@ -90,6 +90,15 @@ fn serialize_to_sink<T: Serialize>(value: &T, policy: &RedactionPolicy) -> usize
     allocations
 }
 
+fn assert_bounded_growth(label: &str, samples: &[(usize, usize)]) {
+    let minimum = samples.iter().map(|sample| sample.1).min().expect("nonempty samples");
+    let maximum = samples.iter().map(|sample| sample.1).max().expect("nonempty samples");
+    assert!(
+        maximum.saturating_sub(minimum) <= 2,
+        "{label} allocations grew with element count: {samples:?}",
+    );
+}
+
 fn values<T: Serialize + Clone>(n: usize, value: T) -> Vec<T> {
     vec![value; n]
 }
@@ -116,6 +125,8 @@ fn test_scalar_counting_allocations_do_not_scale_with_numeric_elements() {
     for count in [0, 1, 16, 256] {
         let numbers = values(count, 123_456_789_u64);
         let texts = values(count, String::from("123456789"));
+        let _ = serialize_to_sink(&numbers, &policy);
+        let _ = serialize_to_sink(&texts, &policy);
         numeric.push((count, serialize_to_sink(&numbers, &policy)));
         strings.push((count, serialize_to_sink(&texts, &policy)));
     }
@@ -126,6 +137,8 @@ fn test_scalar_counting_allocations_do_not_scale_with_numeric_elements() {
         numeric_growth <= string_growth + 2,
         "numeric allocation growth ({numeric_growth}) exceeded string control ({string_growth})"
     );
+    assert_bounded_growth("numeric", &numeric);
+    assert_bounded_growth("strings", &strings);
 }
 
 #[cfg(feature = "derive")]
@@ -156,6 +169,8 @@ fn test_redact_view_scalar_counting_allocations_do_not_scale() {
         };
         let numeric_view = redactor.redact_view(&numbers);
         let string_view = redactor.redact_view(&texts);
+        let _ = serialize_to_sink(&numeric_view, &policy);
+        let _ = serialize_to_sink(&string_view, &policy);
         numeric.push((count, serialize_to_sink(&numeric_view, &policy)));
         strings.push((count, serialize_to_sink(&string_view, &policy)));
     }
@@ -166,4 +181,6 @@ fn test_redact_view_scalar_counting_allocations_do_not_scale() {
         numeric_growth <= string_growth + 2,
         "redact_view numeric allocation growth ({numeric_growth}) exceeded string control ({string_growth})"
     );
+    assert_bounded_growth("redact_view numeric", &numeric);
+    assert_bounded_growth("redact_view strings", &strings);
 }
