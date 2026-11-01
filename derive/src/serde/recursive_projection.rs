@@ -22,6 +22,7 @@ use syn::Type;
 use syn::parse_quote;
 
 use super::internal::rebind_source_generics;
+use super::internal::rebind_source_type;
 use crate::expand::assertions;
 use crate::model::ContainerData;
 use crate::model::FieldMode;
@@ -260,19 +261,13 @@ pub(super) fn carrier_expression(type_name: &syn::Ident, shape: RecursiveShape, 
     }
 }
 
-/// Replaces occurrences of `Self` in a field type with the concrete derived
-/// type.
+/// Rebinds supported source `Self` references to the complete source type.
 ///
-/// Replacement follows type paths' angle-bracketed type arguments, tuples,
-/// arrays, parenthesized types, references, and raw pointers. Other type syntax
-/// is left unchanged.
+/// Source lifetime, type, and const arguments are preserved. Opaque token
+/// forms that the shared rebinder cannot inspect remain unchanged.
 pub(super) fn concrete_field_type(input: &DeriveInput, field_type: &Type) -> TokenStream {
-    let name = &input.ident;
-    let (_, type_generics, _) = input.generics.split_for_impl();
-    let source_type: Type = parse_quote!(#name #type_generics);
-    let mut field_type = field_type.clone();
-    replace_self_type(&mut field_type, &source_type);
-    quote!(#field_type)
+    let rebound = rebind_source_type(&input.ident, &input.generics, field_type);
+    quote!(#rebound)
 }
 
 /// Reports whether an unskipped nested field has a supported recursive shape.
@@ -362,39 +357,6 @@ fn supported_wrapper_path(path: &syn::Path) -> bool {
             .segments
             .first()
             .is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "std" | "alloc" | "core"))
-}
-
-/// Replaces `Self` recursively in the type forms handled by this module.
-///
-/// It visits type arguments in paths, tuples, arrays, parentheses, references,
-/// and pointers. Other syntax is left unchanged.
-fn replace_self_type(ty: &mut Type, source: &Type) {
-    match ty {
-        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Self") => {
-            *ty = source.clone();
-        }
-        Type::Path(path) => {
-            for segment in &mut path.path.segments {
-                if let PathArguments::AngleBracketed(arguments) = &mut segment.arguments {
-                    for argument in &mut arguments.args {
-                        if let GenericArgument::Type(ty) = argument {
-                            replace_self_type(ty, source);
-                        }
-                    }
-                }
-            }
-        }
-        Type::Tuple(tuple) => {
-            for element in &mut tuple.elems {
-                replace_self_type(element, source);
-            }
-        }
-        Type::Array(array) => replace_self_type(&mut array.elem, source),
-        Type::Paren(paren) => replace_self_type(&mut paren.elem, source),
-        Type::Reference(reference) => replace_self_type(&mut reference.elem, source),
-        Type::Ptr(pointer) => replace_self_type(&mut pointer.elem, source),
-        _ => {}
-    }
 }
 
 /// Collects every declared field in the model, preserving declaration order.
