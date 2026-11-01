@@ -90,7 +90,15 @@ fn test_native_admission_keeps_textual_utf8_and_disabled_behavior() {
     );
 
     let invalid = HeaderValue::from_bytes(b"application/json;x=\"\xc3\xa9\"").expect("native header is constructible");
-    let disabled = Redactor::new(RedactionPolicy::disabled()).redact_http_body(capture, Some(&invalid));
+    let mut policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1);
+        })
+        .expect("limits are valid")
+        .build()
+        .expect("policy is valid");
+    let _ = policy.set_disabled(true);
+    let disabled = Redactor::new(policy).redact_http_body(capture, Some(&invalid));
     assert_eq!(disabled.text().as_str(), "[0]");
     assert!(
         !disabled
