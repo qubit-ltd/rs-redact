@@ -10,6 +10,7 @@
 use std::fmt::Display;
 
 use crate::RedactionTextOutput;
+use crate::Sensitivity;
 use crate::domain::Redact;
 use crate::runtime::TextSession;
 
@@ -86,6 +87,31 @@ impl RedactedTextComposer {
         T: Display + ?Sized,
     {
         let _ = self.session.field(field, value);
+        self
+    }
+
+    /// Redacts and appends one scalar with a minimum sensitivity.
+    ///
+    /// Enabled policies use the stronger of `level` and their classification;
+    /// disabled policies return the original value subject to resource limits.
+    /// High and Secret values are not formatted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{Redactor, Sensitivity};
+    /// let output = Redactor::standard().text_composer()
+    ///     .field_at_least(Sensitivity::Secret, "detail", "private text")
+    ///     .finish();
+    /// assert!(!output.text().as_str().contains("private text"));
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    pub fn field_at_least<T>(mut self, level: Sensitivity, field: &str, value: &T) -> Self
+    where
+        T: Display + ?Sized,
+    {
+        let _ = self.session.field_at_least(level, field, value);
         self
     }
 

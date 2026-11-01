@@ -14,6 +14,7 @@ use crate::Redact;
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;
 use crate::RedactionTextOutput;
+use crate::Sensitivity;
 use crate::runtime::runtime_session::RuntimeSession;
 
 impl Redactor {
@@ -120,6 +121,33 @@ impl Redactor {
     {
         let mut session = self.text_runtime();
         let _ = session.field(field, value);
+        session.finish()
+    }
+
+    /// Redacts a scalar field at no less than the supplied sensitivity.
+    ///
+    /// When redaction is enabled, the effective level is the stronger of this
+    /// minimum and the policy classification. Disabled policies return the
+    /// original value, subject to the same input and output limits.
+    /// Values classified as High or Secret are not formatted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{Redactor, Sensitivity};
+    /// let output = Redactor::standard().redact_field_at_least(
+    ///     Sensitivity::Secret, "detail", "private text",
+    /// );
+    /// assert!(!output.text().as_str().contains("private text"));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn redact_field_at_least<T>(&self, level: Sensitivity, field: &str, value: &T) -> RedactionTextOutput
+    where
+        T: Display + ?Sized,
+    {
+        let mut session = self.text_runtime();
+        let _ = session.field_at_least(level, field, value);
         session.finish()
     }
 

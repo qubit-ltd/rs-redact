@@ -78,7 +78,7 @@ impl BatchSession {
             return self.stage_exhausted_handle();
         }
         self.run_handle(|session| {
-            let output = super::scalar_operation::redact_field(session, field, value);
+            let output = super::scalar_operation::redact_field(session, field, value, None);
             session.stage_rendered_operation(output)
         })
     }

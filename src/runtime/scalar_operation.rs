@@ -34,7 +34,12 @@ use crate::policy::ResolvedField;
 /// # Returns
 ///
 /// An unpublished safe rendering carrying completion and failure provenance.
-pub(super) fn redact_field<S, T>(session: &mut S, field: &str, value: &T) -> RenderedOperation
+pub(super) fn redact_field<S, T>(
+    session: &mut S,
+    field: &str,
+    value: &T,
+    minimum: Option<Sensitivity>,
+) -> RenderedOperation
 where
     S: RuntimeSession,
     T: Display + ?Sized,
@@ -54,7 +59,17 @@ where
     if !session.admit_input(field.len()) {
         return replacement(maximum, RedactionReason::InputLimitReached);
     }
-    let resolved = session.policy().resolve_field(field);
+    let mut resolved = session.policy().resolve_field(field);
+    if !session.policy().is_disabled()
+        && let Some(minimum) = minimum
+    {
+        resolved = match resolved {
+            ResolvedField::Sensitive { sensitivity } => ResolvedField::Sensitive {
+                sensitivity: sensitivity.max(minimum),
+            },
+            ResolvedField::PassThrough => ResolvedField::Sensitive { sensitivity: minimum },
+        };
+    }
     let mut sink = OperationSink::new(maximum, "<truncated>", false);
     if !session.policy().is_disabled()
         && let ResolvedField::Sensitive {

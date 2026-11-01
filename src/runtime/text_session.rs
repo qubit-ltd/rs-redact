@@ -101,7 +101,22 @@ impl TextSession {
             return self;
         }
         let mut guard = TransactionGuard::new(self);
-        let rendered = super::scalar_operation::redact_field(guard.session(), field, value);
+        let rendered = super::scalar_operation::redact_field(guard.session(), field, value, None);
+        guard.commit();
+        self.append_rendered_operation(rendered);
+        self
+    }
+
+    /// Redacts and appends a scalar field with a minimum sensitivity.
+    pub(crate) fn field_at_least<T>(&mut self, level: Sensitivity, field: &str, value: &T) -> &mut Self
+    where
+        T: Display + ?Sized,
+    {
+        if self.skip_aggregate_for_exhausted_output() {
+            return self;
+        }
+        let mut guard = TransactionGuard::new(self);
+        let rendered = super::scalar_operation::redact_field(guard.session(), field, value, Some(level));
         guard.commit();
         self.append_rendered_operation(rendered);
         self
