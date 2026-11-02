@@ -564,6 +564,38 @@ fn test_adapter_nested_self_uses_source_identity() {
     assert_eq!(source, expected);
 }
 
+#[test]
+fn test_adapter_const_argument_uses_explicit_source_type() {
+    fn encode<const N: usize, S: Serializer>(value: &u8, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(u64::from(*value) + N as u64)
+    }
+
+    #[derive(Redact)]
+    #[redact(serde)]
+    struct Event {
+        #[serde(serialize_with = "encode::<{Event::N}, _>")]
+        value: u8,
+    }
+
+    impl Event {
+        const N: usize = 3;
+    }
+
+    let value = Event { value: 4 };
+    let expected = json!({"value": 7});
+    assert_eq!(to_value(&value).expect("source serialization"), expected);
+    assert_eq!(
+        to_value(Redactor::standard().redact_view(&value)).expect("adapter view serialization"),
+        expected
+    );
+
+    #[cfg(feature = "json")]
+    assert_eq!(
+        Redactor::standard().to_json(&value).expect("domain JSON serialization"),
+        r#"{"value":7}"#
+    );
+}
+
 /// Predicates work in tuple and enum fields with the same concrete generic
 /// shape.
 #[test]
