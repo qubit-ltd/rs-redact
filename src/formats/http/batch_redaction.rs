@@ -64,7 +64,7 @@ pub(crate) fn redact_headers(session: &mut BatchSession, headers: &HeaderMap) ->
     };
     let result = super::internal::http_policy_executor::redact_headers_with_policy(
         session.policy(),
-        &headers,
+        headers,
         session.remaining_output_bytes(),
     );
     session.stage_rendered_operation(result.into_operation())

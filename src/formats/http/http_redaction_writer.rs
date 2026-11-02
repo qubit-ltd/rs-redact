@@ -107,7 +107,7 @@ impl<'session> HttpRedactionWriter<'session> {
         let Some(headers) = collect_admitted_headers(self.session, headers) else {
             return self;
         };
-        let result = self.redact_headers_direct(&headers);
+        let result = self.redact_headers_direct(headers);
         self.session.append_rendered_operation(result.into_operation());
         self
     }
@@ -164,15 +164,27 @@ pub(in crate::formats::http) fn admit_parsed_url_structure(
     true
 }
 
-/// Returns `Some` with all headers after the transaction admits them.
+/// Returns the original headers when the transaction admits the full
+/// collection.
 ///
-/// Returns `None` if output is closed or any header fails admission; no
-/// partially admitted header collection is returned.
-pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers: &HeaderMap) -> Option<HeaderMap> {
+/// Admission charges are retained if output is closed or any header fails;
+/// failure returns `None` without exposing a partially admitted collection.
+///
+/// # Parameters
+///
+/// * `session` - Transaction accounting and output state used for admission.
+/// * `headers` - Original header collection to admit without copying it.
+///
+/// # Returns
+///
+/// A borrow of `headers` after full admission, or `None` if admission fails.
+pub(crate) fn collect_admitted_headers<'headers>(
+    session: &mut dyn RuntimeSession,
+    headers: &'headers HeaderMap,
+) -> Option<&'headers HeaderMap> {
     if session.skip_aggregate_for_exhausted_output() || !session.admit_format_node(1) {
         return None;
     }
-    let mut admitted = HeaderMap::new();
     for (name, value) in headers {
         if !session.admit_format_collection_item()
             || !session.admit_format_node(2)
@@ -181,9 +193,8 @@ pub(crate) fn collect_admitted_headers(session: &mut dyn RuntimeSession, headers
         {
             return None;
         }
-        admitted.append(name.clone(), value.clone());
     }
-    Some(admitted)
+    Some(headers)
 }
 
 impl<'session> HttpRedactionWriter<'session> {
