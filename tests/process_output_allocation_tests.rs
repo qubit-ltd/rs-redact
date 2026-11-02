@@ -5,17 +5,17 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-#![cfg(unix)]
-
 use std::alloc::GlobalAlloc;
 use std::alloc::Layout;
 use std::alloc::System;
 use std::cell::Cell;
 use std::ffi::OsStr;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStringExt;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStringExt;
 
 use qubit_redact::RedactionCompletion;
 use qubit_redact::RedactionPolicy;
@@ -329,6 +329,49 @@ fn test_small_non_utf8_process_text_matches_lossy_legacy_representation() {
     let env = redactor.redact_env_pairs([(OsStr::new("PUBLIC"), env_value.as_os_str())]);
     assert_eq!(env.text().as_str(), "[\"PUBLIC=ok�\"]");
     assert_eq!(env.summary().completion(), RedactionCompletion::Complete);
+}
+
+#[cfg(windows)]
+#[test]
+fn test_large_windows_lossy_capture_allocation_is_bounded() {
+    let make = |length: usize| {
+        let mut units = vec![b'x' as u16; length];
+        units.push(0xD800);
+        OsString::from_wide(&units)
+    };
+    let small = make(4 * 1024);
+    let large = make(48 * 1024);
+    let redactor = bounded_redactor();
+    let disabled = bounded_disabled_redactor();
+    let _ = redactor.redact_argv([ArgvItem::plain(OsStr::new("warmup"))]);
+    let _ = disabled.redact_env_pairs([(OsStr::new("PUBLIC_VALUE"), OsStr::new("warmup"))]);
+
+    for is_env in [false, true] {
+        let render = |value: &OsStr| {
+            if is_env {
+                disabled.redact_env_pairs([(OsStr::new("PUBLIC_VALUE"), value)])
+            } else {
+                redactor.redact_argv([ArgvItem::plain(value)])
+            }
+        };
+        let (small_max, small_output) = measure(|| render(small.as_os_str()));
+        let (large_max, large_output) = measure(|| render(large.as_os_str()));
+        assert!(small_max < 4 * 1024, "small capture allocated {small_max}");
+        assert!(large_max < 4 * 1024, "large capture allocated {large_max}");
+        assert!(large_max <= small_max, "large={large_max}, small={small_max}");
+        for output in [small_output, large_output] {
+            assert!(output.summary().usage().output_bytes() <= 16);
+            assert_eq!(output.summary().completion(), RedactionCompletion::Truncated);
+            assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        }
+    }
+
+    let private = OsString::from_wide(&"windows-private-value".encode_utf16().collect::<Vec<_>>());
+    let private_output = redactor.redact_argv([ArgvItem::sensitive(
+        private.as_os_str(),
+        qubit_redact::Sensitivity::Secret,
+    )]);
+    assert!(!private_output.text().as_str().contains("windows-private-value"));
 }
 
 #[test]
