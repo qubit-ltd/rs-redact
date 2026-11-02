@@ -29,12 +29,12 @@ impl HttpPolicyExecutor<'_> {
     #[must_use]
     pub(super) fn finish_diagnostic_with_limit(
         &self,
-        text: String,
+        text: &str,
         max_bytes: usize,
         provenance: Option<RedactionReason>,
     ) -> super::HttpRendered {
         let mut writer = BoundedLogWriter::new(max_bytes, false);
-        let _ = writer.write_str(&text);
+        let _ = writer.write_str(text);
         let mut operation = writer.finish_operation(RedactionReason::OutputLimitReached);
         if let Some(reason) = provenance {
             operation = operation.with_reason(reason);

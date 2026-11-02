@@ -12,6 +12,9 @@ use std::alloc::Layout;
 use std::alloc::System;
 use std::cell::Cell;
 
+use qubit_redact::RedactionCompletion;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
 use qubit_redact::Redactor;
 use qubit_redact::formats::http::BodyCapture;
 
@@ -19,6 +22,8 @@ thread_local! {
     static COUNTING: Cell<bool> = const { Cell::new(false) };
     static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
     static REQUESTED_BYTES: Cell<usize> = const { Cell::new(0) };
+    static MAX_REQUEST: Cell<usize> = const { Cell::new(0) };
+    static LARGE_REQUESTS: Cell<usize> = const { Cell::new(0) };
 }
 
 struct CountingAllocator;
@@ -49,6 +54,10 @@ impl CountingAllocator {
                 let _ = REQUESTED_BYTES.try_with(|requested| {
                     requested.set(requested.get().saturating_add(bytes));
                 });
+                let _ = MAX_REQUEST.try_with(|maximum| maximum.set(maximum.get().max(bytes)));
+                if bytes >= 1024 {
+                    let _ = LARGE_REQUESTS.try_with(|large| large.set(large.get() + 1));
+                }
             }
         });
     }
@@ -63,6 +72,8 @@ impl CountingGuard {
     fn start() -> Self {
         ALLOCATIONS.with(|value| value.set(0));
         REQUESTED_BYTES.with(|value| value.set(0));
+        MAX_REQUEST.with(|value| value.set(0));
+        LARGE_REQUESTS.with(|value| value.set(0));
         COUNTING.with(|value| value.set(true));
         Self
     }
@@ -74,12 +85,120 @@ impl Drop for CountingGuard {
     }
 }
 
-fn measure<T>(operation: impl FnOnce() -> T) -> ((usize, usize), T) {
+fn measure<T>(operation: impl FnOnce() -> T) -> ((usize, usize, usize, usize), T) {
     let guard = CountingGuard::start();
     let result = operation();
     drop(guard);
-    let counts = (ALLOCATIONS.with(Cell::get), REQUESTED_BYTES.with(Cell::get));
+    let counts = (
+        ALLOCATIONS.with(Cell::get),
+        REQUESTED_BYTES.with(Cell::get),
+        MAX_REQUEST.with(Cell::get),
+        LARGE_REQUESTS.with(Cell::get),
+    );
     (counts, result)
+}
+
+fn disabled_url_redactor(max_output_bytes: usize) -> Redactor {
+    let policy = RedactionPolicy::disabled();
+    let policy = policy
+        .to_builder()
+        .limits(|limits| {
+            limits.max_input_bytes(64 * 1024).max_output_bytes(max_output_bytes);
+        })
+        .expect("limits are valid")
+        .build()
+        .expect("disabled policy with limits is valid");
+    Redactor::new(policy)
+}
+
+#[test]
+fn test_disabled_url_preserves_bounded_text_across_entry_points() {
+    let source = "https://example.test/?q=雪\n\u{0001}<truncated>";
+    for (limit, expected, completion) in [
+        (0, "", RedactionCompletion::Exhausted),
+        (10, "", RedactionCompletion::Exhausted),
+        (11, "<truncated>", RedactionCompletion::Truncated),
+        (12, "h<truncated>", RedactionCompletion::Truncated),
+        (16, "https<truncated>", RedactionCompletion::Truncated),
+        (
+            128,
+            "https://example.test/?q=雪\\n\\u{1}<truncated>",
+            RedactionCompletion::Complete,
+        ),
+    ] {
+        let redactor = disabled_url_redactor(limit);
+        let direct = redactor.redact_http_url(source);
+        let composed = redactor
+            .text_composer()
+            .http(|http| {
+                http.url(source);
+            })
+            .finish();
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_http_url(source);
+        let report = batch.finish_with_marker("<fallback>");
+        for (text, summary) in [
+            (direct.text().as_str(), direct.summary()),
+            (composed.text().as_str(), composed.summary()),
+        ] {
+            assert_eq!(text, expected, "output limit {limit}");
+            assert_eq!(summary.completion(), completion, "output limit {limit}");
+            assert!(summary.is_redaction_disabled());
+            assert_eq!(
+                summary.reasons().contains(RedactionReason::OutputLimitReached),
+                limit < source.len()
+            );
+            assert!(!summary.reasons().contains(RedactionReason::InputLimitReached));
+            assert_eq!(summary.usage().output_bytes(), expected.len());
+        }
+        let batch_text = report.text(handle).as_str();
+        assert_eq!(
+            batch_text,
+            if completion == RedactionCompletion::Complete {
+                expected
+            } else {
+                "<fallback>"
+            }
+        );
+        assert!(report.summary().is_redaction_disabled());
+        assert_eq!(report.summary().completion(), completion);
+        assert_eq!(
+            report.summary().reasons().contains(RedactionReason::OutputLimitReached),
+            limit < source.len()
+        );
+        assert!(!report.summary().reasons().contains(RedactionReason::InputLimitReached));
+        assert_eq!(
+            report.summary().usage().output_bytes(),
+            if limit < "<truncated>".len() {
+                0
+            } else if completion == RedactionCompletion::Complete {
+                batch_text.len()
+            } else {
+                limit
+            },
+        );
+    }
+}
+
+#[test]
+fn test_disabled_long_url_allocation_measurements() {
+    let redactor = disabled_url_redactor(16);
+    let make_url = |length: usize| format!("https://example.test/?q={}", "x".repeat(length));
+    let short = make_url(4 * 1024);
+    let long = make_url(48 * 1024);
+    let warmup = redactor.redact_http_url("https://example.test/?q=warmup");
+    assert_eq!(warmup.text().as_str(), "https<truncated>");
+
+    for input in [&short, &long] {
+        for _ in 0..3 {
+            let ((calls, bytes, maximum, large), output) = measure(|| redactor.redact_http_url(input));
+            assert!(output.summary().is_redaction_disabled());
+            eprintln!(
+                "case=disabled-url/input-{} alloc_realloc_calls={calls} requested_bytes={bytes} maximum_request={maximum} large_requests_ge_1024={large}",
+                input.len(),
+            );
+        }
+    }
 }
 
 #[test]
@@ -104,7 +223,7 @@ fn test_plain_query_and_form_allocation_baseline() {
         };
         one_shot();
         for _ in 0..3 {
-            let ((calls, bytes), ()) = measure(one_shot);
+            let ((calls, bytes, _, _), ()) = measure(one_shot);
             measurements.push((label, "one-shot", calls, bytes));
         }
 
@@ -116,7 +235,7 @@ fn test_plain_query_and_form_allocation_baseline() {
         };
         batch();
         for _ in 0..3 {
-            let ((calls, bytes), ()) = measure(batch);
+            let ((calls, bytes, _, _), ()) = measure(batch);
             measurements.push((label, "batch", calls, bytes));
         }
 
@@ -126,7 +245,7 @@ fn test_plain_query_and_form_allocation_baseline() {
         };
         inspection();
         for _ in 0..3 {
-            let ((calls, bytes), ()) = measure(inspection);
+            let ((calls, bytes, _, _), ()) = measure(inspection);
             measurements.push((label, "inspection", calls, bytes));
         }
     }
@@ -137,7 +256,7 @@ fn test_plain_query_and_form_allocation_baseline() {
     };
     form_redaction();
     for _ in 0..3 {
-        let ((calls, bytes), ()) = measure(form_redaction);
+        let ((calls, bytes, _, _), ()) = measure(form_redaction);
         measurements.push(("form", "one-shot", calls, bytes));
     }
 

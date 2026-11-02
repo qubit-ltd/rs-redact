@@ -37,15 +37,11 @@ impl HttpPolicyExecutor<'_> {
     #[must_use]
     pub(super) fn redact_url_str(&self, input: &str, output_limit: usize) -> HttpRendered {
         if self.policy.is_disabled() {
-            return self.finish_diagnostic_with_limit(input.to_owned(), output_limit, None);
+            return self.finish_diagnostic_with_limit(input, output_limit, None);
         }
         Url::parse(input).map_or_else(
             |_| {
-                self.finish_diagnostic_with_limit(
-                    markers::INVALID_URL.to_string(),
-                    output_limit,
-                    Some(RedactionReason::InvalidUri),
-                )
+                self.finish_diagnostic_with_limit(markers::INVALID_URL, output_limit, Some(RedactionReason::InvalidUri))
             },
             |url| {
                 let mut reasons = RedactionReasons::empty();
