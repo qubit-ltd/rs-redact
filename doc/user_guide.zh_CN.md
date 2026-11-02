@@ -412,6 +412,8 @@ fn main() {
 Serde 名称遵循其生效后的字段和 variant 名称，包括 `rename`/`rename_all`；匹配前会规范化 Rust raw identifier，显式 Serde rename 可保持指定 wire 名。枚举 tag/content/untagged、transparent、skip、skip_serializing、
 skip_serializing_if。支持普通或 skip 字段上的 with/serialize_with；不能与观察原值的敏感模式组合。
 adapter 路径引用的类型或 const 泛型及其传递约束会保留在生成的 carrier 中；无关的源类型参数不会一并复制。
+adapter 路径中的匿名 const 参数不能使用 `Self`（例如 `encode::<{Self::N}, _>`）；这是 Rust 语言限制，
+普通 Serde derive 也一样。请显式引用源类型名，例如 `encode::<{Event::N}, _>`。
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。生成的 Serde
 adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型直接转发字段事件，adjacent tag
 使用枚举名、变体索引和生效后的变体名，untagged 具名变体使用生效后的容器名。JSON 结构形状保持
@@ -420,6 +422,37 @@ adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型�
 格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
 其中 `Option<Map>::Some` 会以 `Some` 事件包住 map。库不会自动解码旧事件布局。
 `redact` 属性只支持容器和字段，不支持 enum variant。variant 级 `#[redact(...)]` 会在编译时报错；请把字段行为移到 variant 内的字段，或从 unit variant 移除该属性。
+
+adapter 的 const 参数使用源类型名：
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use qubit_redact::{Redact, Redactor};
+use serde::{Serialize, Serializer};
+
+#[derive(Redact)]
+#[redact(serde)]
+struct Event {
+    #[serde(serialize_with = "encode::<{Event::N}, _>")]
+    value: u8,
+}
+
+impl Event {
+    const N: usize = 3;
+}
+
+fn encode<const N: usize, S: Serializer>(value: &u8, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_u64(u64::from(*value) + N as u64)
+}
+
+fn main() {
+    let value = Event { value: 4 };
+    assert_eq!(serde_json::to_value(&value).unwrap(), serde_json::json!({"value": 7}));
+    let redactor = Redactor::standard();
+    assert_eq!(serde_json::to_value(redactor.redact_view(&value)).unwrap(), serde_json::json!({"value": 7}));
+    assert_eq!(redactor.to_json(&value).unwrap(), r#"{"value":7}"#);
+}
+```
 
 ### 内部标签枚举与 newtype 载荷
 
@@ -613,6 +646,28 @@ fn main() {
 
 运行时为 JSON 文本和值、URI、HTTP header/query、环境变量、argv 和进程描述提供有界脱敏。
 每种格式保留自身解析和转义规则，同时共享策略决策和事务预算。
+
+`redact_json()` 和 `redact_json_value()` 返回日志安全诊断文本，不承诺输出仍是 JSON 文档；
+即使 completion 为 `Complete`，日志转义（例如 Rust 风格 Unicode 转义）也可能无法被 JSON 解析器接受。
+领域对象需要脱敏后的结构化 JSON 时使用 `to_json()`。它遵循领域声明，而不是按输入 JSON 的 key 分类。
+
+<!-- redact-example: kind=run features=json -->
+```rust
+use qubit_redact::{RedactionCompletion, Redactor};
+
+fn main() {
+    let input = "{\"message\":\"\u{202e}\"}";
+    let value: serde_json::Value = serde_json::from_str(input).expect("valid input JSON");
+    let original = value.clone();
+    let redactor = Redactor::standard();
+    for output in [redactor.redact_json(input), redactor.redact_json_value(&value)] {
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(output.text().as_str().contains(r"\u{202e}"));
+        assert!(serde_json::from_str::<serde_json::Value>(output.text().as_str()).is_err());
+    }
+    assert_eq!(value, original);
+}
+```
 
 解析 JSON 时输入只被借用且保持不变：
 

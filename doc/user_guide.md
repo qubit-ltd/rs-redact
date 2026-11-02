@@ -447,6 +447,10 @@ Serde names use their effective field and variant names, including `rename`/`ren
 modes observing raw field state. Generic type or const parameters referenced by
 the adapter path, plus predicates transitively required by those parameters, are
 retained for its generated carrier; unrelated source parameters are not copied.
+An adapter path's anonymous const argument cannot use `Self` (for example,
+`encode::<{Self::N}, _>`); this is a Rust language restriction shared with
+ordinary Serde derives. Refer to the source type explicitly, such as
+`encode::<{Event::N}, _>`.
 flatten is unsupported. JSON text fields retain their string
 wire type; parsed Value fields retain JSON structure. Generated Serde adapters follow Serde's
 representation events and effective names: transparent types forward the field event, adjacent
@@ -461,6 +465,37 @@ automatically decode the earlier layout.
 Redact attributes are supported on containers and fields, not enum variants. Variant-level
 `#[redact(...)]` is rejected at compile time; put field behavior on that variant's fields, or
 remove the attribute from a unit variant.
+
+Use the source type name in an adapter's const argument:
+
+<!-- redact-example: kind=run features=derive,serde,json -->
+```rust
+use qubit_redact::{Redact, Redactor};
+use serde::{Serialize, Serializer};
+
+#[derive(Redact)]
+#[redact(serde)]
+struct Event {
+    #[serde(serialize_with = "encode::<{Event::N}, _>")]
+    value: u8,
+}
+
+impl Event {
+    const N: usize = 3;
+}
+
+fn encode<const N: usize, S: Serializer>(value: &u8, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_u64(u64::from(*value) + N as u64)
+}
+
+fn main() {
+    let value = Event { value: 4 };
+    assert_eq!(serde_json::to_value(&value).unwrap(), serde_json::json!({"value": 7}));
+    let redactor = Redactor::standard();
+    assert_eq!(serde_json::to_value(redactor.redact_view(&value)).unwrap(), serde_json::json!({"value": 7}));
+    assert_eq!(redactor.to_json(&value).unwrap(), r#"{"value":7}"#);
+}
+```
 
 ### Internally Tagged Variants and Newtype Payloads
 
@@ -661,6 +696,31 @@ The runtime provides bounded redaction for JSON text and values, URI, HTTP
 headers/query data, environment variables, argv, and process descriptions.
 Each format keeps its parsing and escaping rules while sharing policy decisions
 and the transaction budget.
+
+`redact_json()` and `redact_json_value()` return log-safe diagnostic text, not a
+JSON document contract. Their output is not guaranteed to remain valid JSON;
+even `Complete` output may contain log escapes such as Rust-style Unicode
+escapes that JSON parsers reject. Use `to_json()` for a domain object's redacted
+JSON representation. It follows domain declarations rather than input JSON key
+classification.
+
+<!-- redact-example: kind=run features=json -->
+```rust
+use qubit_redact::{RedactionCompletion, Redactor};
+
+fn main() {
+    let input = "{\"message\":\"\u{202e}\"}";
+    let value: serde_json::Value = serde_json::from_str(input).expect("valid input JSON");
+    let original = value.clone();
+    let redactor = Redactor::standard();
+    for output in [redactor.redact_json(input), redactor.redact_json_value(&value)] {
+        assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+        assert!(output.text().as_str().contains(r"\u{202e}"));
+        assert!(serde_json::from_str::<serde_json::Value>(output.text().as_str()).is_err());
+    }
+    assert_eq!(value, original);
+}
+```
 
 For parsed JSON, the input is borrowed and remains unchanged:
 
