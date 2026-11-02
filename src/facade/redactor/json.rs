@@ -85,6 +85,11 @@ impl Redactor {
     /// finite `f64` values. Syntax, duplicate-key, and number-contract failures
     /// produce the existing `InvalidJson` safe replacement. Shared depth and
     /// traversal rejections retain their corresponding reasons.
+    /// The result is log-safe diagnostic text and is not guaranteed to remain
+    /// valid JSON. Even Complete output may contain log escapes, such as
+    /// Rust-style Unicode escapes, that JSON parsers do not accept. For a
+    /// domain object's redacted JSON representation, use [`Self::to_json`]; it
+    /// follows domain declarations rather than input JSON key rules.
     ///
     /// # Returns
     ///
@@ -108,6 +113,12 @@ impl Redactor {
     ///   Raw input-byte, duplicate-key, and text-decoder checks cannot be
     ///   applied to an already parsed value. Shared `max_depth` still includes
     ///   any surrounding domain depth.
+    ///
+    /// The result is log-safe diagnostic text and is not guaranteed to remain
+    /// valid JSON. Even Complete output may contain log escapes, such as
+    /// Rust-style Unicode escapes, that JSON parsers do not accept. For a
+    /// domain object's redacted JSON representation, use [`Self::to_json`]; it
+    /// follows domain declarations rather than input JSON key rules.
     ///
     /// # Returns
     ///
