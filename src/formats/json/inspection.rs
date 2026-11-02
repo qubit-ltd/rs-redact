@@ -53,12 +53,10 @@ fn inspect_value(session: &mut dyn RuntimeSession, value: &Value, unkeyed: bool)
         }
         Value::Object(entries) => {
             for (key, value) in entries {
-                match session.policy().resolve_field(key) {
-                    ResolvedField::Sensitive { sensitivity } => {
-                        session.observe_sensitivity(sensitivity);
-                    }
-                    ResolvedField::PassThrough => inspect_value(session, value, false),
+                if let ResolvedField::Sensitive { sensitivity } = session.policy().resolve_field(key) {
+                    session.observe_sensitivity(sensitivity);
                 }
+                inspect_value(session, value, false);
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)

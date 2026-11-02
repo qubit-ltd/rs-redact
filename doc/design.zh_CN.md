@@ -169,6 +169,14 @@ inspection 复用策略和结构预算，返回策略是否禁用、完整遍历
 应用规则；`RedactionPolicy::sensitivity_for` 才根据应用规则和匹配的 floor 求出最终等级。
 inspection error 表示结论不完整；若用于安全决策，应按敏感处理。
 
+对于已准入的 JSON 值树，inspection 会分类每个对象字段和适用的无键标量，包括敏感父字段的后代。
+因此标准策略对 `{"token":{"password":"example"}}` 返回 `Secret`，而渲染仍可整体遮蔽
+`token` 子树。该行为适用于 JSON 文本/值、HTTP JSON、NDJSON、multipart JSON part，以及领域
+writer 显式委派的 JSON 值。HTTP 分类继续使用 body 上下文规则。分类只遍历已准入的值树：不会
+再次解析、重复计入结构预算或创建子事务。其他格式保留其声明式检查规则和 opaque 边界；inspection
+不会格式化任意源值来挖掘隐藏内容。精确等级调用方可能观察到结果从 `High` 变为 `Secret`；API、
+渲染和预算计费保持不变。
+
 ### 5.4 RuntimeCore
 
 `RuntimeCore` 保存策略快照、`RedactionBudget`、聚合 `SummaryBuilder`、事务阶段和可选 item 摘要。

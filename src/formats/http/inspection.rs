@@ -267,9 +267,8 @@ fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: b
             for (key, value) in entries {
                 if let Some(sensitivity) = body_fields(session).sensitivity(key) {
                     session.observe_sensitivity(sensitivity);
-                } else {
-                    inspect_json_value(session, value, false);
                 }
+                inspect_json_value(session, value, false);
             }
         }
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)

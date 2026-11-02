@@ -17,11 +17,17 @@ use http::HeaderMap;
 use http::HeaderValue;
 #[cfg(feature = "uri")]
 use qubit_redact::MaskPolicy;
+#[cfg(feature = "json")]
+use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
-#[cfg(any(feature = "http", feature = "uri"))]
+#[cfg(any(feature = "json", feature = "http", feature = "uri"))]
 use qubit_redact::RedactionReason;
+#[cfg(feature = "json")]
+use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+#[cfg(any(feature = "json", feature = "http"))]
+use qubit_redact::UnkeyedJsonValuePolicy;
 use qubit_redact::formats::argv::ArgvItem;
 #[cfg(feature = "http")]
 use qubit_redact::formats::http::BodyCapture;
@@ -722,6 +728,202 @@ fn test_inspect_json_traverses_nested_scalars() {
         .expect("nested JSON inspection should complete");
     assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
     assert_eq!(inspection.usage().output_bytes(), 0);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_inspection_classifies_children_of_sensitive_parents() {
+    let redactor = Redactor::standard();
+    for text in [
+        r#"{"token":{"password":"example"}}"#,
+        r#"{"token":[{"password":"example"}]}"#,
+        r#"{"password":{"token":"example"}}"#,
+    ] {
+        let value: serde_json::Value = serde_json::from_str(text).expect("valid fixture");
+        for inspection in [
+            redactor.inspect_json(text).expect("admitted text"),
+            redactor.inspect_json_value(&value).expect("admitted tree"),
+        ] {
+            assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+            assert_eq!(inspection.usage().output_bytes(), 0);
+        }
+    }
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_json_inspection_classifies_children_of_sensitive_parents() {
+    let redactor = Redactor::standard();
+    let body = br#"{"token":{"password":"example"}}"#;
+    let native = HeaderValue::from_static("application/json");
+    for inspection in [
+        redactor.inspect_http_body(BodyCapture::complete(body), Some(&native)),
+        redactor.inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/json")),
+        redactor.inspect_http_body_with_content_type_text(BodyCapture::complete(body), Some("application/x-ndjson")),
+    ] {
+        let inspection = inspection.expect("admitted JSON body");
+        assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+        assert_eq!(inspection.usage().output_bytes(), 0);
+    }
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_sensitive_parent_inspection_preserves_policy_and_budget_boundaries() {
+    let standard = Redactor::standard();
+    let ordinary = standard
+        .inspect_json(r#"{"visible":{"mode":"ready"}}"#)
+        .expect("ordinary nested fields should be inspected");
+    assert_eq!(ordinary.max_sensitivity(), None);
+    let same_level = standard
+        .inspect_json(r#"{"token":{"access_token":"example"}}"#)
+        .expect("nested token fields should be inspected");
+    assert_eq!(same_level.max_sensitivity(), Some(Sensitivity::High));
+
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_json(r#"{"token":{"password":"example"}}"#)
+        .expect("disabled JSON should be admitted");
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    let value = serde_json::json!({"token": {"password": "example"}});
+    let disabled_value = Redactor::new(RedactionPolicy::disabled())
+        .inspect_json_value(&value)
+        .expect("disabled JSON value should be admitted");
+    assert!(disabled_value.is_redaction_disabled());
+    assert_eq!(disabled_value.max_sensitivity(), None);
+
+    for (unkeyed_policy, expected) in [
+        (UnkeyedJsonValuePolicy::PassThrough, Sensitivity::High),
+        (UnkeyedJsonValuePolicy::Redact, Sensitivity::Secret),
+    ] {
+        let policy = RedactionPolicy::builder()
+            .unkeyed_json_value_policy(unkeyed_policy)
+            .build()
+            .expect("policy should build");
+        let inspection = Redactor::new(policy)
+            .inspect_json(r#"{"token":["example"]}"#)
+            .expect("unkeyed array value should be inspected");
+        assert_eq!(inspection.max_sensitivity(), Some(expected));
+    }
+    let object_scalar = Redactor::new(
+        RedactionPolicy::builder()
+            .unkeyed_json_value_policy(UnkeyedJsonValuePolicy::Redact)
+            .build()
+            .expect("policy should build"),
+    )
+    .inspect_json(r#"{"token":"example"}"#)
+    .expect("object property scalar is keyed");
+    assert_eq!(object_scalar.max_sensitivity(), Some(Sensitivity::High));
+
+    let exact_policy = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(3).max_collection_items(2).max_depth(3);
+        })
+        .expect("limits should be valid")
+        .build()
+        .expect("policy should build");
+    let exact = Redactor::new(exact_policy)
+        .inspect_json(r#"{"token":{"password":"example"}}"#)
+        .expect("exact shared structure budget should fit");
+    assert_eq!(exact.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(exact.usage().visited_nodes(), 3);
+    assert_eq!(exact.usage().visited_collection_items(), 2);
+    assert_eq!(exact.usage().max_depth(), 3);
+    assert_eq!(exact.usage().output_bytes(), 0);
+
+    for case in 0..3 {
+        let limited_policy = RedactionPolicy::builder()
+            .limits(|limits| match case {
+                0 => {
+                    limits.max_nodes(2);
+                }
+                1 => {
+                    limits.max_collection_items(1);
+                }
+                _ => {
+                    limits.max_depth(2);
+                }
+            })
+            .expect("limits should be valid")
+            .build()
+            .expect("policy should build");
+        let error = Redactor::new(limited_policy)
+            .inspect_json(r#"{"token":{"password":"example"}}"#)
+            .expect_err("insufficient shared structure budget should reject JSON");
+        let reason = if case == 2 {
+            RedactionReason::DepthLimitReached
+        } else {
+            RedactionReason::TraversalLimitReached
+        };
+        assert!(error.reasons().contains(reason));
+        assert_eq!(error.usage().output_bytes(), 0);
+    }
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_domain_json_sensitive_parent_inspection_classifies_json_tree() {
+    struct Document(serde_json::Value);
+
+    impl Redact for Document {
+        fn write_redacted(&self, writer: &mut RedactionWriter<'_>) {
+            writer.record("Document", |fields| {
+                fields.json_value("payload", &self.0);
+            });
+        }
+    }
+
+    let value = Document(serde_json::json!({"token": {"password": "example"}}));
+    let inspection = Redactor::standard()
+        .inspect(&value)
+        .expect("domain JSON value should be inspected");
+    assert_eq!(inspection.max_sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(inspection.usage().output_bytes(), 0);
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn test_http_sensitive_parent_inspection_preserves_body_context_and_delegation() {
+    let body_context_policy = RedactionPolicy::builder()
+        .http(|http| {
+            http.body()
+                .raise("child_probe", Sensitivity::Secret)
+                .expect("valid body rule");
+        })
+        .expect("HTTP policy should be valid")
+        .build()
+        .expect("policy should build");
+    let json = br#"{"token":{"child_probe":"example"}}"#;
+    let body_result = Redactor::new(body_context_policy)
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(json), Some("application/json"))
+        .expect("HTTP body context should classify nested child fields");
+    assert_eq!(body_result.max_sensitivity(), Some(Sensitivity::Secret));
+    let ordinary_json = Redactor::standard()
+        .inspect_json(std::str::from_utf8(json).expect("UTF-8"))
+        .expect("ordinary JSON should be inspected");
+    assert_eq!(ordinary_json.max_sensitivity(), Some(Sensitivity::High));
+
+    let multipart = concat!(
+        "--boundary\r\n",
+        "Content-Disposition: form-data; name=\"payload\"\r\n",
+        "Content-Type: application/json\r\n\r\n",
+        "{\"token\":{\"password\":\"example\"}}\r\n",
+        "--boundary--\r\n",
+    );
+    let multipart_result = Redactor::standard()
+        .inspect_http_body_with_content_type_text(
+            BodyCapture::complete(multipart.as_bytes()),
+            Some("multipart/form-data; boundary=boundary"),
+        )
+        .expect("multipart JSON part should be inspected");
+    assert_eq!(multipart_result.max_sensitivity(), Some(Sensitivity::Secret));
+
+    let disabled = Redactor::new(RedactionPolicy::disabled())
+        .inspect_http_body_with_content_type_text(BodyCapture::complete(json), Some("application/json"))
+        .expect("disabled HTTP JSON should be admitted");
+    assert!(disabled.is_redaction_disabled());
+    assert_eq!(disabled.max_sensitivity(), None);
+    assert_eq!(disabled.usage().output_bytes(), 0);
 }
 
 /// Verifies invalid structured input cannot be reported as conclusively clear.

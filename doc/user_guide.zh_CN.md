@@ -1046,6 +1046,13 @@ inspection 返回本次完整遍历是否禁用了策略、发现的最高敏感
 `RedactionPolicy::classify_field()`；这只是匹配解释，不是最终敏感度。最终等级由
 `RedactionPolicy::sensitivity_for()` 给出，它会合并匹配的应用规则与 floor。
 
+JSON inspection 会继续分类已准入值树中的字段，即使父字段已判为敏感。使用标准策略时，
+`{"token":{"password":"example"}}` 的最高敏感度为 `Secret`；渲染仍可整体遮蔽 `token`。
+该行为适用于 JSON 文本和值、HTTP JSON 与 NDJSON（包括 multipart 中的 JSON part），以及领域
+`Redact` 实现显式委派的 JSON 值。inspection 不会格式化任意源值来挖掘隐藏内容。精确比较等级或
+保存 `max_sensitivity()` 快照的调用方可能会看到结果从 `High` 变为 `Secret`；
+`contains_sensitive()` 仍为 true。公开 API、渲染和预算计费均未改变。
+
 inspection 不会调用字段的 `Debug`、`Display` 或 `Serialize`。即使格式化路径会在渲染时
 panic，只要 inspection 本身没有超出结构和输入预算，检查仍可完成。若遍历不完整，API 会返回
 错误；将这类结果视为结论不充分，再决定是否放行。

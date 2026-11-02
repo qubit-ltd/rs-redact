@@ -197,6 +197,20 @@ level from application rules and matching floors. An inspection error means the
 conclusion is incomplete and must be treated as sensitive when inspection
 controls a security decision.
 
+For an admitted JSON tree, inspection classifies every object field and
+applicable unkeyed scalar, including descendants of sensitive parents. Thus
+the standard policy reports `Secret` for
+`{"token":{"password":"example"}}`, while rendering may still redact the
+whole `token` subtree. This applies to JSON text/value inspection, HTTP JSON,
+NDJSON, JSON multipart parts, and JSON values explicitly delegated by domain
+writers. HTTP classification retains body-context rules. Classification only
+walks the already admitted tree: it does not parse again, charge structure a
+second time, or create a child transaction. Other formats retain their
+declared and opaque boundaries; inspection does not format arbitrary source
+values to discover hidden contents. Exact-level consumers may observe a
+change from `High` to `Secret`; APIs, rendering, and budget accounting remain
+unchanged.
+
 ### 5.4 RuntimeCore
 
 `RuntimeCore` stores the policy snapshot, `RedactionBudget`, aggregate

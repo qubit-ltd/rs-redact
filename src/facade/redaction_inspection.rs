@@ -18,6 +18,10 @@ use crate::Sensitivity;
 /// [`Self::is_redaction_disabled`]. It does not prove that source data is
 /// inherently nonsensitive. Inconclusive traversal is returned as
 /// [`crate::RedactionInspectionError`] instead of this type.
+/// JSON inspection classifies fields throughout an admitted JSON tree even
+/// when a parent field is sensitive. Other formats follow their declared
+/// inspection rules and opaque boundaries; inspection never formats source
+/// values to discover hidden contents.
 ///
 /// # Examples
 ///
@@ -93,6 +97,11 @@ impl RedactionInspection {
     }
 
     /// Returns the strongest sensitivity found by the complete traversal.
+    ///
+    /// For JSON text, values, HTTP JSON, NDJSON, and JSON delegated by domain
+    /// writers, sensitive parent fields do not stop classification of nested
+    /// JSON fields. This does not imply recursive inspection of opaque values
+    /// or arbitrary source fields.
     ///
     /// # Returns
     ///

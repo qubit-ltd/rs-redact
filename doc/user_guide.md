@@ -1147,6 +1147,17 @@ rule for a field; that explanation is not the final sensitivity. The effective
 level comes from `RedactionPolicy::sensitivity_for()`, which also combines
 matching application rules and the configured floor.
 
+For JSON inspection, classification continues through the admitted tree even
+when a parent field is sensitive. Under the standard policy,
+`{"token":{"password":"example"}}` has a maximum sensitivity of `Secret`.
+Rendering may still redact the whole `token` value. This applies to JSON text
+and values, HTTP JSON and NDJSON (including JSON multipart parts), and JSON
+values explicitly delegated by a domain `Redact` implementation. It does not
+format arbitrary source values to inspect hidden contents. Callers that compare
+exact levels or snapshot `max_sensitivity()` may now observe `Secret` instead
+of `High`; `contains_sensitive()` remains true. Public APIs, rendering, and
+budget accounting are unchanged.
+
 Inspection never invokes `Debug`, `Display`, or `Serialize` on classified values. A formatter that
 panics during rendering would still allow inspection to complete, provided inspection itself stays
 within its structural and input budgets. An incomplete inspection returns an error; treat it as
