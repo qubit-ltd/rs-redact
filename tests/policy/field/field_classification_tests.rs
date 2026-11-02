@@ -20,6 +20,7 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
             fields
                 .disable_floor()
                 .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .secret_sensitive("password")
                 .raise("api_token", Sensitivity::High);
         })
         .expect("the field configuration must be valid")
@@ -33,6 +34,13 @@ fn test_field_classification_exposes_sensitive_rule_metadata() {
     assert_eq!(classification.match_kind(), Some(FieldMatchKind::TokenSuffix));
     assert!(!classification.is_allowed());
     assert!(!classification.is_unknown());
+
+    let exact = policy.classify_field("password");
+    assert_eq!(exact.sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(exact.matched_field(), Some("password"));
+    assert_eq!(exact.match_kind(), Some(FieldMatchKind::Exact));
+    assert!(!exact.is_allowed());
+    assert!(!exact.is_unknown());
 }
 
 /// Verifies allowed and unknown classifications expose no sensitive metadata.

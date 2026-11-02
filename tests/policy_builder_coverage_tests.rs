@@ -18,7 +18,8 @@ use qubit_redact::formats::http::UrlPathPolicy;
 use qubit_redact::formats::uri::UriFragmentPolicy;
 use qubit_redact::formats::uri::UriPathPolicy;
 
-/// Exercises the grouped HTTP and URI views through a committed policy snapshot.
+/// Exercises the grouped HTTP and URI views through a committed policy
+/// snapshot.
 #[test]
 fn test_grouped_policy_views_cover_configurable_settings() {
     let floor = RedactionFloor::builder()
@@ -46,18 +47,14 @@ fn test_grouped_policy_views_cover_configurable_settings() {
         })
         .expect("HTTP settings should be valid")
         .uri(|uri| {
-            uri.path(UriPathPolicy::Redact)
-                .fragment(UriFragmentPolicy::Preserve);
+            uri.path(UriPathPolicy::Redact).fragment(UriFragmentPolicy::Preserve);
         })
         .expect("URI settings should be valid")
         .build()
         .expect("policy should be valid");
 
     assert_eq!(policy.http().url_path_policy(), UrlPathPolicy::Redact);
-    assert_eq!(
-        policy.http().text_body_policy(),
-        TextBodyPolicy::PassThrough
-    );
+    assert_eq!(policy.http().text_body_policy(), TextBodyPolicy::PassThrough);
     assert_eq!(
         policy.http().header_rules().sensitivity_for("x-api-key"),
         Some(Sensitivity::Secret)
@@ -73,10 +70,7 @@ fn test_grouped_policy_views_cover_configurable_settings() {
     assert!(policy.http().header_rules().floor().is_none());
     assert!(policy.http().query_rules().floor().is_none());
     assert!(policy.http().body_rules().floor().is_none());
-    assert_eq!(
-        policy.unkeyed_json_value_policy(),
-        UnkeyedJsonValuePolicy::Redact
-    );
+    assert_eq!(policy.unkeyed_json_value_policy(), UnkeyedJsonValuePolicy::Redact);
     assert_eq!(policy.uri().path_policy(), UriPathPolicy::Redact);
     assert_eq!(policy.uri().fragment_policy(), UriFragmentPolicy::Preserve);
 }

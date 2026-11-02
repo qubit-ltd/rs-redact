@@ -18,6 +18,7 @@ fn test_redaction_limits_builder_round_trips_every_public_limit() {
     builder
         .max_input_bytes(101)
         .max_output_bytes(102)
+        .max_serde_payload_bytes(103)
         .max_depth(3)
         .max_nodes(104)
         .max_collection_items(5)
@@ -33,6 +34,7 @@ fn test_redaction_limits_builder_round_trips_every_public_limit() {
 
     assert_eq!(limits.max_input_bytes(), 101);
     assert_eq!(limits.max_output_bytes(), 102);
+    assert_eq!(limits.max_serde_payload_bytes(), 103);
     assert_eq!(limits.max_depth(), Some(3));
     assert_eq!(limits.max_nodes(), Some(104));
     assert_eq!(limits.max_collection_items(), Some(5));
