@@ -16,6 +16,7 @@ use syn::Ident;
 use syn::Path;
 use syn::PathArguments;
 use syn::Type;
+use syn::TypeParamBound;
 
 /// Source type identity needed while emitting Serde attribute paths.
 pub(super) struct SourceTypeContext<'a> {
@@ -100,6 +101,10 @@ fn type_uses_self(ty: &Type) -> bool {
                     syn::ReturnType::Type(_, ty) => type_uses_self(ty.as_ref()),
                 }
         }
+        Type::TraitObject(value) => value.bounds.iter().any(|bound| match bound {
+            TypeParamBound::Trait(bound) => path_has_self_type_argument(&bound.path),
+            _ => false,
+        }),
         _ => false,
     }
 }
@@ -156,6 +161,13 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
             }
             if let syn::ReturnType::Type(_, ty) = &mut value.output {
                 replace_self_in_type(ty.as_mut(), source, generics);
+            }
+        }
+        Type::TraitObject(value) => {
+            for bound in &mut value.bounds {
+                if let TypeParamBound::Trait(bound) = bound {
+                    replace_self_in_path_arguments(&mut bound.path, source, generics);
+                }
             }
         }
         _ => {}
@@ -242,6 +254,30 @@ mod tests {
         assert_eq!(ty.to_token_stream().to_string(), expected.to_token_stream().to_string());
 
         let mut no_self: Type = parse_quote!(unsafe extern "C" fn(u8) -> u16);
+        let original = no_self.to_token_stream().to_string();
+        assert!(!type_uses_self(&no_self));
+        replace_self_in_type(&mut no_self, &source, &generics);
+        assert_eq!(no_self.to_token_stream().to_string(), original);
+    }
+
+    #[test]
+    fn test_trait_object_self_detection_and_replacement() {
+        let source: Ident = parse_quote!(Source);
+        let generics: Generics = parse_quote!(<'a, T, const N: usize>);
+
+        let mut direct: Type = parse_quote!(dyn Marker<Self>);
+        assert!(type_uses_self(&direct));
+        replace_self_in_type(&mut direct, &source, &generics);
+        let expected: Type = parse_quote!(dyn Marker<Source<'a, T, N>>);
+        assert_eq!(direct.to_token_stream().to_string(), expected.to_token_stream().to_string());
+
+        let mut nested: Type = parse_quote!(dyn Marker<&Self> + Send + 'a);
+        assert!(type_uses_self(&nested));
+        replace_self_in_type(&mut nested, &source, &generics);
+        let expected: Type = parse_quote!(dyn Marker<&Source<'a, T, N>> + Send + 'a);
+        assert_eq!(nested.to_token_stream().to_string(), expected.to_token_stream().to_string());
+
+        let mut no_self: Type = parse_quote!(dyn Marker<String> + Send + 'a);
         let original = no_self.to_token_stream().to_string();
         assert!(!type_uses_self(&no_self));
         replace_self_in_type(&mut no_self, &source, &generics);

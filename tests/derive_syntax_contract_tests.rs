@@ -251,6 +251,57 @@ fn test_generic_recursive_self_predicate_and_explicit_path_control() {
     );
 }
 
+/// Trait-object adapter arguments preserve the source type in the derived
+/// source serializer and borrowed redaction view when the explicit type path is
+/// valid.
+#[test]
+fn test_adapter_trait_object_self_uses_source_identity() {
+    trait Marker<T> {}
+
+    fn encode<U: ?Sized, S: Serializer>(_: &String, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(std::any::type_name::<U>())
+    }
+
+    #[derive(Debug, Redact)]
+    #[redact(serde)]
+    struct Source<T> {
+        #[serde(serialize_with = "encode::<dyn Marker<Self>, _>")]
+        value: String,
+        #[serde(skip)]
+        marker: PhantomData<T>,
+    }
+
+    #[derive(Debug, Redact)]
+    #[redact(serde)]
+    struct SourceUnit {
+        #[serde(serialize_with = "encode::<dyn Marker<Self>, _>")]
+        value: String,
+    }
+
+    let source = Source::<u32> {
+        value: String::new(),
+        marker: PhantomData,
+    };
+    let mut control_bytes = Vec::new();
+    let mut serializer = serde_json::Serializer::new(&mut control_bytes);
+    encode::<dyn Marker<Source<u32>>, _>(&source.value, &mut serializer).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<String>(&control_bytes).unwrap(),
+        std::any::type_name::<dyn Marker<Source<u32>>>()
+    );
+    let expected = json!({"value": std::any::type_name::<dyn Marker<Source<u32>>>()});
+    assert_eq!(to_value(&source).unwrap(), expected);
+    assert_eq!(to_value(Redactor::standard().redact_view(&source)).unwrap(), expected);
+
+    let source_unit = SourceUnit { value: String::new() };
+    let expected_source = json!({"value": std::any::type_name::<dyn Marker<SourceUnit>>()});
+    assert_eq!(to_value(&source_unit).unwrap(), expected_source);
+    assert_eq!(
+        to_value(Redactor::standard().redact_view(&source_unit)).unwrap(),
+        expected_source
+    );
+}
+
 /// Bare Serde omission controls remain composable with later field attributes.
 #[test]
 fn test_serde_bare_skip_can_precede_another_field_control() {
