@@ -142,8 +142,7 @@ fn test_field_attributes_parse_explicit_unmarked() {
             panic!("fixture has named fields");
         };
         let field = fields.named.first().expect("field exists");
-        let parsed =
-            FieldAttributes::parse(field, &input.ident, "value").expect("unmarked parses");
+        let parsed = FieldAttributes::parse(field, &input.ident, "value").expect("unmarked parses");
         assert!(matches!(parsed.mode(), FieldMode::Unmarked));
     }
 }

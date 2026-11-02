@@ -269,13 +269,19 @@ mod tests {
         assert!(type_uses_self(&direct));
         replace_self_in_type(&mut direct, &source, &generics);
         let expected: Type = parse_quote!(dyn Marker<Source<'a, T, N>>);
-        assert_eq!(direct.to_token_stream().to_string(), expected.to_token_stream().to_string());
+        assert_eq!(
+            direct.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
 
         let mut nested: Type = parse_quote!(dyn Marker<&Self> + Send + 'a);
         assert!(type_uses_self(&nested));
         replace_self_in_type(&mut nested, &source, &generics);
         let expected: Type = parse_quote!(dyn Marker<&Source<'a, T, N>> + Send + 'a);
-        assert_eq!(nested.to_token_stream().to_string(), expected.to_token_stream().to_string());
+        assert_eq!(
+            nested.to_token_stream().to_string(),
+            expected.to_token_stream().to_string()
+        );
 
         let mut no_self: Type = parse_quote!(dyn Marker<String> + Send + 'a);
         let original = no_self.to_token_stream().to_string();

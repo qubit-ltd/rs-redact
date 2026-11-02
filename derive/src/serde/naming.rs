@@ -106,19 +106,23 @@ pub(super) fn named_content_proxy(
         .map(|allowed| allowed.clone().unwrap_or_else(|| quote!(false)))
         .collect::<Vec<_>>();
     let carrier_count = carriers.len();
-    let calls = names.iter().zip(&value_fields).enumerate().map(|(index, (name, value))| {
-        quote! {
-            if let ::core::option::Option::Some(value) = self.#value.as_ref() {
-                #serde::ser::SerializeStruct::serialize_field(
-                    &mut state,
-                    #name,
-                    value,
-                )?;
-            } else if self.__qubit_redact_skip_events[#index] {
-                #serde::ser::SerializeStruct::skip_field(&mut state, #name)?;
+    let calls = names
+        .iter()
+        .zip(&value_fields)
+        .enumerate()
+        .map(|(index, (name, value))| {
+            quote! {
+                if let ::core::option::Option::Some(value) = self.#value.as_ref() {
+                    #serde::ser::SerializeStruct::serialize_field(
+                        &mut state,
+                        #name,
+                        value,
+                    )?;
+                } else if self.__qubit_redact_skip_events[#index] {
+                    #serde::ser::SerializeStruct::skip_field(&mut state, #name)?;
+                }
             }
-        }
-    });
+        });
     let definition = quote! {
         struct #proxy<#(#value_types),*> {
             #(#value_fields: ::core::option::Option<#value_types>,)*

@@ -26,6 +26,7 @@ mod uri;
 
 use std::mem::replace;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::PoisonError;
 
 use crate::DiagnosticRedactionBatch;
@@ -64,6 +65,12 @@ pub struct Redactor {
     policy: Arc<RedactionPolicy>,
 }
 
+/// Lazily initialized standard redactor shared by built-in constructors.
+static STANDARD_REDACTOR: LazyLock<Redactor> = LazyLock::new(|| Redactor::new(RedactionPolicy::standard()));
+
+/// Lazily initialized strict redactor shared by built-in constructors.
+static STRICT_REDACTOR: LazyLock<Redactor> = LazyLock::new(|| Redactor::new(RedactionPolicy::strict()));
+
 impl Redactor {
     /// Creates a redactor using `policy`.
     ///
@@ -90,7 +97,7 @@ impl Redactor {
     #[must_use]
     #[inline(always)]
     pub fn standard() -> Self {
-        Self::new(RedactionPolicy::standard())
+        (*STANDARD_REDACTOR).clone()
     }
 
     /// Creates a redactor with the strict policy for untrusted scalar data.
@@ -103,7 +110,7 @@ impl Redactor {
     #[must_use]
     #[inline(always)]
     pub fn strict() -> Self {
-        Self::new(RedactionPolicy::strict())
+        (*STRICT_REDACTOR).clone()
     }
 
     /// Returns a snapshot of the current application default redactor.

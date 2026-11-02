@@ -9,8 +9,8 @@
 
 use proc_macro_crate::FoundCrate;
 use quote::ToTokens;
-use syn::parse_quote;
 use syn::DeriveInput;
+use syn::parse_quote;
 
 use crate::runtime_path::internal::resolve;
 

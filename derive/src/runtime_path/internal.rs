@@ -45,17 +45,12 @@ pub(crate) fn resolve(
         Ok(FoundCrate::Itself) => Ok(itself),
         Ok(FoundCrate::Name(name)) => {
             let name = name.replace('-', "_");
-            let invalid_name = || {
-                Error::new_spanned(
-                    input,
-                    format!("{error_context}: invalid runtime crate name `{name}`"),
-                )
-            };
+            let invalid_name =
+                || Error::new_spanned(input, format!("{error_context}: invalid runtime crate name `{name}`"));
             let identifier = if name == "gen" {
                 syn::parse_str::<syn::Ident>(&format!("r#{name}"))
             } else {
-                syn::parse_str::<syn::Ident>(&name)
-                    .or_else(|_| syn::parse_str::<syn::Ident>(&format!("r#{name}")))
+                syn::parse_str::<syn::Ident>(&name).or_else(|_| syn::parse_str::<syn::Ident>(&format!("r#{name}")))
             }
             .map_err(|_| invalid_name())?;
             syn::parse2(quote!(::#identifier)).map_err(|_| invalid_name())

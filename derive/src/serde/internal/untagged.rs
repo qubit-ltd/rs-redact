@@ -64,23 +64,16 @@ pub(in crate::serde) fn untagged_variant_arm(
             let skip_events = fields
                 .iter()
                 .filter(|field| !field_is_skipped(field.serde_attributes()))
-                .map(|field| {
-                    conditional_skip_event_allowed(
-                        field.serde_attributes(),
-                        field.attributes().mode(),
-                    )
-                })
+                .map(|field| conditional_skip_event_allowed(field.serde_attributes(), field.attributes().mode()))
                 .collect::<Vec<_>>();
             let count_conditions = &conditions;
-            let calls = conditions
-                .iter()
-                .zip(&names)
-                .zip(&carriers)
-                .zip(&skip_events)
-                .map(|(((_condition, field_name), carrier), allowed)| {
-                    let notify = allowed.as_ref().map(|allowed| quote! {
-                        else if #allowed {
-                            #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+            let calls = conditions.iter().zip(&names).zip(&carriers).zip(&skip_events).map(
+                |(((_condition, field_name), carrier), allowed)| {
+                    let notify = allowed.as_ref().map(|allowed| {
+                        quote! {
+                            else if #allowed {
+                                #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+                            }
                         }
                     });
                     quote! {
@@ -93,7 +86,8 @@ pub(in crate::serde) fn untagged_variant_arm(
                         }
                         #notify
                     }
-                });
+                },
+            );
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*

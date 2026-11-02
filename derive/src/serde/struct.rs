@@ -315,7 +315,10 @@ fn named_struct_body(
         conditions.push(quote!(#carrier.is_some()));
         serialized_names.push(serialized_name);
         carriers.push(carrier);
-        skip_events.push(conditional_skip_event_allowed(parsed.serde_attributes(), parsed.attributes().mode()));
+        skip_events.push(conditional_skip_event_allowed(
+            parsed.serde_attributes(),
+            parsed.attributes().mode(),
+        ));
     }
 
     let count_conditions = &conditions;
@@ -326,9 +329,11 @@ fn named_struct_body(
         .zip(&carriers)
         .zip(&skip_events)
         .map(|(((_condition, field_name), carrier), allowed)| {
-            let notify = allowed.as_ref().map(|allowed| quote! {
-                else if #allowed {
-                    #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+            let notify = allowed.as_ref().map(|allowed| {
+                quote! {
+                    else if #allowed {
+                        #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
+                    }
                 }
             });
             quote! {

@@ -75,12 +75,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
             let skip_events = fields
                 .iter()
                 .filter(|field| !field_is_skipped(field.serde_attributes()))
-                .map(|field| {
-                    conditional_skip_event_allowed(
-                        field.serde_attributes(),
-                        field.attributes().mode(),
-                    )
-                })
+                .map(|field| conditional_skip_event_allowed(field.serde_attributes(), field.attributes().mode()))
                 .collect::<Vec<_>>();
             let (proxy_definition, proxy_value) = named_content_proxy(
                 rust_name,

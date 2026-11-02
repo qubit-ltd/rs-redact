@@ -227,5 +227,26 @@ fn benchmark_redaction(criterion: &mut Criterion) {
     formats.finish();
 }
 
-criterion_group!(benches, benchmark_redaction);
+/// Measures warm construction separately from construction plus execution.
+fn benchmark_builtin_redactors(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("builtin-redactor");
+    for (name, constructor) in [
+        ("standard", Redactor::standard as fn() -> Redactor),
+        ("strict", Redactor::strict as fn() -> Redactor),
+    ] {
+        let reusable = constructor();
+        group.bench_function(format!("{name}/construct"), |bencher| {
+            bencher.iter(|| black_box(constructor()));
+        });
+        group.bench_function(format!("{name}/construct-and-field"), |bencher| {
+            bencher.iter(|| constructor().redact_field(black_box("password"), black_box("raw-secret")));
+        });
+        group.bench_function(format!("{name}/reuse-and-field"), |bencher| {
+            bencher.iter(|| reusable.redact_field(black_box("password"), black_box("raw-secret")));
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, benchmark_redaction, benchmark_builtin_redactors);
 criterion_main!(benches);
