@@ -127,6 +127,7 @@ HTTP, URI, argv/env, batches, and budgets are covered in the user guide.
 | Lazy formatting or serialization under a fixed policy | `redact_view(&value)` |
 | Final text and completeness summary now | `redact_text(&value)` |
 | Compact redacted JSON string | `to_json(&value)` |
+| JSON with observable degradation status | `to_json_with_status(&value)` |
 | Redact input that is already JSON | `redact_json(text)` / `redact_json_value(&value)` |
 | Share one budget across independent values | `diagnostic_batch()` |
 | Compose one diagnostic message | `text_composer()` |

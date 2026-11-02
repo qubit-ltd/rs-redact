@@ -19,6 +19,8 @@ mod redacted_text_composer;
 mod redacted_view;
 mod redaction_inspection;
 mod redaction_inspection_error;
+#[cfg(feature = "json")]
+mod redaction_json_output;
 mod redaction_reason;
 mod redaction_reasons;
 mod redaction_summary;
@@ -37,6 +39,8 @@ pub use redacted_text_composer::RedactedTextComposer;
 pub use redacted_view::RedactedView;
 pub use redaction_inspection::RedactionInspection;
 pub use redaction_inspection_error::RedactionInspectionError;
+#[cfg(feature = "json")]
+pub use redaction_json_output::RedactionJsonOutput;
 pub use redaction_reason::RedactionReason;
 pub use redaction_reasons::RedactionReasons;
 pub use redaction_summary::RedactionSummary;

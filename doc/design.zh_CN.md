@@ -289,6 +289,16 @@ serializer 错误。普通调用方应使用 `redact_view()` 或 `to_json()`。�
 Result<String, serde_json::Error> 保留。结构降级可以产生合法安全替代，故成功不代表完整。
 同一源状态且两者均成功时，to_json 与直接序列化 view 输出一致；成功条件不等价。
 
+启用 `json` feature 后，`Redactor::to_json_with_status` 会用同一投影和编码器执行一次，
+返回包含完整 JSON 与本次观察原因的 `RedactionJsonOutput`。普通掩码、显式 skip、条件省略和
+disabled 策略不会标记为不完整；disabled 仍可能暴露源值。库观察到资源或格式化失败并采用
+安全替代时，会加入相应的具体原因。编码、payload 或 serializer 错误仍返回 `Err`，不返回半截
+结果。该状态不能证明自定义 serializer 输出了全部业务字段。
+
+每次调用都会在活动 Serde 账本注册 observer，并由 RAII 在正常返回、错误或 panic 时注销。
+共享同一账本的嵌套调用只报告其注册期间观察到的事件；活动父调用也会收到子调用事件。
+不同账本之间不会互相污染。原有 `to_json` 不注册 observer，保持既有返回类型与行为。
+
 文本字段、手写领域节点及 Serde 事件各有输入准入单位；usage 不是源对象内存大小。
 预算无法抢占用户 Display/Serialize 内部任意计算，也不限制调用前分配。
 

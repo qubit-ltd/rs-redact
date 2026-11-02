@@ -27,6 +27,8 @@ use super::redact_serialize_scope::admit_node;
 use super::redact_serialize_scope::leave_node;
 #[cfg(feature = "json")]
 use super::redacted_json_serialize_ref::RedactedJsonSerializeRef;
+#[cfg(feature = "json")]
+use crate::RedactionReason;
 
 /// Internal structured serialization capability for JSON text fields.
 #[doc(hidden)]
@@ -95,6 +97,7 @@ where
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
     if text.len() > policy.limits().max_input_bytes() {
+        super::redact_serialize_scope::record_reason(RedactionReason::InputLimitReached);
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
@@ -106,15 +109,51 @@ where
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     };
-    if preflight.validate(text).is_err() {
+    if let Err(error) = preflight.validate(text) {
+        match error {
+            crate::runtime::JsonStructurePreflightError::Invalid => {
+                super::redact_serialize_scope::record_reason(RedactionReason::InvalidJson)
+            }
+            crate::runtime::JsonStructurePreflightError::DepthLimit => {
+                super::redact_serialize_scope::record_reason(RedactionReason::DepthLimitReached)
+            }
+            crate::runtime::JsonStructurePreflightError::TraversalLimit => {
+                super::redact_serialize_scope::record_reason(RedactionReason::TraversalLimitReached)
+            }
+        }
         let replacement = masked();
         return super::redact_serialize_scope::serialize_payload(serializer, replacement);
     }
     #[cfg(test)]
     crate::formats::json::parse_counter::record_json_materialization();
-    let Ok(value) = JsonDecoder::with_limits(limits).decode_unique_str::<DuplicateKeyRejectingJsonValue>(text) else {
-        let replacement = masked();
-        return super::redact_serialize_scope::serialize_payload(serializer, replacement);
+    let value = match JsonDecoder::with_limits(limits).decode_unique_str::<DuplicateKeyRejectingJsonValue>(text) {
+        Ok(value) => value,
+        Err(error) => {
+            use qubit_budget::json::JsonResource;
+            match error.budget_error().map(|budget| budget.resource()) {
+                Some(JsonResource::Depth) => {
+                    super::redact_serialize_scope::record_reason(RedactionReason::DepthLimitReached)
+                }
+                Some(JsonResource::Nodes | JsonResource::SequenceItems | JsonResource::MapEntries) => {
+                    super::redact_serialize_scope::record_reason(RedactionReason::TraversalLimitReached)
+                }
+                Some(
+                    JsonResource::InputBytes
+                    | JsonResource::NormalizedInputBytes
+                    | JsonResource::KeyBytes
+                    | JsonResource::StringBytes
+                    | JsonResource::NumberBytes
+                    | JsonResource::PayloadBytes,
+                ) => super::redact_serialize_scope::record_reason(RedactionReason::InputLimitReached),
+                Some(JsonResource::OutputBytes) => {
+                    super::redact_serialize_scope::record_reason(RedactionReason::OutputLimitReached)
+                }
+                Some(_) => super::redact_serialize_scope::record_reason(RedactionReason::InputLimitReached),
+                None => super::redact_serialize_scope::record_reason(RedactionReason::InvalidJson),
+            }
+            let replacement = masked();
+            return super::redact_serialize_scope::serialize_payload(serializer, replacement);
+        }
     };
     let value = value.into_inner();
     if !admit_structured_json_value(&value) {
@@ -126,6 +165,13 @@ where
         &value,
         super::redact_serialize_scope::remaining_payload_bytes(),
     );
+    if output.completion() != crate::RedactionCompletion::Complete {
+        let mut reasons = output.reasons();
+        if reasons == crate::RedactionReasons::empty() {
+            reasons = reasons.with(RedactionReason::InvalidJson);
+        }
+        super::redact_serialize_scope::record_reasons(reasons);
+    }
     super::redact_serialize_scope::serialize_payload(serializer, output.text())
 }
 

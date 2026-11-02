@@ -8,6 +8,8 @@
 //! Shared structural admission for generated Serde redaction.
 
 use std::cell::RefCell;
+#[cfg(feature = "json")]
+use std::cell::RefCell as Cell;
 use std::marker::PhantomData;
 use std::ptr::eq;
 use std::ptr::from_ref;
@@ -21,6 +23,11 @@ use super::policy_frame::PolicyFrame;
 use super::serde_node_guard::SerdeNodeGuard;
 use super::serde_payload_guard::SerdePayloadForwardGuard;
 use super::structured_serde_budget::StructuredSerdeBudget;
+#[cfg(feature = "json")]
+use super::structured_serde_budget::StructuredSerdeReport;
+use crate::RedactionReason;
+#[cfg(feature = "json")]
+use crate::RedactionReasons;
 #[cfg(feature = "json")]
 use crate::runtime::JsonStructurePreflight;
 
@@ -102,6 +109,8 @@ impl<'policy> RedactSerializeScope<'policy> {
                 input_bytes: 0,
                 payload_bytes: 0,
                 payload_forwarding: 0,
+                #[cfg(feature = "json")]
+                reports: Vec::new(),
             });
             true
         });
@@ -115,6 +124,68 @@ impl<'policy> RedactSerializeScope<'policy> {
             _policy: PhantomData,
             _not_send: PhantomData,
             owns_budget,
+        }
+    }
+}
+
+/// RAII registration for one optional caller report.
+#[cfg(feature = "json")]
+pub(crate) struct SerdeReportGuard {
+    sink: Rc<Cell<StructuredSerdeReport>>,
+}
+
+#[cfg(feature = "json")]
+impl SerdeReportGuard {
+    pub(crate) fn reasons(&self) -> RedactionReasons {
+        self.sink.borrow().reasons
+    }
+}
+
+#[cfg(feature = "json")]
+impl Drop for SerdeReportGuard {
+    fn drop(&mut self) {
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            for budget in slot.borrow_mut().iter_mut() {
+                budget.reports.retain(|report| !Rc::ptr_eq(report, &self.sink));
+            }
+        });
+    }
+}
+
+#[cfg(feature = "json")]
+pub(crate) fn register_report() -> SerdeReportGuard {
+    let sink = Rc::new(Cell::new(StructuredSerdeReport::default()));
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        if let Some(budget) = slot.borrow_mut().last_mut() {
+            budget.reports.push(Rc::clone(&sink));
+        }
+    });
+    SerdeReportGuard { sink }
+}
+
+pub(super) fn record_reason(reason: RedactionReason) {
+    #[cfg(feature = "json")]
+    STRUCTURED_SERDE_BUDGETS.with(|slot| {
+        if let Some(budget) = slot.borrow_mut().last_mut() {
+            budget.record(reason);
+        }
+    });
+    #[cfg(not(feature = "json"))]
+    let _ = reason;
+}
+
+#[cfg(feature = "json")]
+pub(super) fn record_reasons(reasons: RedactionReasons) {
+    for reason in [
+        RedactionReason::InputLimitReached,
+        RedactionReason::OutputLimitReached,
+        RedactionReason::TraversalLimitReached,
+        RedactionReason::DepthLimitReached,
+        RedactionReason::InvalidJson,
+        RedactionReason::FormattingFailed,
+    ] {
+        if reasons.contains(reason) {
+            record_reason(reason);
         }
     }
 }
@@ -181,9 +252,17 @@ pub(super) fn admit_node() -> bool {
         let Some(state) = budgets.last_mut() else {
             return false;
         };
-        if state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum)
-            || state.policy.max_nodes().is_some_and(|maximum| state.nodes >= maximum)
-        {
+        let depth_rejected = state.policy.max_depth().is_some_and(|maximum| state.depth >= maximum);
+        let node_rejected = state.policy.max_nodes().is_some_and(|maximum| state.nodes >= maximum);
+        if depth_rejected || node_rejected {
+            if depth_rejected {
+                #[cfg(feature = "json")]
+                state.record(RedactionReason::DepthLimitReached);
+            }
+            if node_rejected {
+                #[cfg(feature = "json")]
+                state.record(RedactionReason::TraversalLimitReached);
+            }
             return false;
         }
         state.depth += 1;
@@ -257,6 +336,8 @@ pub(super) fn admit_collection_items(count: usize) -> bool {
             .max_collection_items()
             .is_some_and(|maximum| next > maximum)
         {
+            #[cfg(feature = "json")]
+            state.record(RedactionReason::TraversalLimitReached);
             return false;
         }
         state.collection_items = next;
@@ -284,6 +365,8 @@ pub(super) fn admit_input(bytes: usize) -> bool {
         };
         let next = state.input_bytes.saturating_add(bytes);
         if next > state.policy.max_input_bytes() {
+            #[cfg(feature = "json")]
+            state.record(RedactionReason::InputLimitReached);
             return false;
         }
         state.input_bytes = next;
@@ -500,4 +583,29 @@ pub(super) fn leave_raw_serializer() {
             state.raw_serializers -= 1;
         }
     });
+}
+
+#[cfg(all(test, feature = "json"))]
+mod report_tests {
+    use super::RedactSerializeScope;
+    use super::record_reason;
+    use super::register_report;
+    use crate::RedactionPolicy;
+    use crate::RedactionReason;
+
+    #[test]
+    fn nested_report_excludes_events_before_its_registration() {
+        let policy = RedactionPolicy::standard();
+        let _scope = RedactSerializeScope::new(&policy);
+        let parent = register_report();
+        record_reason(RedactionReason::InputLimitReached);
+        {
+            let child = register_report();
+            record_reason(RedactionReason::TraversalLimitReached);
+            assert!(child.reasons().contains(RedactionReason::TraversalLimitReached));
+            assert!(!child.reasons().contains(RedactionReason::InputLimitReached));
+        }
+        assert!(parent.reasons().contains(RedactionReason::InputLimitReached));
+        assert!(parent.reasons().contains(RedactionReason::TraversalLimitReached));
+    }
 }

@@ -236,8 +236,18 @@ where
     let mut writer = BoundedDisplayWriter::new(remaining_input_bytes());
     let result = fmt::write(&mut writer, format_args!("{value}"));
     let accepted = writer.accepted_bytes();
+    let writer_rejected = writer.rejected();
     let admitted = admit_input(accepted);
-    if !admitted || result.is_err() {
+    if !admitted {
+        super::redact_serialize_scope::record_reason(crate::RedactionReason::InputLimitReached);
+        return None;
+    }
+    if result.is_err() {
+        super::redact_serialize_scope::record_reason(if writer_rejected {
+            crate::RedactionReason::InputLimitReached
+        } else {
+            crate::RedactionReason::FormattingFailed
+        });
         return None;
     }
     writer.finish()
@@ -845,4 +855,103 @@ where
         .as_deref()
         .unwrap_or_else(|| policy.masking().mask_opaque(Sensitivity::Secret));
     super::redact_serialize_scope::serialize_payload(serializer, text)
+}
+
+#[cfg(all(test, feature = "json"))]
+mod status_tests {
+    use std::cell::Cell;
+    use std::fmt;
+
+    use super::serialize_display_text;
+    use crate::RedactionPolicy;
+    use crate::RedactionReason;
+    use crate::Sensitivity;
+    use crate::domain::internal::RedactSerializeScope;
+    use crate::domain::internal::register_report;
+
+    struct Refuses;
+
+    impl fmt::Display for Refuses {
+        fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+            Err(fmt::Error)
+        }
+    }
+
+    struct Counted<'a>(&'a Cell<usize>);
+
+    impl fmt::Display for Counted<'_> {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.set(self.0.get() + 1);
+            formatter.write_str("counted")
+        }
+    }
+
+    #[test]
+    fn display_error_and_input_rejection_are_reported() {
+        let policy = RedactionPolicy::standard();
+        let _scope = RedactSerializeScope::new(&policy);
+        let report = register_report();
+        let value = serialize_display_text(&Refuses, serde_json::value::Serializer, &policy, Sensitivity::Low)
+            .expect("formatter failure uses safe replacement");
+        assert_eq!(value, "<redacted>");
+        assert!(report.reasons().contains(RedactionReason::FormattingFailed));
+
+        drop(report);
+        drop(_scope);
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_input_bytes(0);
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+        let _scope = RedactSerializeScope::new(&policy);
+        let report = register_report();
+        let value = serialize_display_text("too-long", serde_json::value::Serializer, &policy, Sensitivity::Low)
+            .expect("input rejection uses safe replacement");
+        assert_eq!(value, "<redacted>");
+        assert!(report.reasons().contains(RedactionReason::InputLimitReached));
+    }
+
+    #[test]
+    fn high_sensitivity_does_not_call_display_and_exact_input_budget_is_complete() {
+        let calls = Cell::new(0);
+        let policy = RedactionPolicy::standard();
+        let _scope = RedactSerializeScope::new(&policy);
+        let report = register_report();
+        let value = serialize_display_text(
+            &Counted(&calls),
+            serde_json::value::Serializer,
+            &policy,
+            Sensitivity::Secret,
+        )
+        .expect("secret mask serializes");
+        assert_eq!(value, "<redacted>");
+        assert_eq!(calls.get(), 0);
+        let high = serialize_display_text(
+            &Counted(&calls),
+            serde_json::value::Serializer,
+            &policy,
+            Sensitivity::High,
+        )
+        .expect("high sensitivity mask serializes");
+        assert!(high.is_string());
+        assert_eq!(calls.get(), 0);
+        assert_eq!(report.reasons(), crate::RedactionReasons::empty());
+
+        drop(report);
+        drop(_scope);
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_input_bytes(6);
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+        let _scope = RedactSerializeScope::new(&policy);
+        let report = register_report();
+        let _ = serialize_display_text("sixsix", serde_json::value::Serializer, &policy, Sensitivity::Low)
+            .expect("exact input boundary serializes");
+        assert_eq!(report.reasons(), crate::RedactionReasons::empty());
+    }
 }

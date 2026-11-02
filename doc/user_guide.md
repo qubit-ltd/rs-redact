@@ -122,6 +122,7 @@ fn main() {
 | `redact_view(&value)` | `RedactedView<'a, T>` | On each formatting/serialization call |
 | `redact_text(&value)` | `RedactionTextOutput` | Immediately, with final text and summary |
 | `to_json(&value)` | `Result<String, serde_json::Error>` | Immediately serializes the view |
+| `to_json_with_status(&value)` | `Result<RedactionJsonOutput, serde_json::Error>` | JSON plus observed degradation reasons |
 
 A view borrows the source and owns a policy snapshot; it is not a modified business object
 or cached source content. Each use starts from the source with an independent budget, never
@@ -141,6 +142,49 @@ With identical source state, outputs match when both succeed. It traverses once,
 serializer and budget errors, and never returns partial JSON. Success may include safe structural
 replacements and is not a completeness assertion. It follows domain annotations;
 `redact_json(text)` parses input JSON and classifies JSON keys.
+
+Use `to_json_with_status()` when the caller needs to distinguish ordinary masking from a
+successful resource fallback. `is_complete()` is true for ordinary masks, explicit skips,
+conditional omissions, and disabled policy; disabled policy can still expose source values.
+Successful library-observed fallbacks return reasons such as `TraversalLimitReached`, while
+encoding, payload, and serializer errors still return `Err` without partial JSON. The status
+covers only decisions this library observes; it cannot prove that a custom serializer emitted
+every business field. Applications can reject or report an incomplete result, but must never
+fall back to serializing the source object.
+
+<!-- redact-example: kind=run features=derive,json -->
+```rust
+use qubit_redact::Redact;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
+use qubit_redact::Redactor;
+
+#[derive(Redact)]
+struct Login {
+    #[redact(level = "secret")]
+    password: String,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let login = Login { password: "raw-secret".into() };
+    let output = Redactor::standard().to_json_with_status(&login)?;
+    assert!(output.is_complete());
+    assert_eq!(output.json(), r#"{"password":"<redacted>"}"#);
+
+    let limited = Redactor::new(
+        RedactionPolicy::builder()
+            .limits(|limits| { limits.max_nodes(0); })?
+            .build()?,
+    );
+    let output = limited.to_json_with_status(&login)?;
+    if !output.is_complete() {
+        assert!(output.reasons().contains(RedactionReason::TraversalLimitReached));
+        // Apply the application's reject or alert policy here.
+    }
+    assert_eq!(output.json(), r#""<redacted>""#);
+    Ok(())
+}
+```
 
 ## Choose an Entry Point
 

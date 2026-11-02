@@ -365,6 +365,20 @@ Result<String, serde_json::Error>. Structural degradation may produce valid safe
 so success does not imply completeness. Identical source state yields matching output when
 both operations succeed; their success conditions are not equivalent.
 
+With the `json` feature, `Redactor::to_json_with_status` runs the same projection and encoder
+once, returning `RedactionJsonOutput` with the completed JSON and the reasons observed during
+that call. Ordinary masks, explicit skips, conditional omissions, and disabled policy do not
+mark the result incomplete; disabled policy may expose source values. Successful safe
+replacements caused by library-observed resource or formatting failures add their concrete
+reasons. Encoding, payload, and serializer errors still return `Err` without a partial result.
+The status does not prove that custom serializers emitted every business field.
+
+Each call registers an observer on its active Serde ledger and unregisters it through RAII on
+return, error, or panic. A nested call sharing the ledger reports its own observed events;
+active parent reports also receive those events. Calls on distinct ledgers do not contaminate
+one another. The existing `to_json` path does not register an observer and retains its return
+type and behavior.
+
 Scalar text fields, handwritten domain nodes, and Serde events have distinct input admission
 units; usage is not source-object memory size. Budgets cannot preempt arbitrary computation
 inside user Display/Serialize or bound allocations performed before the library call.

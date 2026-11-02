@@ -19,8 +19,11 @@ use super::Redactor;
 use super::internal::bounded_json_writer::BoundedJsonWriter;
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;
+use crate::RedactionJsonOutput;
 use crate::RedactionTextOutput;
+use crate::domain::internal::RedactSerializeScope;
 use crate::domain::internal::RedactSerializeSource;
+use crate::domain::internal::register_report;
 use crate::formats::json::inspection::inspect_borrowed_value;
 use crate::formats::json::inspection::inspect_text;
 
@@ -61,10 +64,36 @@ impl Redactor {
     where
         T::RedactedFields<'value>: Serialize,
     {
-        let mut writer = BoundedJsonWriter::new(self.policy().limits().max_output_bytes());
-        to_writer(&mut writer, &self.redact_view(value))?;
-        String::from_utf8(writer.into_bytes().map_err(JsonError::io)?)
-            .map_err(|error| JsonError::io(IoError::new(ErrorKind::InvalidData, error)))
+        encode_json(self, value)
+    }
+
+    /// Serializes a redacted domain view once and returns JSON with the
+    /// degradation observed during that encoding.
+    ///
+    /// Ordinary masking, skip, and conditional omission are complete. A
+    /// successful safe replacement caused by a resource limit or failed
+    /// formatter is reported through `reasons()`. Output or payload budget
+    /// failures and serializer errors remain errors; no partial result is
+    /// returned. A custom `Serialize` implementation may apply its own
+    /// business logic or omit fields, which is outside this completeness
+    /// signal. Disabled policy can expose source values.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the same JSON encoding and budget errors as
+    /// [`Self::to_json`].
+    #[inline]
+    pub fn to_json_with_status<'value, T: RedactSerializeSource + ?Sized>(
+        &self,
+        value: &'value T,
+    ) -> Result<RedactionJsonOutput, JsonError>
+    where
+        T::RedactedFields<'value>: Serialize,
+    {
+        let _scope = RedactSerializeScope::new(self.policy());
+        let report = register_report();
+        let json = encode_json(self, value)?;
+        Ok(RedactionJsonOutput::new(json, report.reasons()))
     }
 
     /// Redacts JSON text through one completed text transaction.
@@ -188,4 +217,17 @@ impl Redactor {
         inspect_borrowed_value(&mut session, value);
         session.finish()
     }
+}
+
+fn encode_json<'value, T: RedactSerializeSource + ?Sized>(
+    redactor: &Redactor,
+    value: &'value T,
+) -> Result<String, JsonError>
+where
+    T::RedactedFields<'value>: Serialize,
+{
+    let mut writer = BoundedJsonWriter::new(redactor.policy().limits().max_output_bytes());
+    to_writer(&mut writer, &redactor.redact_view(value))?;
+    String::from_utf8(writer.into_bytes().map_err(JsonError::io)?)
+        .map_err(|error| JsonError::io(IoError::new(ErrorKind::InvalidData, error)))
 }

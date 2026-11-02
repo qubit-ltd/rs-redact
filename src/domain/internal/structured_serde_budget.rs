@@ -7,6 +7,23 @@
 // =============================================================================
 //! Mutable counters for one structured Serde budget scope.
 
+#[cfg(feature = "json")]
+use std::cell::RefCell;
+#[cfg(feature = "json")]
+use std::rc::Rc;
+
+#[cfg(feature = "json")]
+use crate::RedactionReason;
+#[cfg(feature = "json")]
+use crate::RedactionReasons;
+
+/// Per-call event sink registered with an active structured ledger.
+#[cfg(feature = "json")]
+#[derive(Default)]
+pub(super) struct StructuredSerdeReport {
+    pub(super) reasons: RedactionReasons,
+}
+
 /// Tracks structural, source, and logical payload counters for one nested Serde
 /// scope.
 pub(super) struct StructuredSerdeBudget {
@@ -31,4 +48,17 @@ pub(super) struct StructuredSerdeBudget {
     pub(super) payload_bytes: usize,
     /// Active downstream forwarding of a scalar already charged by its owner.
     pub(super) payload_forwarding: usize,
+    /// Optional observers for calls currently active on this ledger.
+    #[cfg(feature = "json")]
+    pub(super) reports: Vec<Rc<RefCell<StructuredSerdeReport>>>,
+}
+
+#[cfg(feature = "json")]
+impl StructuredSerdeBudget {
+    pub(super) fn record(&mut self, reason: RedactionReason) {
+        for report in &self.reports {
+            let mut report = report.borrow_mut();
+            report.reasons = report.reasons.with(reason);
+        }
+    }
 }

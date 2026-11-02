@@ -116,6 +116,7 @@ fn main() {
 | `redact_view(&value)` | `RedactedView<'a, T>` | 每次格式化或序列化时 |
 | `redact_text(&value)` | `RedactionTextOutput` | 立即执行，包含最终文本和摘要 |
 | `to_json(&value)` | `Result<String, serde_json::Error>` | 立即序列化视图 |
+| `to_json_with_status(&value)` | `Result<RedactionJsonOutput, serde_json::Error>` | 返回 JSON 与实际观察到的降级原因 |
 
 视图借用源对象并拥有策略快照，不是脱敏后的业务对象，也不缓存源内容。
 多次序列化分别从源对象执行，绝不会把上次掩码结果作为下一次输入；每次使用独立预算。
@@ -132,6 +133,47 @@ fn main() {
 源状态相同且两者均成功时输出一致。它只遍历一次，传播序列化或预算错误，不返回半截 JSON。
 成功可能包含结构降级后的安全替代，因此不是完整性保证。
 它遵循领域标注；`redact_json(text)` 则解析输入 JSON 并按 JSON key 分类，两者不可混用。
+
+调用方需要区分普通掩码与资源不足时的成功替代，可使用 `to_json_with_status()`。
+普通掩码、显式 skip、条件省略和 disabled 策略都会使 `is_complete()` 为 true；disabled
+仍可能暴露源值。库观察到的成功降级会返回具体原因，例如 `TraversalLimitReached`；编码、
+payload 或 serializer 错误仍返回 `Err`，不会返回半截 JSON。状态只覆盖本库实际观察到的处理，
+不能证明自定义 serializer 输出了全部业务字段。应用可以拒绝或告警不完整结果，但不能回退到
+直接序列化源对象。
+
+<!-- redact-example: kind=run features=derive,json -->
+```rust
+use qubit_redact::Redact;
+use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
+use qubit_redact::Redactor;
+
+#[derive(Redact)]
+struct Login {
+    #[redact(level = "secret")]
+    password: String,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let login = Login { password: "raw-secret".into() };
+    let output = Redactor::standard().to_json_with_status(&login)?;
+    assert!(output.is_complete());
+    assert_eq!(output.json(), r#"{"password":"<redacted>"}"#);
+
+    let limited = Redactor::new(
+        RedactionPolicy::builder()
+            .limits(|limits| { limits.max_nodes(0); })?
+            .build()?,
+    );
+    let output = limited.to_json_with_status(&login)?;
+    if !output.is_complete() {
+        assert!(output.reasons().contains(RedactionReason::TraversalLimitReached));
+        // 在应用中执行拒绝或告警策略。
+    }
+    assert_eq!(output.json(), r#""<redacted>""#);
+    Ok(())
+}
+```
 
 ## 选择入口与使用时机
 

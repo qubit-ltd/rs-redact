@@ -85,6 +85,8 @@ pub use facade::RedactedTextComposer;
 pub use facade::RedactedView;
 pub use facade::RedactionInspection;
 pub use facade::RedactionInspectionError;
+#[cfg(feature = "json")]
+pub use facade::RedactionJsonOutput;
 pub use facade::RedactionReason;
 pub use facade::RedactionReasons;
 pub use facade::RedactionSummary;

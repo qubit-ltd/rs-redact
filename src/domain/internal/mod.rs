@@ -107,6 +107,8 @@ pub use redact_serialize::RedactSerialize;
 pub use redact_serialize_scope::RedactSerializeScope;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::current_policy;
+#[cfg(feature = "json")]
+pub(crate) use redact_serialize_scope::register_report;
 #[cfg(any(feature = "serde", feature = "json"))]
 pub use redact_serialize_scope::serialize_structured;
 #[cfg(any(feature = "serde", feature = "json"))]

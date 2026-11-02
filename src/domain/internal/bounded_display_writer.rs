@@ -50,6 +50,10 @@ impl BoundedDisplayWriter {
         self.output.len()
     }
 
+    pub(super) fn rejected(&self) -> bool {
+        self.rejected
+    }
+
     /// Returns `Some` with all accepted fragments if no write was rejected.
     ///
     /// Returns `None` after any rejected write. The caller must separately

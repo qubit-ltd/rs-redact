@@ -123,6 +123,7 @@ argv/env、batch 与预算等详见用户手册。
 | 延迟格式化或序列化，固定策略 | `redact_view(&value)` |
 | 立即获取最终文本和完整性摘要 | `redact_text(&value)` |
 | 获取紧凑的脱敏 JSON 字符串 | `to_json(&value)` |
+| 获取 JSON 及可观察到的降级状态 | `to_json_with_status(&value)` |
 | 处理本身就是 JSON 的输入 | `redact_json(text)` / `redact_json_value(&value)` |
 | 多个独立值共享一份预算 | `diagnostic_batch()` |
 | 拼接一条诊断文本 | `text_composer()` |
