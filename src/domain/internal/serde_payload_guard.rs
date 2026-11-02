@@ -14,6 +14,7 @@ use super::redact_serialize_scope::suspend_payload_forwarding;
 
 /// Marks the synchronous downstream forwarding of one already charged string.
 pub(super) struct SerdePayloadForwardGuard {
+    /// Whether construction entered a forwarding scope that must be left.
     active: bool,
 }
 
@@ -28,6 +29,10 @@ impl SerdePayloadForwardGuard {
 }
 
 impl Drop for SerdePayloadForwardGuard {
+    /// Leaves the forwarding scope only when this guard entered one.
+    ///
+    /// This runs on normal return and panic unwinding, but not on abort or if
+    /// the guard is leaked.
     fn drop(&mut self) {
         if self.active {
             end_payload_forwarding();
@@ -37,6 +42,9 @@ impl Drop for SerdePayloadForwardGuard {
 
 /// Suspends a forwarding credential while a new user `Serialize` value runs.
 pub(super) struct SerdePayloadEventGuard {
+    /// Forwarding depth saved before the child event, or `None` without an
+    /// active budget. `Some(0)` still represents an active budget whose
+    /// forwarding depth must be restored.
     previous: Option<usize>,
 }
 
@@ -51,6 +59,10 @@ impl SerdePayloadEventGuard {
 }
 
 impl Drop for SerdePayloadEventGuard {
+    /// Restores the forwarding state saved before the child event.
+    ///
+    /// This runs on normal return and panic unwinding, but not on abort or if
+    /// the guard is leaked.
     fn drop(&mut self) {
         restore_payload_forwarding(self.previous);
     }

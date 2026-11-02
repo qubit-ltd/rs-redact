@@ -1283,6 +1283,7 @@ All accept zero. Policy construction rejects Serde payload or final output ceili
 `max_json_key_bytes` independently bounds decoded JSON object-key UTF-8 bytes. Configure both
 when both scopes need limits. JSON text, borrowed `Value`, and HTTP JSON use the JSON limit;
 URI and form keys use the general limit.
+Argv heuristics do not apply `max_key_bytes` to option or assignment classification keys. Argv input still consumes the shared input-byte and structural budgets. Use `max_input_bytes` to bound admitted argument input; `max_key_bytes` is not a CLI option-name length limit.
 Sibling keys used only for `keyed_by` classification are admitted against
 `max_key_bytes` and do not accumulate into `max_input_bytes`; if the sibling is
 also serialized as an ordinary field, that output operation is charged under its

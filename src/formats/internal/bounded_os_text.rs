@@ -28,10 +28,17 @@ pub(crate) fn capture(value: &OsStr, maximum: usize) -> (String, bool) {
     let complete = capture_utf16_lossy(value.encode_wide(), maximum, &mut output);
     #[cfg(not(any(unix, windows)))]
     let complete = write_display(value, maximum, &mut output);
+    // Internal helpers report completeness; the tuple reports truncation.
     (output, !complete)
 }
 
 #[cfg(unix)]
+/// Converts UTF-8 bytes lossily while retaining only complete chunks within the
+/// byte limit.
+///
+/// Returns `true` when all source content was appended. A failed valid chunk is
+/// rejected whole; inspecting the remaining input may scan beyond the output
+/// limit.
 fn capture_utf8_lossy(bytes: &[u8], maximum: usize, output: &mut String) -> bool {
     let mut offset = 0;
     while offset < bytes.len() {
@@ -60,6 +67,11 @@ fn capture_utf8_lossy(bytes: &[u8], maximum: usize, output: &mut String) -> bool
 }
 
 #[cfg(windows)]
+/// Decodes UTF-16 one scalar at a time, replacing isolated surrogates with
+/// U+FFFD.
+///
+/// Returns `false` as soon as a decoded character cannot be appended within
+/// the byte limit; otherwise returns `true` after consuming the iterator.
 fn capture_utf16_lossy(value: impl Iterator<Item = u16>, maximum: usize, output: &mut String) -> bool {
     for decoded in char::decode_utf16(value) {
         let character = decoded.unwrap_or(char::REPLACEMENT_CHARACTER);
@@ -72,6 +84,10 @@ fn capture_utf16_lossy(value: impl Iterator<Item = u16>, maximum: usize, output:
 }
 
 #[cfg(not(any(unix, windows)))]
+/// Formats an OS string through a writer bounded by the output byte limit.
+///
+/// Returns `false` only when capacity rejects a write. This does not provide
+/// an independent classification for formatting errors.
 fn write_display(value: &OsStr, maximum: usize, output: &mut String) -> bool {
     struct Bounded<'a> {
         output: &'a mut String,
@@ -96,6 +112,10 @@ fn write_display(value: &OsStr, maximum: usize, output: &mut String) -> bool {
     !writer.exceeded
 }
 
+/// Appends a whole string slice if its byte length fits the remaining capacity.
+///
+/// Returns `true` when the slice was accepted and appended; otherwise leaves
+/// the output unchanged. Capacity arithmetic saturates on overflow.
 fn append_bounded(output: &mut String, text: &str, maximum: usize) -> bool {
     if output.len().saturating_add(text.len()) > maximum {
         return false;

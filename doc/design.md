@@ -238,6 +238,10 @@ non-JSON format classification keys; decoded JSON object keys use the
 independent `max_json_key_bytes` ceiling. Callers that need bounds for both
 scopes configure both limits. JSON text, borrowed `Value`, and HTTP JSON use
 the JSON ceiling, while URI and form keys use the shared format-key ceiling.
+Argv heuristics do not apply `max_key_bytes` to option or assignment
+classification keys. Argv input still consumes the shared input-byte and
+structural budgets. Use `max_input_bytes` to bound admitted argument input;
+`max_key_bytes` is not a CLI option-name length limit.
 
 HTTP JSON, NDJSON, and multipart rendering borrow the admitted structures
 within the operation, without rebuilding a masked `Value` tree or mutating
