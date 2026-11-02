@@ -124,3 +124,44 @@ impl<'a> FieldClassification<'a> {
         matches!(self, Self::Unknown)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::FieldMatchKind;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+
+    #[test]
+    fn test_classification_accessors_cover_each_result_kind() {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                fields
+                    .secret_sensitive("password")
+                    .allow_exact("request_id");
+            })
+            .expect("field rules should be valid")
+            .build()
+            .expect("policy should be valid");
+
+        let sensitive = policy.classify_field("password");
+        assert_eq!(sensitive.sensitivity(), Some(Sensitivity::Secret));
+        assert_eq!(sensitive.matched_field(), Some("password"));
+        assert_eq!(sensitive.match_kind(), Some(FieldMatchKind::Exact));
+        assert!(!sensitive.is_allowed());
+        assert!(!sensitive.is_unknown());
+
+        let allowed = policy.classify_field("request_id");
+        assert_eq!(allowed.sensitivity(), None);
+        assert_eq!(allowed.matched_field(), Some("requestid"));
+        assert_eq!(allowed.match_kind(), Some(FieldMatchKind::Exact));
+        assert!(allowed.is_allowed());
+        assert!(!allowed.is_unknown());
+
+        let unknown = policy.classify_field("trace_id");
+        assert_eq!(unknown.sensitivity(), None);
+        assert_eq!(unknown.matched_field(), None);
+        assert_eq!(unknown.match_kind(), None);
+        assert!(!unknown.is_allowed());
+        assert!(unknown.is_unknown());
+    }
+}
