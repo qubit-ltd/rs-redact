@@ -78,6 +78,72 @@ impl Redactor {
     /// business logic or omit fields, which is outside this completeness
     /// signal. Disabled policy can expose source values.
     ///
+    /// # Examples
+    ///
+    /// The example uses `derive` to define redacted fields. Ordinary masking
+    /// is complete; a JSON resource limit can produce a safe replacement with
+    /// an incomplete status; a zero-byte output budget returns an error.
+    ///
+    /// ```
+    /// #[cfg(feature = "derive")]
+    /// {
+    ///     use qubit_redact::{Redact, RedactionPolicy, RedactionReason, Redactor};
+    ///
+    ///     #[derive(Redact)]
+    ///     #[redact(crate = qubit_redact)]
+    ///     struct Login {
+    ///         #[redact(level = "secret")]
+    ///         password: String,
+    ///     }
+    ///
+    ///     #[derive(Redact)]
+    ///     #[redact(crate = qubit_redact)]
+    ///     struct JsonRecord {
+    ///         #[redact(json)]
+    ///         payload: String,
+    ///     }
+    ///
+    ///     let login = Login { password: "raw-secret".into() };
+    ///     let complete = Redactor::standard().to_json_with_status(&login)?;
+    ///     assert!(complete.is_complete());
+    ///     assert_eq!(complete.json(), r#"{"password":"<redacted>"}"#);
+    ///
+    ///     let output_limited = Redactor::new(
+    ///         RedactionPolicy::builder()
+    ///             .limits(|limits| { limits.max_output_bytes(0); })?
+    ///             .build()?,
+    ///     );
+    ///     assert!(output_limited.to_json_with_status(&login).is_err());
+    ///
+    ///     let record = JsonRecord { payload: "[0]".into() };
+    ///     let limited = Redactor::new(
+    ///         RedactionPolicy::builder()
+    ///             .limits(|limits| { limits.max_nodes(1); })?
+    ///             .build()?,
+    ///     )
+    ///     .to_json_with_status(&record)?;
+    ///     assert!(!limited.is_complete());
+    ///     assert!(limited.reasons().contains(RedactionReason::TraversalLimitReached));
+    ///     assert!(!limited.json().contains("[0]"));
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'value`: Borrow of the source retained while serializing its redacted
+    ///   projection.
+    /// - `T`: Possibly unsized source implementing [`RedactSerializeSource`].
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Source whose borrowed redacted projection is serialized once.
+    ///
+    /// # Returns
+    ///
+    /// Completed compact JSON and the degradation reasons observed during
+    /// encoding.
+    ///
     /// # Errors
     ///
     /// Propagates the same JSON encoding and budget errors as
