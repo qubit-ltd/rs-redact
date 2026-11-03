@@ -1266,7 +1266,10 @@ transparent 包装补足一个深度层和一个根节点。预算充足时，�
 `max_input_bytes` 默认 64 KiB；两个输出相关限制各默认 16 KiB。它们均允许 0。
 `max_key_bytes` 限制领域字段名及受支持的非 JSON 格式分类键；`max_json_key_bytes` 独立限制
 解码后 JSON 对象键的 UTF-8 字节数。两种范围都需要限制时应分别配置。JSON 文本、借用 `Value`
-和 HTTP JSON 使用 JSON 限制；URI 与 form 键使用通用限制。
+和 HTTP JSON 使用 JSON 限制。URI 查询项包含 `=` 时，第一个 `=` 前经解码的文本作为分类键，
+并受通用限制约束。不含 `=` 的查询项保持不透明：脱敏与 inspection 仍会校验它，但不会把其中
+的文本作为字段名分类，也不受 `max_key_bytes` 限制。所有查询项仍消耗输入与结构预算。form 键使用
+通用限制。
 argv heuristics 的 option 或 assignment 分类键不受 `max_key_bytes` 限制。argv 输入仍消耗共享输入字节和结构预算。需要限制获准的参数输入时配置 `max_input_bytes`；`max_key_bytes` 不是 CLI 参数名长度上限。
 仅用于 `keyed_by` 分类的兄弟键按 `max_key_bytes` 做结构长度准入，不累计到
 `max_input_bytes`。若该兄弟字段也作为普通字段序列化，其输出操作仍按各自现有额度计费。

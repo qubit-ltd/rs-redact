@@ -251,7 +251,12 @@ The shared `max_key_bytes` ceiling applies to domain fields and supported
 non-JSON format classification keys; decoded JSON object keys use the
 independent `max_json_key_bytes` ceiling. Callers that need bounds for both
 scopes configure both limits. JSON text, borrowed `Value`, and HTTP JSON use
-the JSON ceiling, while URI and form keys use the shared format-key ceiling.
+the JSON ceiling. URI query items containing `=` use the decoded text before
+the first `=` as a classification key under the shared format-key ceiling.
+Items without `=` remain opaque: redaction and inspection validate them, but
+do not classify their text as a field name or apply the key-byte ceiling. All
+URI query items still consume input and structural budgets. Form keys use the
+shared format-key ceiling.
 Argv heuristics do not apply `max_key_bytes` to option or assignment
 classification keys. Argv input still consumes the shared input-byte and
 structural budgets. Use `max_input_bytes` to bound admitted argument input;

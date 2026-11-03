@@ -221,7 +221,9 @@ JSON visitor 保留首个结构拒绝原因：共享结构深度拒绝映射为
 会占用共享深度 4，`max_depth` 必须允许组合后的深度。
 共享 `max_key_bytes` 限制领域字段及受支持的非 JSON 格式分类键；解码后的 JSON 对象键使用独立的
 `max_json_key_bytes`。两种范围都需要限制时应分别配置。JSON 文本、借用 `Value` 和 HTTP JSON
-使用 JSON 上限，URI 与 form 键使用通用格式键上限。
+使用 JSON 上限。URI 查询项包含 `=` 时，第一个 `=` 前经解码的文本作为分类键，并受通用格式键上限约束。
+不含 `=` 的查询项保持不透明；脱敏和 inspection 仍会校验它，但不执行字段分类，也不受键字节上限限制。
+所有 URI 查询项仍消耗输入和结构预算。form 键使用通用格式键上限。
 argv heuristics 的 option 或 assignment 分类键不受 `max_key_bytes` 限制。argv 输入仍消耗共享输入字节和结构预算。需要限制获准的参数输入时配置 `max_input_bytes`；`max_key_bytes` 不是 CLI 参数名长度上限。
 
 严格文本契约按解码后的字符串拒绝重复对象键；负整数必须装入 `i64`，非负整数必须装入 `u64`，

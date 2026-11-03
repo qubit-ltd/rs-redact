@@ -1396,8 +1396,12 @@ With sufficient budgets, the text representation and API remain unchanged.
 All accept zero. Policy construction rejects Serde payload or final output ceilings above `isize::MAX`.
 `max_key_bytes` bounds domain field names and supported non-JSON format classification keys;
 `max_json_key_bytes` independently bounds decoded JSON object-key UTF-8 bytes. Configure both
-when both scopes need limits. JSON text, borrowed `Value`, and HTTP JSON use the JSON limit;
-URI and form keys use the general limit.
+when both scopes need limits. JSON text, borrowed `Value`, and HTTP JSON use the JSON limit.
+URI query items containing `=` use the decoded text before the first `=` as a classification key
+and apply the general limit to it. A query item without `=` is opaque: it is validated during
+redaction and inspection, but its text is neither classified as a field name nor subject to
+`max_key_bytes`. Every query item still consumes input and structural budgets. Form keys use the
+general limit.
 Argv heuristics do not apply `max_key_bytes` to option or assignment classification keys. Argv input still consumes the shared input-byte and structural budgets. Use `max_input_bytes` to bound admitted argument input; `max_key_bytes` is not a CLI option-name length limit.
 Sibling keys used only for `keyed_by` classification are admitted against
 `max_key_bytes` and do not accumulate into `max_input_bytes`; if the sibling is

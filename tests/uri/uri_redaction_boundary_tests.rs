@@ -67,6 +67,20 @@ fn test_boundary_protects_sensitive_uri_when_application_redaction_is_disabled()
     );
 }
 
+/// The standard boundary floor classifies named key/value pairs; a bare item
+/// has no field name/value pair to which the floor can apply.
+#[test]
+fn test_boundary_keeps_bare_query_items_opaque() {
+    let boundary = UriRedactionBoundary::new(&RedactionPolicy::disabled());
+    let uri = "https://example.test/?password";
+
+    let output = boundary.redact_uri(uri);
+
+    assert_eq!(output.text().as_str(), uri);
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(boundary.inspect_uri(uri).unwrap().max_sensitivity(), None);
+}
+
 /// Mandatory confidentiality retains caller resource limits and malformed-input
 /// errors.
 #[test]

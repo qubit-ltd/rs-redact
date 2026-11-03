@@ -310,6 +310,7 @@ fn test_process_batch_environment_key_limit_stops_before_reading_the_tail() {
 
 #[cfg(feature = "uri")]
 mod uri {
+    use qubit_redact::RedactionPolicy;
     use qubit_redact::RedactionReason;
     use qubit_redact::Redactor;
 
@@ -369,6 +370,130 @@ mod uri {
     }
 
     #[test]
+    fn test_uri_bare_query_items_are_not_classification_keys() {
+        let redactor = Redactor::new(policy_with_key_limit(1));
+
+        for input in [
+            "https://example.test/?a",
+            "https://example.test/?ab",
+            "https://example.test/?%61",
+            "https://example.test/?%61b",
+            "https://example.test/?",
+            "https://example.test/?&",
+        ] {
+            let output = redactor.redact_uri(input);
+            assert_eq!(output.text().as_str(), input, "bare item should pass through: {input}");
+            assert!(output.complete_text().is_ok(), "bare item is not key-limited: {input}");
+            assert_eq!(
+                redactor
+                    .inspect_uri(input)
+                    .expect("bare items are inspectable")
+                    .max_sensitivity(),
+                None,
+                "bare item is not classified by its text: {input}"
+            );
+            assert_eq!(output.summary().reasons(), qubit_redact::RedactionReasons::empty());
+        }
+
+        let exact_key = redactor.redact_uri("https://example.test/?a=");
+        assert!(exact_key.complete_text().is_ok(), "one decoded key byte fits");
+        assert_eq!(exact_key.text().as_str(), "https://example.test/?a=");
+
+        let oversized_empty_value = redactor.redact_uri("https://example.test/?ab=");
+        assert!(oversized_empty_value.complete_text().is_err());
+        assert!(
+            oversized_empty_value
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(redactor.inspect_uri("https://example.test/?ab=").is_err());
+
+        let bare = "https://example.test/?ab";
+        let composed = redactor
+            .text_composer()
+            .uri(|uri| {
+                uri.value(bare);
+            })
+            .finish();
+        assert_eq!(composed.text().as_str(), bare);
+        assert!(composed.complete_text().is_ok());
+
+        let mut batch = redactor.diagnostic_batch();
+        let handle = batch.redact_uri(bare);
+        let output = batch.finish_with_marker("<incomplete>");
+        assert_eq!(output.text(handle).as_str(), bare);
+        assert_eq!(
+            output.summary().completion(),
+            qubit_redact::RedactionCompletion::Complete
+        );
+
+        let valued = "https://example.test/?ab=value";
+        let output = redactor.redact_uri(valued);
+        assert!(output.complete_text().is_err(), "the same bytes before '=' are a key");
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(redactor.inspect_uri(valued).is_err());
+
+        let malformed = "https://example.test/?%ZZ";
+        let output = redactor.redact_uri(malformed);
+        assert_eq!(output.text().as_str(), "<invalid URI>");
+        assert!(output.complete_text().is_ok());
+        assert!(output.summary().reasons().contains(RedactionReason::InvalidUri));
+        assert!(redactor.inspect_uri(malformed).is_err());
+    }
+
+    #[test]
+    fn test_uri_bare_items_still_consume_shared_structure_budget() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_key_bytes(1).max_collection_items(1);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let redactor = Redactor::new(policy);
+        let input = "https://example.test/?ab&c";
+        let output = redactor.redact_uri(input);
+
+        assert!(output.complete_text().is_err());
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(redactor.inspect_uri(input).is_err());
+    }
+
+    #[test]
+    fn test_uri_bare_sensitive_name_is_not_classified() {
+        let redactor = Redactor::standard();
+        let bare = "https://example.test/?password";
+        let output = redactor.redact_uri(bare);
+        assert_eq!(output.text().as_str(), bare);
+        assert_eq!(
+            redactor
+                .inspect_uri(bare)
+                .expect("bare item has no classified value")
+                .max_sensitivity(),
+            None
+        );
+
+        let valued = redactor.redact_uri("https://example.test/?password=secret");
+        assert!(!valued.text().as_str().contains("secret"));
+
+        let strict = Redactor::strict();
+        let strict_bare = "https://example.test/?password";
+        assert_eq!(strict.redact_uri(strict_bare).text().as_str(), strict_bare);
+        assert_eq!(strict.inspect_uri(strict_bare).unwrap().max_sensitivity(), None);
+    }
+
+    #[test]
     fn test_uri_unicode_key_limit_counts_pre_normalization_utf8_bytes() {
         let redactor = Redactor::new(policy_with_key_limit(2));
         let output = redactor.redact_uri("https://example.test/?%C4%B0=value");
@@ -406,6 +531,14 @@ mod uri {
             .inspect_uri(input)
             .expect_err("limits apply when redaction is disabled");
         assert!(error.reasons().contains(RedactionReason::TraversalLimitReached));
+
+        let bare = "https://example.test/?long-bare-item";
+        let bare_output = redactor.redact_uri(bare);
+        assert_eq!(bare_output.text().as_str(), bare);
+        assert!(bare_output.complete_text().is_ok());
+        redactor
+            .inspect_uri(bare)
+            .expect("bare items are not key-limited when redaction is disabled either");
     }
 
     #[test]
