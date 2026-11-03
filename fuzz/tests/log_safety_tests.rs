@@ -59,10 +59,7 @@ fn formats_and_batches_escape_missing_bidi_characters() {
         let outputs = [
             redactor.redact_json(&json),
             redactor.redact_http_body(BodyCapture::complete(json.as_bytes()), Some(&json_type)),
-            redactor.redact_http_body(
-                BodyCapture::complete(multipart.as_bytes()),
-                Some(&multipart_type),
-            ),
+            redactor.redact_http_body(BodyCapture::complete(multipart.as_bytes()), Some(&multipart_type)),
         ];
         for output in outputs {
             assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
@@ -76,10 +73,7 @@ fn formats_and_batches_escape_missing_bidi_characters() {
         let handles = [
             batch.redact_json(&json),
             batch.redact_http_body(BodyCapture::complete(json.as_bytes()), Some(&json_type)),
-            batch.redact_http_body(
-                BodyCapture::complete(multipart.as_bytes()),
-                Some(&multipart_type),
-            ),
+            batch.redact_http_body(BodyCapture::complete(multipart.as_bytes()), Some(&multipart_type)),
         ];
         let output = batch.finish();
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
