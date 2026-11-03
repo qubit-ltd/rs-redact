@@ -9,6 +9,9 @@
 
 use std::fmt::Write;
 
+#[path = "support/log_safety.rs"]
+mod log_safety;
+
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::RedactionReason;
@@ -31,13 +34,7 @@ fn encoded_noise(input: &[u8]) -> String {
 fn assert_output_invariants(output: &RedactionTextOutput, max_output_bytes: usize) {
     let text = output.text().as_str();
     assert!(text.len() <= max_output_bytes);
-    assert!(!text.chars().any(|character| {
-        character.is_control()
-            || matches!(
-                character,
-                '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
-            )
-    }));
+    log_safety::assert_log_safe(text);
 }
 
 fuzz_target!(|input: &[u8]| {
