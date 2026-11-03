@@ -75,6 +75,53 @@ fn text_composer_builds_one_ordered_text() {
     assert_eq!(output.text().as_str(), "password=<redacted>");
 }
 
+/// Exercises each all-format batch entry point in one shared transaction.
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+#[test]
+fn batch_redacts_each_supported_format_as_an_independent_item() {
+    use std::ffi::OsStr;
+
+    use qubit_redact::formats::argv::ArgvItem;
+    use qubit_redact::formats::http::BodyCapture;
+
+    let mut batch = Redactor::strict().diagnostic_batch();
+    let mut handles = vec![batch.redact_env("TOKEN", "raw-env-token")];
+    handles.push(batch.redact_env_pairs([(OsStr::new("TOKEN"), OsStr::new("raw-pair-token"))]));
+    handles.push(batch.redact_argv([ArgvItem::plain(OsStr::new("--password=raw-argv"))]));
+    handles.push(batch.redact_heuristic_argv([ArgvItem::plain(OsStr::new("--password=raw-heuristic"))]));
+    handles.push(batch.redact_process(
+        OsStr::new("service"),
+        [ArgvItem::plain(OsStr::new("--password=raw-process"))],
+        [(OsStr::new("TOKEN"), OsStr::new("raw-process-token"))],
+    ));
+    handles.push(batch.redact_json(r#"{"password":"raw-json"}"#));
+    handles.push(batch.redact_json_value(&serde_json::json!({"password": "raw-value"})));
+    handles.push(batch.redact_uri("https://example.test/?token=raw-uri"));
+    handles.push(batch.redact_http_url("https://example.test/?token=raw-url"));
+
+    let mut headers = http::HeaderMap::new();
+    headers.insert("authorization", http::HeaderValue::from_static("Bearer raw-header"));
+    handles.push(batch.redact_http_headers(&headers));
+    let content_type = http::HeaderValue::from_static("text/plain");
+    handles.push(batch.redact_http_body(BodyCapture::complete(b"raw body"), Some(&content_type)));
+    handles.push(
+        batch.redact_http_body_with_content_type_text(BodyCapture::complete(b"raw body text"), Some("text/plain")),
+    );
+
+    assert!(!batch.is_output_exhausted());
+    let output = batch.finish_with_marker("<incomplete>");
+    for handle in handles {
+        assert_ne!(output.text(handle).as_str(), "<incomplete>");
+    }
+    let mut default_finish_batch = Redactor::strict().diagnostic_batch();
+    let default_finish_handle = default_finish_batch.redact_env("TOKEN", "raw-default-finish");
+    let default_finish_output = default_finish_batch.finish();
+    assert_ne!(
+        default_finish_output.text(default_finish_handle).as_str(),
+        "<redaction incomplete>"
+    );
+}
+
 /// Minimal type used only to prove the public trait is implementable.
 struct PublicApiValue;
 

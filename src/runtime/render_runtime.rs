@@ -82,3 +82,24 @@ impl RenderRuntime {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::RenderRuntime;
+    use crate::RedactionPolicy;
+    use crate::Sensitivity;
+    use crate::runtime::runtime_session::RuntimeSession;
+
+    /// Covers the concrete render adapter's mode-specific trait implementation.
+    #[test]
+    fn test_render_runtime_exposes_its_core_and_ignores_observations() {
+        let mut runtime = RenderRuntime::new(Arc::new(RedactionPolicy::standard()));
+
+        assert!(!runtime.is_inspection());
+        runtime.observe_sensitivity(Sensitivity::Secret);
+        let core = runtime.runtime() as *const _;
+        assert!(std::ptr::eq(core, runtime.runtime_mut()));
+    }
+}

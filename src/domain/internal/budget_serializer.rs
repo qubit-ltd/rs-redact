@@ -816,3 +816,57 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
         })
     }
 }
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use serde::Serialize;
+    use serde::Serializer;
+    use serde::ser::SerializeTuple;
+    use serde_test::Token;
+
+    use super::BudgetSerialize;
+    use crate::RedactionPolicy;
+    use crate::domain::internal::RedactSerializeScope;
+
+    struct NumericEvents;
+
+    impl Serialize for NumericEvents {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let mut tuple = serializer.serialize_tuple(10)?;
+            tuple.serialize_element(&-1_i8)?;
+            tuple.serialize_element(&-2_i16)?;
+            tuple.serialize_element(&-3_i32)?;
+            tuple.serialize_element(&-4_i64)?;
+            tuple.serialize_element(&1_u8)?;
+            tuple.serialize_element(&2_u16)?;
+            tuple.serialize_element(&3_u32)?;
+            tuple.serialize_element(&4_u64)?;
+            tuple.serialize_element(&1.5_f32)?;
+            tuple.serialize_element(&2.5_f64)?;
+            tuple.end()
+        }
+    }
+
+    /// Confirms every numeric Serde event is forwarded unchanged by the
+    /// concrete serde_test serializer implementation.
+    #[test]
+    fn test_budget_serializer_preserves_numeric_serde_test_events() {
+        let expected = [
+            Token::Tuple { len: 10 },
+            Token::I8(-1),
+            Token::I16(-2),
+            Token::I32(-3),
+            Token::I64(-4),
+            Token::U8(1),
+            Token::U16(2),
+            Token::U32(3),
+            Token::U64(4),
+            Token::F32(1.5),
+            Token::F64(2.5),
+            Token::TupleEnd,
+        ];
+        let policy = RedactionPolicy::standard();
+        let _scope = RedactSerializeScope::new(&policy);
+        serde_test::assert_ser_tokens(&BudgetSerialize::new(NumericEvents), &expected);
+    }
+}

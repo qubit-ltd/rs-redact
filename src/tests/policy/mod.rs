@@ -8,6 +8,7 @@
 //! Internal policy contracts unavailable through published field metadata.
 
 mod masking;
+mod redaction_limits_builder_tests;
 mod redaction_policy_tests;
 #[cfg(feature = "http")]
 mod resolved_field_tests;

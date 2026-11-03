@@ -7,10 +7,13 @@
 // =============================================================================
 //! Internal redaction-policy contracts unavailable through the public API.
 
+use crate::policy::FieldMatchKind;
 use crate::policy::FieldNameMatching;
+use crate::policy::MaskPolicy;
 use crate::policy::RedactionFloor;
 use crate::policy::RedactionPolicy;
 use crate::policy::ResolvedField;
+use crate::policy::SensitiveFieldPreset;
 use crate::policy::Sensitivity;
 use crate::policy::UnknownFieldPolicy;
 
@@ -96,4 +99,73 @@ fn test_add_floor_preserves_matching_and_unknown_fallback() {
         fallback_policy.sensitivity_for("unclassified_qz_field"),
         Some(Sensitivity::Medium)
     );
+}
+
+/// Runs the public policy inspection and field-builder API from the library's
+/// unit-test target so coverage includes the library's own generic instances.
+#[test]
+fn test_policy_inspection_and_field_builder_snapshot() {
+    let policy = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields
+                .floor(RedactionFloor::standard())
+                .disable_floor()
+                .include_preset(SensitiveFieldPreset::Credentials)
+                .matching(FieldNameMatching::ExactOrTokenSuffix)
+                .unknown_field_policy(UnknownFieldPolicy::Redact(Sensitivity::Low))
+                .low_sensitive("notice")
+                .medium_sensitive("session")
+                .high_sensitive("trace_id")
+                .raise("token", Sensitivity::High)
+                .override_level("token", Sensitivity::Secret)
+                .allow_exact("request_id")
+                .remove_allow_exact("request_id")
+                .allow_suffix("diagnostic")
+                .remove_allow_suffix("diagnostic")
+                .clear_allow_rules()
+                .allow_suffix("diagnostic")
+                .mask(Sensitivity::Medium, MaskPolicy::fixed("[medium]"));
+        })
+        .expect("field draft should be valid")
+        .build()
+        .expect("policy should be valid");
+
+    assert!(policy.floor().is_none());
+    assert_eq!(policy.matching(), FieldNameMatching::ExactOrTokenSuffix);
+    assert_eq!(
+        policy.unknown_field_policy(),
+        UnknownFieldPolicy::Redact(Sensitivity::Low)
+    );
+    assert_eq!(policy.sensitivity_for("password"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("notice"), Some(Sensitivity::Low));
+    assert_eq!(policy.sensitivity_for("session"), Some(Sensitivity::Medium));
+    assert_eq!(policy.sensitivity_for("trace_id"), Some(Sensitivity::High));
+    assert_eq!(policy.sensitivity_for("token"), Some(Sensitivity::Secret));
+    assert_eq!(policy.sensitivity_for("request_diagnostic"), None);
+    let sensitive = policy.classify_field("password");
+    assert_eq!(sensitive.sensitivity(), Some(Sensitivity::Secret));
+    assert_eq!(sensitive.matched_field(), Some("password"));
+    assert_eq!(sensitive.match_kind(), Some(FieldMatchKind::Exact));
+    assert!(!sensitive.is_allowed());
+    assert!(!sensitive.is_unknown());
+    let allowed = policy.classify_field("request_diagnostic");
+    assert!(allowed.is_allowed());
+    assert_eq!(allowed.match_kind(), Some(FieldMatchKind::TokenSuffix));
+    assert_eq!(allowed.matched_field(), Some("diagnostic"));
+    assert!(policy.classify_field("unclassified").is_unknown());
+    assert!(policy.application_sensitive_rules().next().is_some());
+    assert_eq!(policy.application_allow_rules().count(), 1);
+    assert_eq!(policy.masking().mask_opaque(Sensitivity::Medium), "[medium]");
+
+    let copied = policy.to_builder().build().expect("snapshot should copy");
+    assert_eq!(copied.sensitivity_for("token"), Some(Sensitivity::Secret));
+    let mut mutable = copied;
+    assert!(mutable.set_disabled(true).is_disabled());
+    assert!(!mutable.set_disabled(false).is_disabled());
+    assert!(!RedactionPolicy::strict().is_disabled());
+    assert_eq!(
+        RedactionPolicy::default().matching(),
+        FieldNameMatching::ExactOrTokenSuffix
+    );
+    assert!(policy.clone().disable_floor().floor().is_none());
 }

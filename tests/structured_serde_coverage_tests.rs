@@ -25,6 +25,7 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionWriter;
 use qubit_redact::Redactor;
 use qubit_redact::Sensitivity;
+use qubit_redact::domain::internal::BudgetSerialize;
 use qubit_redact::domain::internal::RedactLevelSerialize;
 use qubit_redact::domain::internal::RedactSerialize;
 use qubit_redact::domain::internal::RedactSerializeScope;
@@ -33,6 +34,7 @@ use qubit_redact::domain::internal::RedactedLevelSerializeRef;
 use qubit_redact::domain::internal::RedactedMapKeySerializeRef;
 use qubit_redact::domain::internal::RedactedMapSerializeRef;
 use qubit_redact::domain::internal::RedactedSerializeRef;
+use serde::Serialize;
 use serde::Serializer;
 
 /// Minimal generated-like leaf used to exercise generic structured
@@ -64,6 +66,46 @@ fn serialize_nested<T: RedactSerialize + ?Sized>(value: &T, policy: &RedactionPo
 
 fn repeated_json(value: &str, len: usize) -> serde_json::Value {
     serde_json::Value::Array((0..len).map(|_| serde_json::Value::String(value.to_owned())).collect())
+}
+
+struct NumericScalarEvents;
+
+impl Serialize for NumericScalarEvents {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeTuple;
+
+        let mut tuple = serializer.serialize_tuple(12)?;
+        tuple.serialize_element(&-1_i8)?;
+        tuple.serialize_element(&-2_i16)?;
+        tuple.serialize_element(&-3_i32)?;
+        tuple.serialize_element(&-4_i64)?;
+        tuple.serialize_element(&-5_i128)?;
+        tuple.serialize_element(&1_u8)?;
+        tuple.serialize_element(&2_u16)?;
+        tuple.serialize_element(&3_u32)?;
+        tuple.serialize_element(&4_u64)?;
+        tuple.serialize_element(&5_u128)?;
+        tuple.serialize_element(&1.5_f32)?;
+        tuple.serialize_element(&2.5_f64)?;
+        tuple.end()
+    }
+}
+
+/// Exercises the native numeric Serde events after the budget wrapper admits
+/// the enclosing tuple.
+#[test]
+fn test_budgeted_serializer_preserves_each_numeric_event_type() {
+    let policy = RedactionPolicy::standard();
+    let _scope = RedactSerializeScope::new(&policy);
+    let mut bytes = Vec::new();
+    {
+        let mut serializer = serde_json::Serializer::new(&mut bytes);
+        serde::Serialize::serialize(&BudgetSerialize::new(NumericScalarEvents), &mut serializer)
+            .expect("all numeric Serde events should fit the default budget");
+    }
+    let output: serde_json::Value = serde_json::from_slice(&bytes).expect("serializer should emit JSON");
+
+    assert_eq!(output, serde_json::json!([-1, -2, -3, -4, -5, 1, 2, 3, 4, 5, 1.5, 2.5]));
 }
 
 /// Exercises all recursive explicit-level Serde implementations.
