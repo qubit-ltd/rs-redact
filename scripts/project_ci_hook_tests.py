@@ -106,6 +106,8 @@ class ProjectCiHookTests(unittest.TestCase):
                 "command_inputs",
                 "--bin",
                 "multipart_body",
+                "--bin",
+                "direct_inputs",
             ],
         }
 
