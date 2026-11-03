@@ -1,6 +1,6 @@
 # qubit-redact User Guide
 
-[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](../derive/README.md) · [API reference](https://docs.rs/qubit-redact/0.10/qubit_redact/)
+[README](../README.md) · [Chinese guide](user_guide.zh_CN.md) · [derive guide](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.md) · [API reference](https://docs.rs/qubit-redact/0.10/qubit_redact/)
 
 This guide covers **qubit-redact 0.10** and requires **Rust 1.94+**. It is for
 application and library authors: start with business serialization and diagnostic logging,
@@ -1607,7 +1607,7 @@ be capped separately from logical Serde payload limits.
 
 - [English README](../README.md) · [中文 README](../README.zh_CN.md)
 - [API reference for 0.10](https://docs.rs/qubit-redact/0.10/qubit_redact/)
-- [derive guide](../derive/README.md) · [中文用户手册](user_guide.zh_CN.md)
+- [derive guide](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.md) · [中文用户手册](user_guide.zh_CN.md)
 - [Design](design.md) · [中文设计文档](design.zh_CN.md)
 
 From the repository root, run `python3 -B scripts/check_doc_examples.py` to compile

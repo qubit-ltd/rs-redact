@@ -108,18 +108,20 @@ def assert_derive_has_no_runtime_release_dependency(derive_manifest: Path) -> No
 
 
 def assert_published_documentation(package_root: Path) -> None:
-    """Require root README links to the derive guides at one verified commit."""
+    """Require both READMEs and both user guides to link to pinned derive docs."""
     expected = {
         "README.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.md",
         "README.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.zh_CN.md",
+        "doc/user_guide.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.md",
+        "doc/user_guide.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.zh_CN.md",
     }
     for source_name, target in expected.items():
         source = package_root / source_name
         if not source.is_file():
             raise CheckError(f"{source_name}: missing source document for derive target {target}")
         links = MARKDOWN_LINK.findall(source.read_text(encoding="utf-8"))
-        if target not in links:
-            candidates = [link for link in links if "derive/README" in link]
+        candidates = [link for link in links if "derive/README" in link]
+        if target not in candidates or any(link != target for link in candidates):
             raise CheckError(
                 f"{source_name}: expected pinned derive target {target}; found {candidates!r}"
             )

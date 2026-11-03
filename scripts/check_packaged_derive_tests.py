@@ -15,23 +15,88 @@ def summary(count):
 
 
 class PackagedDeriveChecks(unittest.TestCase):
+    DOCUMENTS = {
+        "README.md": "en",
+        "README.zh_CN.md": "zh",
+        "doc/user_guide.md": "en",
+        "doc/user_guide.zh_CN.md": "zh",
+    }
+
     def _documentation_fixture(self, root, *, english=True, chinese=True):
         commit = CHECKER.DERIVE_DOC_COMMIT
         english_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.md"
         chinese_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.zh_CN.md"
-        (root / "README.md").write_text(
-            f"[derive]({english_target if english else 'derive/README.md'})\n", encoding="utf-8"
-        )
-        (root / "README.zh_CN.md").write_text(
-            f"[derive]({chinese_target if chinese else 'https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md'})\n",
-            encoding="utf-8",
-        )
+        for source_name, language in self.DOCUMENTS.items():
+            target = english_target if language == "en" else chinese_target
+            if source_name == "README.md" and not english:
+                target = "derive/README.md"
+            if source_name == "README.zh_CN.md" and not chinese:
+                target = "https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md"
+            source = root / source_name
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text(f"[derive]({target})\n[derive again]({target})\n", encoding="utf-8")
+
+    def _expected_target(self, source_name):
+        language_path = "README.zh_CN.md" if source_name.endswith("zh_CN.md") else "README.md"
+        return f"https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_COMMIT}/derive/{language_path}"
 
     def test_published_documentation_links_resolve_inside_package(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             self._documentation_fixture(root)
             CHECKER.assert_published_documentation(root)
+
+    def test_both_published_guides_are_required(self):
+        for source_name in ("doc/user_guide.md", "doc/user_guide.zh_CN.md"):
+            with self.subTest(source=source_name):
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    self._documentation_fixture(root)
+                    (root / source_name).unlink()
+                    with self.assertRaises(CHECKER.CheckError) as raised:
+                        CHECKER.assert_published_documentation(root)
+                    self.assertIn(source_name, str(raised.exception))
+                    self.assertIn(self._expected_target(source_name), str(raised.exception))
+
+    def test_published_guides_reject_stale_derive_targets(self):
+        commit = CHECKER.DERIVE_DOC_COMMIT
+        for source_name in ("doc/user_guide.md", "doc/user_guide.zh_CN.md"):
+            expected = self._expected_target(source_name)
+            wrong_language = "README.md" if source_name.endswith("zh_CN.md") else "README.zh_CN.md"
+            invalid_targets = {
+                "local relative": "../derive/README.md",
+                "floating main": f"https://github.com/qubit-ltd/rs-redact/blob/main/derive/{wrong_language}",
+                "wrong language": f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/{wrong_language}",
+                "wrong commit": f"https://github.com/qubit-ltd/rs-redact/blob/0000000000000000000000000000000000000000/derive/{wrong_language}",
+            }
+            for description, invalid in invalid_targets.items():
+                with self.subTest(source=source_name, target=description):
+                    with tempfile.TemporaryDirectory() as temp:
+                        root = Path(temp)
+                        self._documentation_fixture(root)
+                        source = root / source_name
+                        source.write_text(f"[derive]({invalid})\n", encoding="utf-8")
+                        with self.assertRaises(CHECKER.CheckError) as raised:
+                            CHECKER.assert_published_documentation(root)
+                        self.assertIn(source_name, str(raised.exception))
+                        self.assertIn(expected, str(raised.exception))
+                        self.assertIn(invalid, str(raised.exception))
+
+    def test_published_guides_reject_correct_and_stale_targets_together(self):
+        for source_name in ("doc/user_guide.md", "doc/user_guide.zh_CN.md"):
+            expected = self._expected_target(source_name)
+            for invalid in ("../derive/README.md", "https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md"):
+                with self.subTest(source=source_name, target=invalid):
+                    with tempfile.TemporaryDirectory() as temp:
+                        root = Path(temp)
+                        self._documentation_fixture(root)
+                        source = root / source_name
+                        source.write_text(f"[derive]({expected})\n[old derive]({invalid})\n", encoding="utf-8")
+                        with self.assertRaises(CHECKER.CheckError) as raised:
+                            CHECKER.assert_published_documentation(root)
+                        self.assertIn(source_name, str(raised.exception))
+                        self.assertIn(expected, str(raised.exception))
+                        self.assertIn(invalid, str(raised.exception))
 
     def test_published_documentation_rejects_floating_version(self):
         with tempfile.TemporaryDirectory() as temp:
