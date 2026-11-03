@@ -65,9 +65,9 @@ class PackagedDeriveChecks(unittest.TestCase):
             wrong_language = "README.md" if source_name.endswith("zh_CN.md") else "README.zh_CN.md"
             invalid_targets = {
                 "local relative": "../derive/README.md",
-                "floating main": f"https://github.com/qubit-ltd/rs-redact/blob/main/derive/{wrong_language}",
+                "floating main": f"https://github.com/qubit-ltd/rs-redact/blob/main/derive/{expected.rsplit('/', 1)[-1]}",
                 "wrong language": f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/{wrong_language}",
-                "wrong commit": f"https://github.com/qubit-ltd/rs-redact/blob/0000000000000000000000000000000000000000/derive/{wrong_language}",
+                "wrong commit": f"https://github.com/qubit-ltd/rs-redact/blob/0000000000000000000000000000000000000000/derive/{expected.rsplit('/', 1)[-1]}",
             }
             for description, invalid in invalid_targets.items():
                 with self.subTest(source=source_name, target=description):
