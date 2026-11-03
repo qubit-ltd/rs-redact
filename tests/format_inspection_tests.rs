@@ -37,6 +37,8 @@ use qubit_redact::formats::http::TextBodyPolicy;
 use qubit_redact::formats::uri::UriFragmentPolicy;
 #[cfg(feature = "uri")]
 use qubit_redact::formats::uri::UriPathPolicy;
+#[cfg(all(feature = "http", feature = "uri"))]
+use qubit_redact::formats::uri::UriRedactionBoundary;
 #[cfg(feature = "http")]
 use url::form_urlencoded::byte_serialize;
 
@@ -1012,4 +1014,57 @@ fn test_inspect_uri_detects_identity_mask_and_empty_sensitive_value() {
             .expect_err("invalid query encoding must be inconclusive");
         assert!(query_error.reasons().contains(RedactionReason::InvalidUri));
     }
+}
+
+/// Generic URI values remain opaque; HTTP URL inspection recognizes nested
+/// URLs.
+#[cfg(all(feature = "http", feature = "uri"))]
+#[test]
+fn test_generic_uri_nested_url_boundary_and_explicit_outer_classification() {
+    let uri = "https://example.test/?redirect=https%3A%2F%2Fnested.test%2F%3Fpassword%3Draw-secret";
+
+    let generic = Redactor::standard();
+    let generic_inspection = generic.inspect_uri(uri).expect("valid generic URI");
+    assert_eq!(generic_inspection.max_sensitivity(), None);
+    let generic_output = generic.redact_uri(uri);
+    assert!(generic_output.text().as_str().contains("redirect="));
+    assert!(generic_output.text().as_str().contains("raw-secret"));
+
+    let http_inspection = generic.inspect_http_url(uri).expect("valid HTTP URL");
+    assert_eq!(http_inspection.max_sensitivity(), Some(Sensitivity::Secret));
+    let http_output = generic.redact_http_url(uri);
+    assert!(!http_output.text().as_str().contains("raw-secret"));
+
+    let outer_secret = RedactionPolicy::builder()
+        .fields(|fields| {
+            fields.secret_sensitive("redirect");
+        })
+        .expect("policy should be valid")
+        .build()
+        .expect("policy should build");
+    let classified = Redactor::new(outer_secret);
+    assert_eq!(
+        classified
+            .inspect_uri(uri)
+            .expect("valid generic URI")
+            .max_sensitivity(),
+        Some(Sensitivity::Secret),
+    );
+    assert!(!classified.redact_uri(uri).text().as_str().contains("raw-secret"));
+
+    let boundary = UriRedactionBoundary::new(&RedactionPolicy::disabled());
+    assert_eq!(
+        boundary
+            .inspect_uri(uri)
+            .expect("valid URI with opaque nested value")
+            .max_sensitivity(),
+        None,
+    );
+    assert!(boundary.redact_uri(uri).text().as_str().contains("raw-secret"));
+    assert!(
+        boundary
+            .inspect_uri("https://example.test/?password=raw-secret")
+            .expect("direct password parameter")
+            .contains_sensitive()
+    );
 }

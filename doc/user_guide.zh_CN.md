@@ -938,6 +938,12 @@ fn main() {
 准入前应检查 URI：检查发现敏感数据或返回错误都要拒绝。成功检查也不能证明 URI 语法有效。用于
 诊断时，只能在输出完整时使用脱敏文本；否则使用固定 marker，绝不回退到原始 URI。
 
+通用 URI inspection 按外层查询键分类值；URI 组件只为分类解码一层，不会把
+`redirect=https%3A...` 的值再次解析成 URL。对于已知的容器参数，可添加
+`fields.secret_sensitive("redirect")` 这样的应用字段规则，让整个值被分类和脱敏。HTTP URL
+则使用 `inspect_http_url()` 与 `redact_http_url()`：这些入口会识别嵌套 HTTP URL 并处理其中的
+secret。这是两种格式入口的既定差异；通用 URI 不会递归发现任意值中的秘密。
+
 <!-- redact-example: kind=run features=uri -->
 ```rust
 use qubit_redact::RedactionPolicy;

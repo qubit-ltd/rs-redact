@@ -15,6 +15,50 @@ def summary(count):
 
 
 class PackagedDeriveChecks(unittest.TestCase):
+    def _documentation_fixture(self, root, *, english=True, chinese=True):
+        commit = CHECKER.DERIVE_DOC_COMMIT
+        english_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.md"
+        chinese_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.zh_CN.md"
+        (root / "README.md").write_text(
+            f"[derive]({english_target if english else 'derive/README.md'})\n", encoding="utf-8"
+        )
+        (root / "README.zh_CN.md").write_text(
+            f"[derive]({chinese_target if chinese else 'https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.md'})\n",
+            encoding="utf-8",
+        )
+
+    def test_published_documentation_links_resolve_inside_package(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self._documentation_fixture(root)
+            CHECKER.assert_published_documentation(root)
+
+    def test_published_documentation_rejects_floating_version(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self._documentation_fixture(root)
+            (root / "README.zh_CN.md").write_text(
+                "[derive](https://github.com/qubit-ltd/rs-redact/blob/main/derive/README.zh_CN.md)\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(CHECKER.CheckError) as raised:
+                CHECKER.assert_published_documentation(root)
+            self.assertIn("README.zh_CN.md", str(raised.exception))
+            self.assertIn("main", str(raised.exception))
+
+    def test_published_documentation_rejects_wrong_language_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self._documentation_fixture(root)
+            (root / "README.zh_CN.md").write_text(
+                f"[derive](https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_COMMIT}/derive/README.md)\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(CHECKER.CheckError) as raised:
+                CHECKER.assert_published_documentation(root)
+            self.assertIn("README.zh_CN.md", str(raised.exception))
+            self.assertIn("derive/README.zh_CN.md", str(raised.exception))
+
     def test_rejects_old_normalized_dependency(self):
         with tempfile.TemporaryDirectory() as temp:
             manifest = Path(temp) / "Cargo.toml"

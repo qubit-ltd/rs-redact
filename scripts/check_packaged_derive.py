@@ -14,6 +14,8 @@ import tomllib
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_VERSION = "0.10.0"
 DERIVE_VERSION = "0.9.0"
+DERIVE_DOC_COMMIT = "6f51ef2634e3f79b75449626826fc1a1ac42e14f"
+MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
 
 
 class CheckError(RuntimeError):
@@ -105,6 +107,24 @@ def assert_derive_has_no_runtime_release_dependency(derive_manifest: Path) -> No
             raise CheckError("derive archive has a runtime dependency cycle")
 
 
+def assert_published_documentation(package_root: Path) -> None:
+    """Require root README links to the derive guides at one verified commit."""
+    expected = {
+        "README.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.md",
+        "README.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.zh_CN.md",
+    }
+    for source_name, target in expected.items():
+        source = package_root / source_name
+        if not source.is_file():
+            raise CheckError(f"{source_name}: missing source document for derive target {target}")
+        links = MARKDOWN_LINK.findall(source.read_text(encoding="utf-8"))
+        if target not in links:
+            candidates = [link for link in links if "derive/README" in link]
+            raise CheckError(
+                f"{source_name}: expected pinned derive target {target}; found {candidates!r}"
+            )
+
+
 def local_qubit_json_source() -> Path | None:
     candidate = ROOT.parent / "rs-json"
     if not (candidate / "Cargo.toml").is_file():
@@ -165,6 +185,7 @@ def main() -> None:
         derive_dir = extracted / f"qubit-redact-derive-{DERIVE_VERSION}"
         package_manifest(runtime_dir, "qubit-redact", RUNTIME_VERSION)
         package_manifest(derive_dir, "qubit-redact-derive", DERIVE_VERSION)
+        assert_published_documentation(runtime_dir)
         assert_derive_requirement(runtime_dir / "Cargo.toml")
         assert_derive_has_no_runtime_release_dependency(derive_dir / "Cargo.toml")
         if not (derive_dir / "src/serde/recursive_projection.rs").is_file():

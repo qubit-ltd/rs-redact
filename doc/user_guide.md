@@ -1022,6 +1022,14 @@ A successful inspection is not a URI syntax validity certificate. For
 diagnostics, use the rendered output only when it is complete; otherwise use a
 fixed marker and never fall back to the original URI.
 
+Generic URI inspection classifies each query value by its outer key. It decodes URI components
+once and does not parse a value such as `redirect=https%3A...` as a second URL. For a known
+container parameter, add an application field rule such as
+`fields.secret_sensitive("redirect")`; this classifies and redacts the whole value. For HTTP
+URLs, use `inspect_http_url()` and `redact_http_url()`: those APIs recognize nested HTTP URLs
+and redact secrets in them. This difference is intentional; no generic URI API recursively
+discovers secrets in arbitrary values.
+
 <!-- redact-example: kind=run features=uri -->
 ```rust
 use qubit_redact::RedactionPolicy;

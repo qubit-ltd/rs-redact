@@ -340,6 +340,9 @@ Serde 表示，不调用 `skip_serializing_if`；tuple 和 struct 字段仍执�
 floor 并采用标准 masks，同时保留应用 limits 及 path/fragment 配置。标准字段 floor 不会强制隐藏
 所有 path 或 fragment。准入决策应使用 inspection，并拒绝敏感或无法确定的结果；完整的脱敏文本也
 不能证明 URI 语法有效。
+通用 URI 查询 inspection 对组件只解码一层，并仅按解码后的外层键分类值；不会把值递归解析成 URL。
+应用可将 `redirect` 等已知 URL 容器字段分类为 Secret，从而保护整个值。HTTP URL inspection 和渲染是
+独立入口，会识别嵌套 HTTP URL。这是有意保留的格式边界，不代表通用 URI 已搜索所有值中的秘密。
 
 HTTP body 内部实现按职责拆分：
 

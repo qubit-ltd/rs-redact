@@ -116,7 +116,7 @@ fn main() {
 }
 ```
 
-See the [derive guide](derive/README.md) for attribute and type tables. Custom field rules,
+See the [derive guide](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.md) for attribute and type tables. Custom field rules,
 HTTP, URI, argv/env, batches, and budgets are covered in the user guide.
 
 ## Choose an Entry Point
@@ -163,7 +163,7 @@ the caller's serializer/writer controls final encoded length. See the guide's bu
 See the [English user guide](doc/user_guide.md) and [Chinese user guide](doc/user_guide.zh_CN.md)
 for feature configuration, complete attribute/type tables, policy precedence, HTTP, and
 batch scenarios. Use [`UriRedactionBoundary`](doc/user_guide.md#use-the-mandatory-uri-boundary)
-when URI admission must retain a confidentiality floor. See also the [derive guide](derive/README.md)
+when URI admission must retain a confidentiality floor. See also the [derive guide](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.md)
 and [API docs](https://docs.rs/qubit-redact).
 
 ## Testing

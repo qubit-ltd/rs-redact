@@ -20,6 +20,10 @@ use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Parses and completely classifies one URI under the active policy.
+///
+/// Query keys and values are percent-decoded once for classification. Only the
+/// decoded outer query key selects a field rule; values remain opaque and are
+/// not recursively parsed as URLs.
 pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
     if !session.admit_input(input.len()) || !admit_uri_structure(session, input) {
         return;

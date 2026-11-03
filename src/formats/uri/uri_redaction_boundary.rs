@@ -6,6 +6,13 @@
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! URI boundary redaction with a mandatory standard safety floor.
+//!
+//! URI query classification uses the decoded outer key and does not recursively
+//! interpret a query value as another URL. Components are percent-decoded once
+//! for classification. Applications that accept a known URL container should
+//! classify its outer key as sensitive; HTTP URLs use the separate
+//! [`Redactor::inspect_http_url`] and [`Redactor::redact_http_url`] APIs, which
+//! recognize nested HTTP URLs.
 
 use crate::RedactionInspection;
 use crate::RedactionInspectionError;

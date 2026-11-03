@@ -470,6 +470,12 @@ standard masks while retaining application limits and path/fragment
 configuration. The standard field floor does not force every path or fragment
 to be hidden. Admission decisions use inspection and reject sensitive or
 inconclusive results; complete redacted text is not a URI syntax certificate.
+Generic URI query inspection percent-decodes components once and classifies a
+value only by its decoded outer key; it does not recursively parse values as
+URLs. A known URL container such as `redirect` can be classified as Secret by
+an application field rule, which protects the whole value. HTTP URL inspection
+and rendering are separate and detect nested HTTP URLs. This is an intentional
+format boundary, not a claim that every URI value has been searched for secrets.
 
 HTTP body implementation is split by responsibility:
 
