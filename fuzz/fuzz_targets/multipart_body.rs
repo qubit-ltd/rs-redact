@@ -8,6 +8,10 @@
 #![cfg_attr(not(test), no_main)]
 
 #[cfg(not(test))]
+#[path = "support/log_safety.rs"]
+mod log_safety;
+
+#[cfg(not(test))]
 use std::fmt::Write;
 
 #[cfg(not(test))]
@@ -129,13 +133,7 @@ fn directed_cuts(body: &str, boundary: &str) -> Vec<usize> {
 fn assert_output_invariants(output: &RedactionTextOutput, max_output_bytes: usize) {
     let text = output.text().as_str();
     assert!(text.len() <= max_output_bytes);
-    assert!(!text.chars().any(|character| {
-        character.is_control()
-            || matches!(
-                character,
-                '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
-            )
-    }));
+    log_safety::assert_log_safe(text);
 }
 
 #[cfg(not(test))]
@@ -217,13 +215,7 @@ fuzz_target!(|input: &[u8]| {
     for handle in [ordinary, multipart] {
         let safe_text = batch_output.text(handle).as_str();
         assert!(!safe_text.contains(FUZZ_SECRET));
-        assert!(!safe_text.chars().any(|character| {
-            character.is_control()
-                || matches!(
-                    character,
-                    '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
-                )
-        }));
+        log_safety::assert_log_safe(safe_text);
     }
 });
 
