@@ -398,18 +398,21 @@ mod tests {
 
     #[test]
     fn output_limit_fallback_preserves_boundary_states() {
-        use crate::{RedactionCompletion, RedactionReason};
+        use crate::RedactionCompletion;
+        use crate::RedactionReason;
 
         for maximum in [0, 10, 11, 12] {
-            let (text, completion, reasons) =
-                OperationSink::output_limit_fallback(maximum).into_parts();
+            let (text, completion, reasons) = OperationSink::output_limit_fallback(maximum).into_parts();
             let expected = if maximum >= 11 { "<truncated>" } else { "" };
             assert_eq!(text, expected);
-            assert_eq!(completion, if maximum >= 11 {
-                RedactionCompletion::Truncated
-            } else {
-                RedactionCompletion::Exhausted
-            });
+            assert_eq!(
+                completion,
+                if maximum >= 11 {
+                    RedactionCompletion::Truncated
+                } else {
+                    RedactionCompletion::Exhausted
+                }
+            );
             assert!(reasons.contains(RedactionReason::OutputLimitReached));
         }
     }
