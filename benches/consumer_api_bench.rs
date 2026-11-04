@@ -34,6 +34,22 @@ struct Event {
     logins: Vec<Login>,
 }
 
+#[derive(Redact)]
+#[redact(serde)]
+struct RecursiveNode {
+    #[redact(nested)]
+    child: Option<Box<RecursiveNode>>,
+    #[redact(level = "secret")]
+    secret: String,
+}
+
+fn recursive_node(depth: usize) -> RecursiveNode {
+    RecursiveNode {
+        child: (depth > 1).then(|| Box::new(recursive_node(depth - 1))),
+        secret: "raw-secret".into(),
+    }
+}
+
 /// Measures view construction separately from repeated executions of one view.
 fn consumer_api(criterion: &mut Criterion) {
     let redactor = Redactor::standard();
@@ -68,6 +84,13 @@ fn consumer_api(criterion: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("to-json", count), &event, |bencher, event| {
             bencher.iter(|| black_box(redactor.to_json(black_box(event))));
         });
+        group.bench_with_input(
+            BenchmarkId::new("to-json-with-status", count),
+            &event,
+            |bencher, event| {
+                bencher.iter(|| black_box(redactor.to_json_with_status(black_box(event))));
+            },
+        );
     }
     group.finish();
 }
@@ -112,5 +135,115 @@ fn budget_boundaries(criterion: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, consumer_api, budget_boundaries);
+/// Measures policy snapshot work across small and nested successful values.
+fn policy_snapshot(criterion: &mut Criterion) {
+    let mut group = criterion.benchmark_group("policy-snapshot");
+    for rule_count in [0, 64, 512] {
+        let policy = RedactionPolicy::builder()
+            .fields(|fields| {
+                for index in 0..rule_count {
+                    fields.secret_sensitive(&format!("benchmark_secret_{index}"));
+                }
+            })
+            .expect("valid benchmark rules")
+            .limits(|limits| {
+                limits
+                    .max_depth(32)
+                    .max_nodes(4096)
+                    .max_collection_items(4096)
+                    .max_input_bytes(1 << 20)
+                    .max_serde_payload_bytes(1 << 20)
+                    .max_output_bytes(1 << 20);
+            })
+            .expect("valid benchmark limits")
+            .build()
+            .expect("valid benchmark policy");
+        let redactor = Redactor::new(policy);
+        let equivalent_policy = redactor.policy().clone();
+        let snapshot = std::sync::Arc::new(redactor.policy().clone());
+
+        group.bench_function(
+            BenchmarkId::new("policy-clone", format!("rules-{rule_count}")),
+            |bencher| {
+                bencher.iter(|| black_box(black_box(redactor.policy()).clone()));
+            },
+        );
+        group.bench_function(
+            BenchmarkId::new("policy-eq", format!("rules-{rule_count}")),
+            |bencher| {
+                bencher.iter(|| black_box(redactor.policy()) == black_box(&equivalent_policy));
+            },
+        );
+        group.bench_function(
+            BenchmarkId::new("snapshot-arc-clone", format!("rules-{rule_count}")),
+            |bencher| {
+                bencher.iter(|| black_box(std::sync::Arc::clone(black_box(&snapshot))));
+            },
+        );
+
+        let small = Login {
+            user: "ada".into(),
+            password: "raw-secret".into(),
+        };
+        let small_view = redactor.redact_view(&small);
+        assert!(to_string(&small_view).is_ok(), "small view must serialize");
+        assert!(redactor.to_json(&small).is_ok(), "small value must serialize");
+        assert!(
+            redactor
+                .to_json_with_status(&small)
+                .expect("small value status")
+                .is_complete()
+        );
+
+        for depth in [1, 4, 8] {
+            let nested = recursive_node(depth);
+            let nested_view = redactor.redact_view(&nested);
+            assert!(to_string(&nested_view).is_ok(), "view must serialize at depth {depth}");
+            assert!(
+                redactor.to_json(&nested).is_ok(),
+                "JSON must serialize at depth {depth}"
+            );
+            assert!(
+                redactor
+                    .to_json_with_status(&nested)
+                    .expect("nested value status")
+                    .is_complete(),
+                "nested value must be complete at depth {depth}"
+            );
+
+            for (entry, operation) in [("view-serde", 0_u8), ("to-json", 1_u8), ("to-json-with-status", 2_u8)] {
+                group.bench_function(
+                    BenchmarkId::new(entry, format!("rules-{rule_count}-depth-{depth}")),
+                    |bencher| {
+                        bencher.iter(|| match operation {
+                            0 => to_string(black_box(&nested_view)).map(|json| black_box(json).len()),
+                            1 => redactor.to_json(black_box(&nested)).map(|json| black_box(json).len()),
+                            _ => redactor
+                                .to_json_with_status(black_box(&nested))
+                                .map(|output| black_box(output.json()).len()),
+                        });
+                    },
+                );
+            }
+        }
+
+        for (entry, operation) in [("view-serde", 0_u8), ("to-json", 1_u8), ("to-json-with-status", 2_u8)] {
+            group.bench_function(
+                BenchmarkId::new(entry, format!("rules-{rule_count}-depth-1-small")),
+                |bencher| {
+                    bencher.iter(|| match operation {
+                        0 => to_string(black_box(&small_view)).map(|json| black_box(json).len()),
+                        1 => redactor.to_json(black_box(&small)).map(|json| black_box(json).len()),
+                        _ => redactor
+                            .to_json_with_status(black_box(&small))
+                            .map(|output| black_box(output.json()).len()),
+                    });
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, consumer_api, budget_boundaries, policy_snapshot);
 criterion_main!(benches);
