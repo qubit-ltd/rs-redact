@@ -95,6 +95,23 @@ impl OperationSink {
         Self::from_rendered(text, completion, RedactionReasons::empty().with(reason))
     }
 
+    /// Creates the shared output-limit fallback used by process formats.
+    ///
+    /// # Parameters
+    ///
+    /// - `maximum`: Maximum number of output bytes available for the fallback.
+    ///
+    /// # Returns
+    ///
+    /// The truncated marker when it fits, or an exhausted empty operation
+    /// when it does not.
+    #[must_use]
+    pub(crate) fn output_limit_fallback(maximum: usize) -> RenderedOperation {
+        const MARKER: &str = "<truncated>";
+        let text = if MARKER.len() <= maximum { MARKER } else { "" };
+        Self::truncated(text, RedactionReason::OutputLimitReached).finish()
+    }
+
     /// Creates an exhausted operation through the runtime-owned result
     /// boundary.
     ///
@@ -372,5 +389,28 @@ impl fmt::Write for OperationSink {
     fn write_str(&mut self, value: &str) -> fmt::Result {
         self.write_log_safe(value)?;
         if self.output_truncated { Err(fmt::Error) } else { Ok(()) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OperationSink;
+
+    #[test]
+    fn output_limit_fallback_preserves_boundary_states() {
+        use crate::{RedactionCompletion, RedactionReason};
+
+        for maximum in [0, 10, 11, 12] {
+            let (text, completion, reasons) =
+                OperationSink::output_limit_fallback(maximum).into_parts();
+            let expected = if maximum >= 11 { "<truncated>" } else { "" };
+            assert_eq!(text, expected);
+            assert_eq!(completion, if maximum >= 11 {
+                RedactionCompletion::Truncated
+            } else {
+                RedactionCompletion::Exhausted
+            });
+            assert!(reasons.contains(RedactionReason::OutputLimitReached));
+        }
     }
 }

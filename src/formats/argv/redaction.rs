@@ -14,7 +14,6 @@ use std::fmt::Write as _;
 use super::ArgvItem;
 use super::internal::bounded_join::join_bounded;
 use super::pending_field::PendingField;
-use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::formats::internal::bounded_os_text;
 use crate::policy::RedactionPolicy;
@@ -64,7 +63,7 @@ where
 {
     let mut writer = OperationByteSink::new(max_output_bytes);
     if writer.write_char('[').is_err() {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     let mut has_item = false;
     let mut pending = None;
@@ -93,26 +92,15 @@ where
         has_item = true;
     }
     if locally_truncated {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     if writer.write_char(']').is_err() {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     let Some(writer) = writer.into_string() else {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     };
     OperationSink::complete(writer).finish()
-}
-
-/// Returns unpublished fallback text when argv rendering cannot retain its
-/// complete representation within the parent transaction's capacity.
-fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
-    const FALLBACK: &str = "<truncated>";
-    if FALLBACK.len() <= max_output_bytes {
-        OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
-    } else {
-        OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
-    }
 }
 
 /// Renders an explicitly classified or plain argv item.

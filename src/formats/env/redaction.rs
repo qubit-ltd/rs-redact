@@ -11,7 +11,6 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Write as _;
 
-use crate::RedactionReason;
 use crate::Sensitivity;
 use crate::formats::internal::bounded_os_text;
 use crate::policy::RedactionPolicy;
@@ -48,7 +47,7 @@ where
 {
     let mut writer = OperationByteSink::new(max_output_bytes);
     if writer.write_char('[').is_err() {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     let mut has_item = false;
     let mut locally_truncated = false;
@@ -62,30 +61,15 @@ where
         has_item = true;
     }
     if locally_truncated {
-        const FALLBACK: &str = "<truncated>";
-        return if FALLBACK.len() <= max_output_bytes {
-            OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
-        } else {
-            OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
-        };
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     if writer.write_char(']').is_err() {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     let Some(writer) = writer.into_string() else {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     };
     OperationSink::complete(writer).finish()
-}
-
-/// Returns the existing output-limit fallback for an unpublished env list.
-fn truncated_output(max_output_bytes: usize) -> RenderedOperation {
-    const FALLBACK: &str = "<truncated>";
-    if FALLBACK.len() <= max_output_bytes {
-        OperationSink::truncated(FALLBACK, RedactionReason::OutputLimitReached).finish()
-    } else {
-        OperationSink::truncated("", RedactionReason::OutputLimitReached).finish()
-    }
 }
 
 /// Renders one unpublished environment assignment without materializing a
@@ -99,10 +83,10 @@ fn render_pair_output(
     let (rendered, locally_truncated) = redact_os_pair_bounded_with_policy(policy, name, value, max_output_bytes);
     let mut writer = OperationByteSink::new(max_output_bytes);
     if locally_truncated || writer.write_str(&rendered).is_err() {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     }
     let Some(rendered) = writer.into_string() else {
-        return truncated_output(max_output_bytes);
+        return OperationSink::output_limit_fallback(max_output_bytes);
     };
     OperationSink::complete(rendered).finish()
 }
