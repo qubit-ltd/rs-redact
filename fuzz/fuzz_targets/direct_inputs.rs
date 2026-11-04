@@ -109,8 +109,29 @@ fn assert_usage(result: &Result<RedactionInspection, RedactionInspectionError>, 
         Ok(value) => value.usage(),
         Err(error) => error.usage(),
     };
-    assert!(usage.inspected_input_bytes() <= max_input);
-    assert_eq!(usage.output_bytes(), 0);
+    assert_inspection_counts(usage.inspected_input_bytes(), usage.output_bytes(), max_input);
+}
+
+fn assert_inspection_counts(input: usize, output: usize, maximum: usize) {
+    assert!(input <= maximum, "inspection exceeded input budget");
+    assert_eq!(output, 0, "inspection must not produce output");
+}
+
+fn check_arbitrary_inspections(raw: &str, selector: usize) {
+    let standard = Redactor::standard();
+    let limited = inspection_limited_redactor(selected_inspection_budget(selector, raw.len()), raw.len());
+    for redactor in [&standard, &limited] {
+        let http = redactor.inspect_http_url(raw);
+        assert_eq!(http, redactor.inspect_http_url(raw));
+        assert_usage(&http, redactor.policy().limits().max_input_bytes());
+        let uri = redactor.inspect_uri(raw);
+        assert_eq!(uri, redactor.inspect_uri(raw));
+        assert_usage(&uri, redactor.policy().limits().max_input_bytes());
+        let boundary = UriRedactionBoundary::new(redactor.policy());
+        let guarded = boundary.inspect_uri(raw);
+        assert_eq!(guarded, boundary.inspect_uri(raw));
+        assert_usage(&guarded, boundary.policy().limits().max_input_bytes());
+    }
 }
 
 fn assert_sensitive_or_error(result: Result<RedactionInspection, RedactionInspectionError>) {
@@ -338,6 +359,9 @@ fn exercise(input: &[u8]) {
     assert_eq!(first_uri, second_uri);
     check_direct_output(&standard, &first_uri, false);
 
+    let inspection_selector = usize::from(input.first().copied().unwrap_or_default());
+    check_arbitrary_inspections(&raw, inspection_selector);
+
     let case_index = usize::from(input.first().copied().unwrap_or_default()) % 7;
     let budget_index = usize::from(input.get(1).copied().unwrap_or_default()) % OUTPUT_BUDGETS.len();
     let depth = usize::from(input.get(2).copied().unwrap_or_default()) % 9 + 1;
@@ -392,9 +416,11 @@ mod tests {
     use super::InspectionExpectation;
     use super::OUTPUT_BUDGETS;
     use super::VISIBLE_SENTINEL;
+    use super::assert_inspection_counts;
     use super::assert_secret_redacted;
     use super::assert_sensitive_or_error;
     use super::assert_text_invariants;
+    use super::check_arbitrary_inspections;
     use super::encode_layers;
     use super::exercise;
     use super::generated_case;
@@ -469,6 +495,36 @@ mod tests {
         assert!(std::panic::catch_unwind(|| assert_text_invariants("12345", 4)).is_err());
         assert!(std::panic::catch_unwind(|| log_safety::assert_log_safe("line\nnext")).is_err());
         assert!(std::panic::catch_unwind(|| assert_secret_redacted(FUZZ_SECRET)).is_err());
+    }
+
+    #[test]
+    fn arbitrary_inspections_cover_syntax_and_all_budget_selectors() {
+        let samples = [
+            "",
+            "https://example.test/?name=ada",
+            "https://example.test/?password=raw-secret",
+            "https://user:raw-secret@example.test/",
+            "https://example.test/?x=%",
+            "https://example.test/?x=%GG",
+            "https://example.test/?x=%FF",
+            "https://example.test/路径",
+            "s3://bucket/key",
+            "../relative?password=raw-secret",
+        ];
+        let lossy = String::from_utf8_lossy(&[0xff, b'%', 0]);
+        for selector in 0..20 {
+            for sample in samples {
+                check_arbitrary_inspections(sample, selector);
+            }
+            check_arbitrary_inspections(&lossy, selector);
+        }
+    }
+
+    #[test]
+    fn inspection_count_oracle_rejects_each_violation() {
+        assert_inspection_counts(1, 0, 1);
+        assert!(std::panic::catch_unwind(|| assert_inspection_counts(2, 0, 1)).is_err());
+        assert!(std::panic::catch_unwind(|| assert_inspection_counts(0, 1, 1)).is_err());
     }
 
     #[test]
