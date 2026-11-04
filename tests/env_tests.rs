@@ -10,7 +10,7 @@
 mod env;
 
 #[test]
-fn refactor_env_one_pair_matches_batch() {
+fn test_env_single_pair_matches_batch_output() {
     use qubit_redact::Redactor;
 
     let redactor = Redactor::standard();

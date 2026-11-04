@@ -31,6 +31,21 @@ use crate::serde::source_function_path::SourceTypeContext;
 /// The pattern and source access expressions retain the enum representation's
 /// field binding and keyed-field rules; carrier preparation is delegated to the
 /// shared field planner.
+///
+/// # Parameters
+///
+/// - `source_context`: Source type and projection context.
+/// - `recursive_target`: Type name used for recursive projection.
+/// - `variant_name`: Name of the enum variant.
+/// - `fields`: Parsed fields belonging to the variant.
+/// - `runtime`: Resolved runtime crate path.
+/// - `container_attributes`: Serde attributes on the enum.
+/// - `variant`: Parsed variant metadata.
+/// - `legacy_nested`: Whether legacy nested projection is active.
+///
+/// # Returns
+///
+/// The generated variant pattern and the serialized field plans.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn enum_named_plan(

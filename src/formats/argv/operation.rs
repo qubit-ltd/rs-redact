@@ -18,6 +18,21 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///
 /// The caller retains responsibility for output exhaustion and for publishing
 /// or staging the returned operation in its transaction.
+///
+/// # Type Parameters
+///
+/// - `S`: Runtime session providing transaction accounting.
+/// - `I`: Iterator of argv items.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission.
+/// - `items`: Items to admit and redact.
+/// - `heuristic`: Whether heuristic classification is enabled.
+///
+/// # Returns
+///
+/// The rendered operation, or `None` when admission rejects the input.
 pub(super) fn redact_items<'items, S, I>(session: &mut S, items: I, heuristic: bool) -> Option<RenderedOperation>
 where
     S: RuntimeSession,

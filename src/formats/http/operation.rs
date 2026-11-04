@@ -22,6 +22,15 @@ use crate::runtime::RenderedOperation;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits and renders one URL before its parent transaction publishes it.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session for admission and output limits.
+/// - `value`: URL text to redact.
+///
+/// # Returns
+///
+/// Rendered operation, or `None` when admission rejects the input.
 pub(super) fn redact_url(session: &mut dyn RuntimeSession, value: &str) -> Option<RenderedOperation> {
     if !session.admit_input(value.len()) {
         return Some(OperationSink::truncated("<truncated>", RedactionReason::InputLimitReached).finish());
@@ -40,6 +49,15 @@ pub(super) fn redact_url(session: &mut dyn RuntimeSession, value: &str) -> Optio
 }
 
 /// Admits and renders one complete header collection before publication.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session for admission and output limits.
+/// - `headers`: HTTP headers to redact.
+///
+/// # Returns
+///
+/// Rendered operation, or `None` when admission rejects the collection.
 pub(super) fn redact_headers(session: &mut dyn RuntimeSession, headers: &HeaderMap) -> Option<RenderedOperation> {
     let headers = collect_admitted_headers(session, headers)?;
     Some(
@@ -53,6 +71,16 @@ pub(super) fn redact_headers(session: &mut dyn RuntimeSession, headers: &HeaderM
 }
 
 /// Admits and renders a body with native Content-Type metadata.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session for admission and output limits.
+/// - `capture`: Captured body and source metadata.
+/// - `content_type`: Optional native Content-Type header value.
+///
+/// # Returns
+///
+/// Rendered operation, or `None` when admission rejects the input.
 pub(super) fn redact_body(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,
@@ -76,6 +104,16 @@ pub(super) fn redact_body(
 }
 
 /// Admits and renders a body with textual Content-Type metadata.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session for admission and output limits.
+/// - `capture`: Captured body and source metadata.
+/// - `content_type`: Optional textual Content-Type value.
+///
+/// # Returns
+///
+/// Rendered operation, or `None` when admission rejects the input.
 pub(super) fn redact_body_with_content_type_text(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,

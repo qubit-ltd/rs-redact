@@ -3,7 +3,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
-//    Licensed under the Apache License, Version 2.0 (the "License");
+//    Licensed under the Apache License, Version 2.0.
 // =============================================================================
 //! Shared macro-time preparation for serialized fields.
 
@@ -39,7 +39,8 @@ use crate::serde::source_function_path::SourceTypeContext;
 /// - `legacy_nested`: Whether legacy nested projection is active.
 /// - `position`: Field position used to name generated locals.
 /// - `serialized_name`: Serde-visible name for named fields.
-/// - `condition_override`: Optional representation-specific inclusion condition.
+/// - `condition_override`: Optional representation-specific inclusion
+///   condition.
 ///
 /// # Returns
 ///

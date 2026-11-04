@@ -16,6 +16,17 @@ use super::redaction::redact_pair_with_policy;
 use crate::runtime::RenderedOperation;
 use crate::runtime::runtime_session::RuntimeSession;
 
+/// Admits and renders one UTF-8 environment pair without publishing it.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission and output limits.
+/// - `name`: Environment variable name.
+/// - `value`: Environment variable value.
+///
+/// # Returns
+///
+/// The rendered operation, or `None` when admission rejects the pair.
 pub(super) fn redact_pair(session: &mut dyn RuntimeSession, name: &str, value: &str) -> Option<RenderedOperation> {
     if !session.admit_format_node(1)
         || !session.admit_format_collection_item()
@@ -33,6 +44,21 @@ pub(super) fn redact_pair(session: &mut dyn RuntimeSession, name: &str, value: &
     ))
 }
 
+/// Admits and renders operating-system environment pairs without publishing
+/// them.
+///
+/// # Type Parameters
+///
+/// - `I`: Iterator of borrowed operating-system string pairs.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission and output limits.
+/// - `pairs`: Environment pairs to admit and redact.
+///
+/// # Returns
+///
+/// The rendered operation, or `None` when admission rejects the input.
 pub(super) fn redact_os_pairs<'items, I>(session: &mut dyn RuntimeSession, pairs: I) -> Option<RenderedOperation>
 where
     I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,

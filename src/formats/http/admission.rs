@@ -19,6 +19,15 @@ use super::internal::nested_url::NestedUrl;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Charges URL query traversal before rendering.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission.
+/// - `text`: URL text whose query structure is charged.
+///
+/// # Returns
+///
+/// Whether the URL structure was admitted.
 pub(crate) fn admit_url_structure(session: &mut dyn RuntimeSession, text: &str) -> bool {
     let Ok(url) = Url::parse(text) else {
         return true;
@@ -27,6 +36,16 @@ pub(crate) fn admit_url_structure(session: &mut dyn RuntimeSession, text: &str) 
 }
 
 /// Charges recursively nested URL query structure for one parsed root.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission.
+/// - `url`: Parsed URL whose query structure is charged.
+/// - `nested_depth`: Current nested-URL depth.
+///
+/// # Returns
+///
+/// Whether the URL structure was admitted.
 pub(in crate::formats::http) fn admit_parsed_url_structure(
     session: &mut dyn RuntimeSession,
     url: &Url,
@@ -106,6 +125,16 @@ pub(crate) fn collect_admitted_headers<'headers>(
 ///
 /// Returns `Some` with retained structure or a syntax-failure classification.
 /// Returns `None` when the shared structural budget rejects the body.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission.
+/// - `capture`: Captured body and source metadata.
+/// - `content_type`: Optional native Content-Type bytes.
+///
+/// # Returns
+///
+/// Admitted body structure, or `None` when the budget rejects it.
 pub(crate) fn admit_body_structure(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,
@@ -222,6 +251,17 @@ pub(crate) fn admit_body_structure(
 /// retain the existing single-node body admission without inspecting metadata.
 /// An unrepresentable native header admits one format node and returns
 /// `InvalidContentType`; `None` means the structural budget rejected admission.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for admission.
+/// - `capture`: Captured body and source metadata.
+/// - `content_type`: Native Content-Type header value.
+///
+/// # Returns
+///
+/// Admitted structure or invalid-content-type classification, or `None` when
+/// the structural budget rejects the body.
 pub(in crate::formats::http) fn admit_native_body_structure(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,
@@ -237,6 +277,16 @@ pub(in crate::formats::http) fn admit_native_body_structure(
 }
 
 /// Counts bytes presented by a body operation before parser dispatch.
+///
+/// # Parameters
+///
+/// - `session`: Transaction session used for input accounting.
+/// - `capture`: Captured body and source metadata.
+/// - `content_type_len`: Optional Content-Type byte length.
+///
+/// # Returns
+///
+/// Whether input admission succeeded.
 pub(crate) fn admit_body_input(
     session: &mut dyn RuntimeSession,
     capture: BodyCapture<'_>,

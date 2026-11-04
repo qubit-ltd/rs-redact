@@ -15,6 +15,14 @@ use crate::formats::argv::pending_field::PendingField;
 use crate::policy::RedactionPolicy;
 
 /// Returns an option name without its leading dashes.
+///
+/// # Parameters
+///
+/// - `value`: Candidate argv value.
+///
+/// # Returns
+///
+/// The option name without dashes, or `None` when the value is not an option.
 #[inline]
 fn option_name(value: &str) -> Option<&str> {
     if !value.starts_with('-') || value == "-" || value.contains('=') {
@@ -25,6 +33,14 @@ fn option_name(value: &str) -> Option<&str> {
 }
 
 /// Parses one supported inline assignment while retaining its exact prefix.
+///
+/// # Parameters
+///
+/// - `value`: Candidate argv value.
+///
+/// # Returns
+///
+/// Borrowed assignment components, or `None` for unsupported syntax.
 fn inline_assignment(value: &str) -> Option<InlineAssignment<'_>> {
     let (left, raw) = value.split_once('=')?;
     let field = if !value.starts_with('-') {
@@ -44,6 +60,16 @@ fn inline_assignment(value: &str) -> Option<InlineAssignment<'_>> {
 }
 
 /// Classifies one argv item and updates the pending option state.
+///
+/// # Parameters
+///
+/// - `policy`: Redaction policy used to classify option names.
+/// - `item`: Current argv item.
+/// - `pending`: Pending option state from the previous argv item.
+///
+/// # Returns
+///
+/// The rendering classification for the current item.
 pub(in crate::formats::argv) fn classify<'a>(
     policy: &RedactionPolicy,
     item: ArgvItem<'a>,
