@@ -9,16 +9,14 @@
 
 use std::ffi::OsStr;
 
-use super::admission::{admit_environment_name, collect_environment_pairs};
-use super::redaction::{redact_os_pairs_with_policy, redact_pair_with_policy};
-use crate::runtime::runtime_session::RuntimeSession;
+use super::admission::admit_environment_name;
+use super::admission::collect_environment_pairs;
+use super::redaction::redact_os_pairs_with_policy;
+use super::redaction::redact_pair_with_policy;
 use crate::runtime::RenderedOperation;
+use crate::runtime::runtime_session::RuntimeSession;
 
-pub(super) fn redact_pair(
-    session: &mut dyn RuntimeSession,
-    name: &str,
-    value: &str,
-) -> Option<RenderedOperation> {
+pub(super) fn redact_pair(session: &mut dyn RuntimeSession, name: &str, value: &str) -> Option<RenderedOperation> {
     if !session.admit_format_node(1)
         || !session.admit_format_collection_item()
         || !session.admit_format_node(2)
@@ -35,10 +33,7 @@ pub(super) fn redact_pair(
     ))
 }
 
-pub(super) fn redact_os_pairs<'items, I>(
-    session: &mut dyn RuntimeSession,
-    pairs: I,
-) -> Option<RenderedOperation>
+pub(super) fn redact_os_pairs<'items, I>(session: &mut dyn RuntimeSession, pairs: I) -> Option<RenderedOperation>
 where
     I: IntoIterator<Item = (&'items OsStr, &'items OsStr)>,
 {

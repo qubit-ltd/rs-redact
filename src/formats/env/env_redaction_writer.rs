@@ -10,8 +10,8 @@
 use std::ffi::OsStr;
 
 use super::operation;
-use crate::runtime::runtime_session::RuntimeSession;
 use crate::runtime::TextSession;
+use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed environment façade over one mutable diagnostic session.
 ///
