@@ -334,6 +334,22 @@ impl RedactionRules {
     }
 }
 
+/// Combines the application and floor sensitivities, retaining the stronger
+/// requirement from either source.
+///
+/// A `None` input means that source has no sensitivity requirement; it cannot
+/// cancel a requirement from the other source. The result is
+/// [`ResolvedField::PassThrough`] only when both inputs are `None`.
+///
+/// # Parameters
+///
+/// * `application` - Sensitivity resolved from the application rules.
+/// * `floor` - Sensitivity resolved from the floor layers.
+///
+/// # Returns
+///
+/// The stronger present sensitivity, or [`ResolvedField::PassThrough`] when
+/// neither source requires redaction.
 fn resolved_max(application: Option<Sensitivity>, floor: Option<Sensitivity>) -> ResolvedField {
     match application.into_iter().chain(floor).max() {
         Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
@@ -383,7 +399,38 @@ fn classify_inner<'a>(
     }
 }
 
-/// Resolves the strongest sensitivity applicable to one field name.
+/// Resolves the strongest sensitivity applicable to one field name in a rule
+/// layer.
+///
+/// Candidate names are visited from the complete canonical field name to
+/// progressively shorter semantic token suffixes when `matching` permits
+/// suffix matching. Before any sensitive candidate has matched, an applicable
+/// allow rule can stop the search and return `None`. Once a sensitive rule has
+/// matched, later allow rules do not cancel it; the search continues and
+/// returns the strongest sensitivity among the matching sensitive candidates.
+/// If neither an allow rule nor any sensitive rule matches, the layer's
+/// unknown-field fallback is returned. That fallback does not apply after an
+/// allow rule stops the search.
+///
+/// Unlike [`classify_inner`], this function combines all matching sensitive
+/// candidates instead of returning the first classification. Callers resolve
+/// separate layers and combine their sensitivities outside this function.
+///
+/// # Parameters
+///
+/// * `inner` - The rule layer to inspect.
+/// * `field` - The field name being resolved.
+/// * `matching` - Controls whether semantic token suffix candidates are
+///   considered in addition to the complete canonical name.
+/// * `allow` - Whether allow rules in this layer are considered. Floor
+///   resolution passes `false` because application allow rules cannot suppress
+///   floor requirements.
+///
+/// # Returns
+///
+/// The strongest matching sensitivity, the layer's unknown-field fallback
+/// when no rule matches, or `None` when an applicable allow rule stops the
+/// search or the layer has no sensitivity requirement.
 fn sensitivity_inner(
     inner: &RedactionPolicyInner,
     field: &str,

@@ -114,6 +114,15 @@ impl RedactionFloor {
         Self::from_layers(layers)
     }
 
+    /// Builds a floor from already constructed policy layers, preserving their
+    /// order and keeping each layer available for independent resolution.
+    ///
+    /// The sensitive index merges only explicitly configured canonical field
+    /// rules, retaining the strongest level for each field. It supports
+    /// enumerating the floor's canonical sensitive rules; actual resolution
+    /// still evaluates the retained layers so each layer's matching mode and
+    /// unknown-field fallback remain effective. This constructor does not
+    /// deduplicate layers; callers are responsible for supplying valid layers.
     pub(crate) fn from_layers(layers: Vec<Arc<RedactionPolicyInner>>) -> Self {
         let mut sensitive_index = BTreeMap::new();
         for layer in &layers {
