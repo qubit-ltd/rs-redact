@@ -21,10 +21,7 @@ where
 }
 
 /// Redacts arguments with heuristic classification as one batch item.
-pub(crate) fn redact_heuristic_items<'items, I>(
-    session: &mut BatchSession,
-    items: I,
-) -> RedactionHandle
+pub(crate) fn redact_heuristic_items<'items, I>(session: &mut BatchSession, items: I) -> RedactionHandle
 where
     I: IntoIterator<Item = ArgvItem<'items>>,
 {
