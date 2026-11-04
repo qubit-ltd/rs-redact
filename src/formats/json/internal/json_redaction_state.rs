@@ -35,6 +35,7 @@ pub(crate) struct JsonRedactionState<'policy, 'marker> {
 
 impl<'policy> JsonRedactionState<'policy, 'policy> {
     /// Creates traversal state from the policy used by ordinary JSON paths.
+    #[inline]
     pub(crate) fn from_policy(policy: &'policy RedactionPolicy) -> Self {
         let unkeyed = match policy.unkeyed_json_value_policy() {
             crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
