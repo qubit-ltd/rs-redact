@@ -14,6 +14,7 @@
 //! use qubit_redact::formats::http::UnkeyedJsonValuePolicy;
 //! ```
 
+mod admission;
 pub(crate) mod batch_redaction;
 mod body_capture;
 mod body_capture_error;
@@ -25,6 +26,7 @@ mod http_policy_builder;
 mod http_redaction_writer;
 pub(crate) mod inspection;
 mod internal;
+mod operation;
 mod text_body_policy;
 mod url_path_policy;
 
