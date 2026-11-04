@@ -9,7 +9,10 @@
 
 mod adjacently_tagged;
 mod externally_tagged;
+pub(in crate::serde) mod field_events;
+pub(in crate::serde) mod field_plan;
 mod internally_tagged;
+pub(in crate::serde) mod serialized_field_plan;
 mod source_self_rebinder;
 mod untagged;
 mod variant_fields;

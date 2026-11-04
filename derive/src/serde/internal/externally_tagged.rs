@@ -13,13 +13,14 @@ use syn::Path;
 use syn::Result;
 
 use super::super::source_function_path::SourceTypeContext;
-use super::variant_fields::enum_named_parts;
+use super::field_events::field_count;
+use super::field_events::named_field_event;
+use super::field_events::positional_field_event;
+use super::variant_fields::enum_named_plan;
 use super::variant_fields::enum_unnamed_parts;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
-use crate::serde::field::conditional_skip_event_allowed;
-use crate::serde::field::field_is_skipped;
 use crate::serde::naming::serialized_variant_name;
 /// Generates one externally tagged variant arm.
 ///
@@ -54,7 +55,7 @@ pub(in crate::serde) fn external_variant_arm(
     let variant_index = variant.index();
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, conditions, names, carriers) = enum_named_parts(
+            let (pattern, plans) = enum_named_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -64,42 +65,31 @@ pub(in crate::serde) fn external_variant_arm(
                 variant,
                 legacy_nested,
             );
-            let skip_events = fields
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let count_conditions = plans
                 .iter()
-                .filter(|field| !field_is_skipped(field.serde_attributes()))
-                .map(|field| conditional_skip_event_allowed(field.serde_attributes(), field.attributes().mode()))
+                .map(|plan| plan.included.clone())
                 .collect::<Vec<_>>();
-            let count_conditions = &conditions;
-            let calls = conditions.iter().zip(&names).zip(&carriers).zip(&skip_events).map(
-                |(((_condition, field_name), carrier), allowed)| {
-                    let notify = allowed.as_ref().map(|allowed| {
-                        quote! {
-                            else if #allowed {
-                                #serde::ser::SerializeStructVariant::skip_field(&mut state, #field_name)?;
-                            }
-                        }
-                    });
-                    quote! {
-                        if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
-                            #serde::ser::SerializeStructVariant::serialize_field(
-                                &mut state,
-                                #field_name,
-                                carrier,
-                            )?;
-                        }
-                        #notify
-                    }
-                },
-            );
+            let count_setup = field_count(&count_conditions, 0);
+            let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeStructVariant);
+            let state = quote!(&mut state);
+            let calls = plans.iter().map(|plan| {
+                let carrier = &plan.carrier;
+                let carrier = quote!(#carrier);
+                named_field_event(
+                    &trait_path,
+                    &state,
+                    &carrier,
+                    plan.serialized_name
+                        .as_deref()
+                        .expect("named field has a name"),
+                    plan.skip_event.as_ref(),
+                )
+            });
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
-                    let mut field_count = 0usize;
-                    #(
-                        if #count_conditions {
-                            field_count += 1;
-                        }
-                    )*
+                    #count_setup
                     #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_struct_variant(
                         serializer,
@@ -167,26 +157,18 @@ pub(in crate::serde) fn external_variant_arm(
                 runtime,
                 legacy_nested,
             );
-            let count_conditions = &conditions;
-            let calls = conditions.iter().zip(&carriers).map(|(_condition, carrier)| {
-                quote! {
-                    if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
-                        #serde::ser::SerializeTupleVariant::serialize_field(
-                            &mut state,
-                            carrier,
-                        )?;
-                    }
-                }
+            let count_setup = field_count(&conditions, 0);
+            let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeTupleVariant);
+            let method: syn::Ident = syn::parse_quote!(serialize_field);
+            let state = quote!(&mut state);
+            let calls = carriers.iter().map(|carrier| {
+                let carrier = quote!(#carrier);
+                positional_field_event(&trait_path, &method, &state, &carrier)
             });
             quote! {
                 Self::#rust_name #pattern => {
                     #(#setups)*
-                    let mut field_count = 0usize;
-                    #(
-                        if #count_conditions {
-                            field_count += 1;
-                        }
-                    )*
+                    #count_setup
                     #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
                     let mut state = #serde::Serializer::serialize_tuple_variant(
                         serializer,
