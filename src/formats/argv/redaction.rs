@@ -12,12 +12,13 @@ use std::ffi::OsStr;
 use std::fmt::Write as _;
 
 use super::ArgvItem;
+use super::internal::argv_classification::ArgvClassification;
 use super::internal::bounded_join::join_bounded;
+use super::internal::heuristic_classification::classify;
 use super::pending_field::PendingField;
 use crate::Sensitivity;
 use crate::formats::internal::bounded_os_text;
 use crate::policy::RedactionPolicy;
-use crate::policy::ResolvedField;
 use crate::runtime::OperationByteSink;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
@@ -74,11 +75,29 @@ where
             let (text, truncated) = bounded_os_text::capture(item.value(), max_output_bytes);
             (Cow::Owned(text), truncated)
         } else if heuristic {
-            if let Some(level) = item.sensitivity() {
-                pending = None;
-                mask_os_value_bounded(policy, item.value(), level, max_output_bytes)
-            } else {
-                redact_plain_item_bounded(policy, item.value(), &mut pending, max_output_bytes)
+            match classify(policy, item, &mut pending) {
+                ArgvClassification::PassThrough(value) => {
+                    let (text, truncated) = bounded_os_text::capture(value, max_output_bytes);
+                    (Cow::Owned(text), truncated)
+                }
+                ArgvClassification::WholeValue { value, sensitivity } => {
+                    mask_os_value_bounded(policy, value, sensitivity, max_output_bytes)
+                }
+                ArgvClassification::InlineValue {
+                    assignment,
+                    sensitivity,
+                } => {
+                    let (masked, mask_truncated) =
+                        policy
+                            .masking()
+                            .mask_bounded_with_truncation(sensitivity, assignment.value, max_output_bytes);
+                    let (joined, join_truncated) = join_bounded(&[assignment.prefix, &masked], max_output_bytes);
+                    (Cow::Owned(joined), mask_truncated || join_truncated)
+                }
+                ArgvClassification::OpaqueSecret => {
+                    let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
+                    (Cow::Owned(masked), truncated)
+                }
             }
         } else {
             render_explicit_or_plain_bounded(policy, item, max_output_bytes)
@@ -139,188 +158,6 @@ fn mask_os_value_bounded<'a>(
     }
 }
 
-/// Redacts one heuristically classified plain argv item.
-fn redact_plain_item_bounded<'a>(
-    policy: &RedactionPolicy,
-    value: &'a OsStr,
-    pending_field: &mut Option<PendingField>,
-    max_output_bytes: usize,
-) -> (Cow<'a, str>, bool) {
-    let Some(value) = value.to_str() else {
-        *pending_field = Some(PendingField::OpaqueSecret);
-        let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
-        return (Cow::Owned(masked), truncated);
-    };
-
-    let option = option_field(value);
-    if let Some(pending) = pending_field.take() {
-        if let Some((field, exact)) = option
-            && let Some(level) = option_sensitivity(policy, field, exact)
-        {
-            *pending_field = Some(PendingField::Classified(level));
-        }
-        if matches!(pending, PendingField::OpaqueSecret) {
-            let (masked, truncated) = mask_opaque_value_bounded(policy, max_output_bytes);
-            return (Cow::Owned(masked), truncated);
-        }
-        return mask_pending_value_bounded(policy, &pending, value, max_output_bytes);
-    }
-    if let Some(value) = redact_assignment_bounded(policy, value, max_output_bytes) {
-        return value;
-    }
-    if let Some(value) = redact_inline_option_bounded(policy, value, max_output_bytes) {
-        return value;
-    }
-    if let Some(value) = redact_jvm_property_bounded(policy, value, max_output_bytes) {
-        return value;
-    }
-    if let Some((field, exact)) = option
-        && let Some(level) = option_sensitivity(policy, field, exact)
-    {
-        *pending_field = Some(PendingField::Classified(level));
-    }
-    (Cow::Borrowed(value), false)
-}
-
-/// Resolves a possible option field name and its matching mode.
-fn option_field(value: &str) -> Option<(&str, bool)> {
-    let name = option_name(value)?;
-    Some((name, !value.starts_with("--")))
-}
-
-/// Returns the matched sensitivity for an option field, preserving exact or
-/// suffix matching.
-fn option_sensitivity(policy: &RedactionPolicy, field: &str, exact: bool) -> Option<Sensitivity> {
-    if exact {
-        policy.sensitivity_for_exact(field)
-    } else {
-        policy.sensitivity_for(field)
-    }
-}
-
-/// Redacts a `NAME=value` assignment when its name is sensitive.
-fn redact_assignment_bounded<'a>(
-    policy: &RedactionPolicy,
-    value: &'a str,
-    max_output_bytes: usize,
-) -> Option<(Cow<'a, str>, bool)> {
-    if value.starts_with('-') {
-        return None;
-    }
-    let (name, raw_value) = value.split_once('=')?;
-    if name.is_empty() {
-        return None;
-    }
-    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    let (joined, join_truncated) = join_bounded(&[name, "=", &redacted], max_output_bytes);
-    Some((Cow::Owned(joined), mask_truncated || join_truncated))
-}
-
-/// Redacts a `--name=value` option when its name is sensitive.
-fn redact_inline_option_bounded<'a>(
-    policy: &RedactionPolicy,
-    value: &'a str,
-    max_output_bytes: usize,
-) -> Option<(Cow<'a, str>, bool)> {
-    if !value.starts_with("--") {
-        return None;
-    }
-    let (left, raw_value) = value.split_once('=')?;
-    let name = option_name(left)?;
-    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    let (joined, join_truncated) = join_bounded(&[left, "=", &redacted], max_output_bytes);
-    Some((Cow::Owned(joined), mask_truncated || join_truncated))
-}
-
-/// Redacts a `-Dname=value` JVM property when its name is sensitive.
-fn redact_jvm_property_bounded<'a>(
-    policy: &RedactionPolicy,
-    value: &'a str,
-    max_output_bytes: usize,
-) -> Option<(Cow<'a, str>, bool)> {
-    let property = value.strip_prefix("-D")?;
-    let (name, raw_value) = property.split_once('=')?;
-    if name.is_empty() {
-        return None;
-    }
-    let (redacted, mask_truncated) = mask_field_value_bounded(policy, name, raw_value, max_output_bytes)?;
-    let (joined, join_truncated) = join_bounded(&["-D", name, "=", &redacted], max_output_bytes);
-    Some((Cow::Owned(joined), mask_truncated || join_truncated))
-}
-
-/// Masks the value following a sensitive option.
-fn mask_pending_value_bounded<'a>(
-    policy: &RedactionPolicy,
-    pending: &PendingField,
-    value: &'a str,
-    max_output_bytes: usize,
-) -> (Cow<'a, str>, bool) {
-    match pending_item_sensitivity(policy, pending, value) {
-        Some(sensitivity) => {
-            let (masked, truncated) =
-                policy
-                    .masking()
-                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
-            (masked, truncated)
-        }
-        None => (Cow::Borrowed(value), false),
-    }
-}
-
-/// Returns the sensitivity of an inline field assignment.
-///
-/// `policy` classifies the field name parsed from `value`. `Some` contains
-/// the matched sensitivity; `None` means the item has no sensitive inline
-/// field or its field is classified for pass-through.
-fn inline_item_sensitivity(policy: &RedactionPolicy, value: &str) -> Option<Sensitivity> {
-    let field = if !value.starts_with('-') {
-        value
-            .split_once('=')
-            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
-    } else if let Some(property) = value.strip_prefix("-D") {
-        property
-            .split_once('=')
-            .and_then(|(field, _)| (!field.is_empty()).then_some(field))
-    } else if value.starts_with("--") {
-        value.split_once('=').and_then(|(left, _)| option_name(left))
-    } else {
-        None
-    };
-    field.and_then(|field| policy.sensitivity_for(field))
-}
-
-/// Returns the stronger sensitivity required by a pending option or inline
-/// field.
-///
-/// `pending` supplies the preceding option classification, while `value`
-/// supplies the current argv item. `Some` is the stronger applicable level;
-/// `None` means neither classification requires masking.
-fn pending_item_sensitivity(policy: &RedactionPolicy, pending: &PendingField, value: &str) -> Option<Sensitivity> {
-    match pending {
-        PendingField::OpaqueSecret => Some(Sensitivity::Secret),
-        PendingField::Classified(level) => Some(*level).max(inline_item_sensitivity(policy, value)),
-    }
-}
-
-/// Masks one classified field, returning `None` for pass-through fields.
-fn mask_field_value_bounded<'a>(
-    policy: &RedactionPolicy,
-    field: &str,
-    value: &'a str,
-    max_output_bytes: usize,
-) -> Option<(Cow<'a, str>, bool)> {
-    match policy.resolve_field(field) {
-        ResolvedField::Sensitive { sensitivity } => {
-            let (masked, truncated) =
-                policy
-                    .masking()
-                    .mask_bounded_with_truncation(sensitivity, value, max_output_bytes);
-            Some((masked, truncated))
-        }
-        ResolvedField::PassThrough => None,
-    }
-}
-
 /// Produces a bounded opaque secret replacement.
 fn mask_opaque_value_bounded(policy: &RedactionPolicy, max_output_bytes: usize) -> (String, bool) {
     let masking = policy.masking();
@@ -337,45 +174,13 @@ pub(super) fn inspect_heuristic_item(
     item: ArgvItem<'_>,
     pending_field: &mut Option<PendingField>,
 ) -> Option<Sensitivity> {
-    if let Some(sensitivity) = item.sensitivity() {
-        *pending_field = None;
-        return Some(sensitivity);
-    }
-    let Some(value) = item.value().to_str() else {
-        *pending_field = Some(PendingField::OpaqueSecret);
-        return Some(Sensitivity::Secret);
-    };
-    let option = option_field(value);
-    if let Some(pending) = pending_field.take() {
-        if let Some((field, exact)) = option
-            && let Some(level) = option_sensitivity(policy, field, exact)
-        {
-            *pending_field = Some(PendingField::Classified(level));
+    match classify(policy, item, pending_field) {
+        ArgvClassification::PassThrough(_) => None,
+        ArgvClassification::WholeValue { sensitivity, .. } | ArgvClassification::InlineValue { sensitivity, .. } => {
+            Some(sensitivity)
         }
-        if matches!(pending, PendingField::OpaqueSecret) {
-            return Some(Sensitivity::Secret);
-        }
-        return pending_item_sensitivity(policy, &pending, value);
+        ArgvClassification::OpaqueSecret => Some(Sensitivity::Secret),
     }
-    if let Some(sensitivity) = inline_item_sensitivity(policy, value) {
-        return Some(sensitivity);
-    }
-    if let Some((field, exact)) = option
-        && let Some(level) = option_sensitivity(policy, field, exact)
-    {
-        *pending_field = Some(PendingField::Classified(level));
-    }
-    None
-}
-
-/// Returns an option name without its leading dashes.
-#[inline]
-fn option_name(value: &str) -> Option<&str> {
-    if !value.starts_with('-') || value == "-" || value.contains('=') {
-        return None;
-    }
-    let name = value.trim_start_matches('-');
-    if name.is_empty() { None } else { Some(name) }
 }
 
 #[cfg(test)]

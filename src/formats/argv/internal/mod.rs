@@ -8,4 +8,7 @@
 
 //! Internal helpers for argument-vector formatting.
 
+pub(crate) mod argv_classification;
 pub(crate) mod bounded_join;
+pub(crate) mod heuristic_classification;
+pub(crate) mod inline_assignment;

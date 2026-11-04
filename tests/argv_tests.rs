@@ -10,10 +10,12 @@
 mod argv;
 
 use std::ffi::OsStr;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStringExt;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStringExt;
 
 use proptest::prelude::prop_assert;
 use proptest::prelude::prop_assert_eq;
@@ -182,6 +184,29 @@ fn heuristic_does_not_parse_shell_payloads_or_unsupported_compact_forms() {
 }
 
 #[test]
+fn heuristic_option_boundaries_and_consecutive_sensitive_options_keep_their_rules() {
+    let rendered = heuristic([
+        ArgvItem::plain(OsStr::new("--")),
+        ArgvItem::plain(OsStr::new("-")),
+        ArgvItem::plain(OsStr::new("---")),
+        ArgvItem::plain(OsStr::new("-password")),
+        ArgvItem::plain(OsStr::new("exact-option-secret")),
+        ArgvItem::plain(OsStr::new("---password")),
+        ArgvItem::plain(OsStr::new("triple-option-secret")),
+        ArgvItem::plain(OsStr::new("--password")),
+        ArgvItem::plain(OsStr::new("--token")),
+        ArgvItem::plain(OsStr::new("consecutive-option-secret")),
+    ]);
+
+    for secret in ["exact-option-secret", "triple-option-secret", "consecutive-option-secret"] {
+        assert!(!rendered.contains(secret));
+    }
+    for boundary in ["\"--\"", "\"-\"", "\"---\""] {
+        assert!(rendered.contains(boundary));
+    }
+}
+
+#[test]
 fn composer_and_batch_argv_results_are_separate() {
     let text = Redactor::standard()
         .text_composer()
@@ -272,6 +297,74 @@ fn non_utf8_sensitive_items_fail_closed() {
 
     assert!(!rendered.contains("prefix-secret"));
     assert!(rendered.contains("redacted"));
+}
+
+#[cfg(unix)]
+#[test]
+fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
+    let value = OsString::from_vec(b"explicit\xff".to_vec());
+    let redactor = Redactor::standard();
+    let inspected = redactor
+        .inspect_heuristic_argv([ArgvItem::sensitive(&value, Sensitivity::High)])
+        .expect("complete inspection");
+    assert_eq!(inspected.max_sensitivity(), Some(Sensitivity::High));
+
+    let plain_opaque = redactor
+        .redact_heuristic_argv([ArgvItem::plain(&value)])
+        .text()
+        .as_str()
+        .to_owned();
+    let high_opaque = redactor
+        .redact_heuristic_argv([ArgvItem::sensitive(&value, Sensitivity::High)])
+        .text()
+        .as_str()
+        .to_owned();
+    assert_eq!(high_opaque, plain_opaque);
+    let explicit = redactor
+        .redact_heuristic_argv([
+            ArgvItem::plain(OsStr::new("--password")),
+            ArgvItem::sensitive(&value, Sensitivity::High),
+            ArgvItem::plain(OsStr::new("visible-after-explicit")),
+        ])
+        .text()
+        .as_str()
+        .to_owned();
+    assert!(explicit.contains("<redacted>"));
+    assert!(explicit.ends_with(", \"visible-after-explicit\"]"));
+}
+
+#[cfg(windows)]
+#[test]
+fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
+    let value = OsString::from_wide(&[0x0065, 0x0063, 0xD800]);
+    let redactor = Redactor::standard();
+    let inspected = redactor
+        .inspect_heuristic_argv([ArgvItem::sensitive(&value, Sensitivity::High)])
+        .expect("complete inspection");
+    assert_eq!(inspected.max_sensitivity(), Some(Sensitivity::High));
+
+    let plain_opaque = redactor
+        .redact_heuristic_argv([ArgvItem::plain(&value)])
+        .text()
+        .as_str()
+        .to_owned();
+    let high_opaque = redactor
+        .redact_heuristic_argv([ArgvItem::sensitive(&value, Sensitivity::High)])
+        .text()
+        .as_str()
+        .to_owned();
+    assert_eq!(high_opaque, plain_opaque);
+    let explicit = redactor
+        .redact_heuristic_argv([
+            ArgvItem::plain(OsStr::new("--password")),
+            ArgvItem::sensitive(&value, Sensitivity::High),
+            ArgvItem::plain(OsStr::new("visible-after-explicit")),
+        ])
+        .text()
+        .as_str()
+        .to_owned();
+    assert!(explicit.contains("<redacted>"));
+    assert!(explicit.ends_with(", \"visible-after-explicit\"]"));
 }
 
 proptest! {
