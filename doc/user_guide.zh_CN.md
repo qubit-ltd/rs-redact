@@ -1456,8 +1456,8 @@ crate 中执行 `cargo run --quiet`。Cargo 可能访问 registry 解析或下�
 ./.infra/bin/ci-check.sh
 ```
 
-`.infra/bin/ci-check.sh` 读取仓库内的 `.infra/ci/cargo-matrix.json`，执行 `check`、`test`（含 doctest）、
-`doc` 和 Clippy。矩阵覆盖最小格式 feature、derive 与 Serde/JSON/HTTP/URI 的消费组合、
-显式 BigDecimal 支持，以及全部 feature：展开隐式依赖后覆盖全部 28 种 runtime feature 集，
-另检查 derive crate。README 与指南示例按实际依赖验证；未启用 `uri`
+`.infra/bin/ci-check.sh` 读取仓库内的 `.infra/ci/cargo-matrix.json`，按各条目选定的命令执行 `check`、
+`test`（含 doctest）、`doc` 和 Clippy。该精选矩阵覆盖最小构建、关键 feature 边界及交互、显式 BigDecimal
+支持、derive crate 和全部 feature 构建，不穷举所有 runtime feature 组合。具体条目和选择理由见[feature
+矩阵设计](../.infra/ci/feature-matrix.zh_CN.md)。README 与指南示例按实际依赖验证；未启用 `uri`
 时，只跳过需要它的 URI 示例。

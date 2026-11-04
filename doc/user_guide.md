@@ -1625,9 +1625,10 @@ To validate a local checkout with the full CI matrix:
 ./.infra/bin/ci-check.sh
 ```
 
-The checked-in `.infra/ci/cargo-matrix.json` is consumed by `.infra/bin/ci-check.sh` for
-`check`, `test` (including doctests), `doc`, and Clippy. It covers minimal format
-features, derive consumers with and without Serde/JSON/HTTP/URI, explicit
-BigDecimal support, and all features: 28 distinct runtime feature sets after implied
-features are expanded, plus the derive crate. README and guide examples use the features
+The checked-in `.infra/ci/cargo-matrix.json` is consumed by `.infra/bin/ci-check.sh` to
+run the commands selected for each entry, including `check`, `test` (with doctests),
+`doc`, and Clippy. The curated matrix covers minimal builds, key feature boundaries and
+interactions, explicit BigDecimal support, the derive crate, and the all-features build;
+it does not enumerate every runtime feature combination. See [Feature-matrix design](../.infra/ci/feature-matrix.md)
+for the selected entries and their rationale. README and guide examples use the features
 required by each example; URI-only snippets are skipped when `uri` is disabled.
