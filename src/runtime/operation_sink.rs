@@ -397,7 +397,7 @@ mod tests {
     use super::OperationSink;
 
     #[test]
-    fn output_limit_fallback_preserves_boundary_states() {
+    fn test_output_limit_fallback_preserves_boundary_states() {
         use crate::RedactionCompletion;
         use crate::RedactionReason;
 

@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
+//    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -25,6 +25,25 @@ use crate::serde::field_access::FieldAccess;
 use crate::serde::source_function_path::SourceTypeContext;
 
 /// Prepares the carrier setup and event metadata for one field.
+///
+/// # Parameters
+///
+/// - `source_context`: Source type and projection context.
+/// - `recursive_target`: Type name used for recursive projection.
+/// - `field`: Source field metadata.
+/// - `context`: Field context passed to generated projection code.
+/// - `mode`: Redaction mode for the field.
+/// - `attributes`: Parsed Serde field attributes.
+/// - `runtime`: Resolved runtime crate path.
+/// - `access`: Raw field and optional key access expressions.
+/// - `legacy_nested`: Whether legacy nested projection is active.
+/// - `position`: Field position used to name generated locals.
+/// - `serialized_name`: Serde-visible name for named fields.
+/// - `condition_override`: Optional representation-specific inclusion condition.
+///
+/// # Returns
+///
+/// A prepared plan for included fields, or `None` for skipped fields.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::serde) fn prepare_field_plan(
     source_context: &SourceTypeContext<'_>,
@@ -60,9 +79,8 @@ pub(in crate::serde) fn prepare_field_plan(
         },
         legacy_nested,
     );
-    let condition = condition_override.unwrap_or_else(|| {
-        serialization_condition(source_context, attributes, mode, raw, predicate)
-    });
+    let condition =
+        condition_override.unwrap_or_else(|| serialization_condition(source_context, attributes, mode, raw, predicate));
     let skip_event = conditional_skip_event_allowed(attributes, mode);
     let setup = quote_spanned! {field.span()=>
         let #carrier = if #condition {

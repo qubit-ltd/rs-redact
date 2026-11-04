@@ -173,7 +173,8 @@ pub(super) fn named_content_proxy(
 /// * `variant_name` - Variant owning the generated proxy.
 /// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
-/// * `carriers` - Expressions yielding optional serialized carriers in tuple order.
+/// * `carriers` - Expressions yielding optional serialized carriers in tuple
+///   order.
 ///
 /// # Returns
 ///

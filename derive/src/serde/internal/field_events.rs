@@ -1,5 +1,5 @@
 // =============================================================================
-//    Copyright (c) 2025 - 2026 Haixing Hu.
+//    Copyright (c) 2026 Haixing Hu.
 //
 //    SPDX-License-Identifier: Apache-2.0
 //
@@ -13,6 +13,18 @@ use syn::Ident;
 use syn::Path;
 
 /// Generates one named-field serialization and optional skip notification.
+///
+/// # Parameters
+///
+/// - `trait_path`: Serde trait providing the field methods.
+/// - `state`: Mutable serializer state expression.
+/// - `carrier`: Optional serialized field value expression.
+/// - `serialized_name`: Serde-visible field name.
+/// - `skip_event`: Optional condition for notifying Serde of a skipped field.
+///
+/// # Returns
+///
+/// Tokens which emit the field or skipped-field event.
 pub(in crate::serde) fn named_field_event(
     trait_path: &Path,
     state: &TokenStream,
@@ -36,6 +48,17 @@ pub(in crate::serde) fn named_field_event(
 }
 
 /// Generates one positional-field serialization event.
+///
+/// # Parameters
+///
+/// - `trait_path`: Serde trait providing the positional field method.
+/// - `method`: Positional serialization method to call.
+/// - `state`: Mutable serializer state expression.
+/// - `carrier`: Optional serialized field value expression.
+///
+/// # Returns
+///
+/// Tokens which emit the positional field when its carrier is present.
 pub(in crate::serde) fn positional_field_event(
     trait_path: &Path,
     method: &Ident,
@@ -50,6 +73,15 @@ pub(in crate::serde) fn positional_field_event(
 }
 
 /// Generates the count of fields whose carrier conditions are true.
+///
+/// # Parameters
+///
+/// - `conditions`: Inclusion conditions for fields in the container.
+/// - `initial`: Number of fields already included.
+///
+/// # Returns
+///
+/// Tokens which compute the final field count.
 pub(in crate::serde) fn field_count(conditions: &[TokenStream], initial: usize) -> TokenStream {
     quote! {
         let mut field_count = #initial;
