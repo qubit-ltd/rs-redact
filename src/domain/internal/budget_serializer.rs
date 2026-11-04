@@ -89,6 +89,36 @@ pub(super) fn items<E: SerdeError>(count: usize) -> Result<(), E> {
     }
 }
 
+macro_rules! budget_scalar_methods {
+    ($($method:ident : $scalar:ty),* $(,)?) => {
+        $(
+            /// Charges the scalar representation before forwarding its native
+            /// Serde value.
+            ///
+            /// # Errors
+            ///
+            /// Propagates admission or downstream serializer failures.
+            ///
+            /// # Parameters
+            ///
+            /// - `value`: Source event value.
+            ///
+            /// # Returns
+            ///
+            /// The downstream result after the admitted representation is
+            /// serialized.
+            #[inline]
+            fn $method(self, value: $scalar) -> Result<Self::Ok, Self::Error> {
+                let bytes = scalar_payload_len(value).map_err(|_| {
+                    S::Error::custom("redaction scalar length formatting failed")
+                })?;
+                scalar::<S::Error>(bytes)?;
+                self.inner.$method(value)
+            }
+        )*
+    };
+}
+
 impl<S: Serializer> Serializer for BudgetSerializer<S> {
     /// Downstream successful result, preserved without conversion.
     type Ok = S::Ok;
@@ -134,257 +164,12 @@ impl<S: Serializer> Serializer for BudgetSerializer<S> {
         scalar::<S::Error>(if value { 4 } else { 5 })?;
         self.inner.serialize_bool(value)
     }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_i8(self, value: i8) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_i8(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_i16(self, value: i16) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_i16(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_i32(self, value: i32) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_i32(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_i64(self, value: i64) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_i64(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_i128(self, value: i128) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_i128(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_u8(self, value: u8) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_u8(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_u16(self, value: u16) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_u16(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_u32(self, value: u32) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_u32(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_u64(self, value: u64) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_u64(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_u128(self, value: u128) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_u128(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_f32(self, value: f32) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_f32(value)
-    }
-    /// Charges the scalar representation before forwarding its native Serde
-    /// value.
-    ///
-    /// # Errors
-    ///
-    /// Propagates admission or downstream serializer failures.
-    ///
-    /// # Parameters
-    ///
-    /// - `value`: Source event value.
-    ///
-    /// # Returns
-    ///
-    /// The downstream result after the admitted representation is serialized.
-    #[inline]
-    fn serialize_f64(self, value: f64) -> Result<Self::Ok, Self::Error> {
-        let bytes =
-            scalar_payload_len(value).map_err(|_| S::Error::custom("redaction scalar length formatting failed"))?;
-        scalar::<S::Error>(bytes)?;
-        self.inner.serialize_f64(value)
+    budget_scalar_methods! {
+        serialize_i8: i8, serialize_i16: i16, serialize_i32: i32,
+        serialize_i64: i64, serialize_i128: i128,
+        serialize_u8: u8, serialize_u16: u16, serialize_u32: u32,
+        serialize_u64: u64, serialize_u128: u128,
+        serialize_f32: f32, serialize_f64: f64,
     }
     /// Charges source and logical payload bytes before forwarding this scalar.
     ///
