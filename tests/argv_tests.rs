@@ -223,6 +223,22 @@ fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
 }
 
 #[test]
+fn refactor_argv_one_item_matches_batch() {
+    let redactor = Redactor::standard();
+    let items = [ArgvItem::sensitive(
+        OsStr::new("raw-secret"),
+        Sensitivity::Secret,
+    )];
+    let one = redactor.redact_argv(items);
+    let mut batch = redactor.diagnostic_batch();
+    let handle = batch.redact_argv(items);
+    let output = batch.finish_with_marker("<incomplete>");
+
+    assert_eq!(one.text().as_str(), output.text(handle).as_str());
+    assert_eq!(one.summary(), output.summary());
+}
+
+#[test]
 fn exact_output_budget_fill_skips_later_argv_adapter_work() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {

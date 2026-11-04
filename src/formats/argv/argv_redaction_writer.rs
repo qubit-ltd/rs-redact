@@ -8,10 +8,8 @@
 //! Shared-session argument-vector redaction.
 
 use super::ArgvItem;
-use super::redaction::redact_heuristically_with_policy;
-use super::redaction::redact_items_with_policy;
+use super::operation::redact_items;
 use crate::runtime::TextSession;
-use crate::runtime::collect_flat_format_items;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// A borrowed argv façade over one mutable diagnostic session.
@@ -78,12 +76,9 @@ impl<'session> ArgvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(items) = collect_flat_format_items(self.session, items, |item| item.value().as_encoded_bytes().len())
-        else {
-            return self;
-        };
-        let result = redact_items_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        self.session.append_rendered_operation(result);
+        if let Some(operation) = redact_items(self.session, items, false) {
+            self.session.append_rendered_operation(operation);
+        }
         self
     }
 
@@ -114,13 +109,9 @@ impl<'session> ArgvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(items) = collect_flat_format_items(self.session, items, |item| item.value().as_encoded_bytes().len())
-        else {
-            return self;
-        };
-        let result =
-            redact_heuristically_with_policy(self.session.policy(), items, self.session.remaining_output_bytes());
-        self.session.append_rendered_operation(result);
+        if let Some(operation) = redact_items(self.session, items, true) {
+            self.session.append_rendered_operation(operation);
+        }
         self
     }
 }

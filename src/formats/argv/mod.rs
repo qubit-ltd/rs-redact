@@ -12,6 +12,7 @@ mod argv_redaction_writer;
 pub(crate) mod batch_redaction;
 pub(crate) mod inspection;
 mod internal;
+mod operation;
 mod pending_field;
 pub(crate) mod redaction;
 
