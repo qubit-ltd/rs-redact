@@ -111,6 +111,12 @@ struct BudgetNode {
 }
 
 #[derive(Redact)]
+#[redact(crate = qubit_redact, serde)]
+struct OptionalBudgetNode {
+    next: Option<Box<OptionalBudgetNode>>,
+}
+
+#[derive(Redact)]
 #[redact(crate = qubit_redact)]
 struct OrdinaryVector {
     children: Vec<u8>,
@@ -338,4 +344,84 @@ fn test_recursive_view_masks_after_structural_budget_rejection() {
         .expect("zero node budget uses the fail-closed marker");
     assert_eq!(text, "\"<redacted>\"");
     assert!(!text.contains("root-secret"));
+}
+
+#[test]
+fn test_recursive_option_rejects_container_at_budget_boundary() {
+    let none = OptionalBudgetNode { next: None };
+    let some = OptionalBudgetNode {
+        next: Some(Box::new(OptionalBudgetNode { next: None })),
+    };
+    let cases = [
+        (&none, 1, 8, serde_json::json!({"next": "<redacted>"})),
+        (&none, 8, 1, serde_json::json!({"next": "<redacted>"})),
+        (&none, 2, 8, serde_json::json!({"next": null})),
+        (&none, 8, 2, serde_json::json!({"next": null})),
+        (&some, 2, 8, serde_json::json!({"next": "<redacted>"})),
+        (&some, 8, 2, serde_json::json!({"next": "<redacted>"})),
+        (&some, 3, 8, serde_json::json!({"next": {"next": "<redacted>"}})),
+        (&some, 8, 3, serde_json::json!({"next": {"next": "<redacted>"}})),
+        (&some, 4, 8, serde_json::json!({"next": {"next": null}})),
+        (&some, 8, 4, serde_json::json!({"next": {"next": null}})),
+    ];
+
+    for (value, nodes, depth, expected) in cases {
+        for disabled in [false, true] {
+            let mut policy = RedactionPolicy::builder()
+                .limits(|limits| {
+                    limits.max_nodes(nodes).max_depth(depth).max_output_bytes(4096);
+                })
+                .expect("valid limits")
+                .build()
+                .expect("valid policy");
+            let _ = policy.set_disabled(disabled);
+            let redactor = Redactor::new(policy);
+
+            let view = serde_json::to_value(redactor.redact_view(value)).expect("safe structural replacement");
+            let json = serde_json::from_str::<serde_json::Value>(&redactor.to_json(value).expect("JSON projection"))
+                .expect("valid JSON projection");
+            let legacy =
+                serde_json::to_value(RedactedSerializeRef::new(value, redactor.policy())).expect("legacy projection");
+            assert_eq!(
+                view, expected,
+                "view, nodes={nodes}, depth={depth}, disabled={disabled}"
+            );
+            assert_eq!(
+                json, expected,
+                "to_json, nodes={nodes}, depth={depth}, disabled={disabled}"
+            );
+            assert_eq!(
+                legacy, expected,
+                "legacy, nodes={nodes}, depth={depth}, disabled={disabled}"
+            );
+        }
+    }
+
+    let rejected = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(1).max_depth(8);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let rejected_redactor = Redactor::new(rejected);
+    assert_eq!(
+        serde_json::to_value(rejected_redactor.redact_view(&none)).expect("rejected projection"),
+        serde_json::json!({"next": "<redacted>"}),
+    );
+    assert_eq!(
+        serde_json::to_value(rejected_redactor.redact_view(&none)).expect("repeated rejected projection"),
+        serde_json::json!({"next": "<redacted>"}),
+    );
+    let ample = RedactionPolicy::builder()
+        .limits(|limits| {
+            limits.max_nodes(8).max_depth(8).max_output_bytes(4096);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    assert_eq!(
+        serde_json::to_value(Redactor::new(ample).redact_view(&some)).expect("ample projection"),
+        serde_json::json!({"next": {"next": null}}),
+    );
 }

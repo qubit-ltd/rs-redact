@@ -190,10 +190,23 @@ pub(super) fn expand(
         where P: #serde::Serialize {
             fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where S: #serde::Serializer {
-                match self.value.as_ref() {
-                    ::core::option::Option::Some(value) => #serde::Serializer::serialize_some(serializer, &#carrier::new(value.as_ref(), self.reproject)),
-                    ::core::option::Option::None => #serde::Serializer::serialize_none(serializer),
-                }
+                let policy_owner = #runtime::domain::internal::current_policy()
+                    .ok_or_else(|| {
+                        <S::Error as #serde::ser::Error>::custom(
+                            "serialization requires an active redaction scope",
+                        )
+                    })?;
+                #runtime::domain::internal::serialize_structured(
+                    serializer,
+                    policy_owner.as_ref(),
+                    |serializer| match self.value.as_ref() {
+                        ::core::option::Option::Some(value) => #serde::Serializer::serialize_some(
+                            serializer,
+                            &#carrier::new(value.as_ref(), self.reproject),
+                        ),
+                        ::core::option::Option::None => #serde::Serializer::serialize_none(serializer),
+                    },
+                )
             }
         }
 
