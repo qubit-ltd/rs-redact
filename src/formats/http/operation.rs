@@ -22,14 +22,9 @@ use crate::runtime::RenderedOperation;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits and renders one URL before its parent transaction publishes it.
-pub(super) fn redact_url(
-    session: &mut dyn RuntimeSession,
-    value: &str,
-) -> Option<RenderedOperation> {
+pub(super) fn redact_url(session: &mut dyn RuntimeSession, value: &str) -> Option<RenderedOperation> {
     if !session.admit_input(value.len()) {
-        return Some(
-            OperationSink::truncated("<truncated>", RedactionReason::InputLimitReached).finish(),
-        );
+        return Some(OperationSink::truncated("<truncated>", RedactionReason::InputLimitReached).finish());
     }
     if !session.admit_format_node(1) || !admit_url_structure(session, value) {
         return Some(OperationSink::complete("<truncated>").finish());
@@ -45,10 +40,7 @@ pub(super) fn redact_url(
 }
 
 /// Admits and renders one complete header collection before publication.
-pub(super) fn redact_headers(
-    session: &mut dyn RuntimeSession,
-    headers: &HeaderMap,
-) -> Option<RenderedOperation> {
+pub(super) fn redact_headers(session: &mut dyn RuntimeSession, headers: &HeaderMap) -> Option<RenderedOperation> {
     let headers = collect_admitted_headers(session, headers)?;
     Some(
         super::internal::http_policy_executor::redact_headers_with_policy(
@@ -66,11 +58,7 @@ pub(super) fn redact_body(
     capture: BodyCapture<'_>,
     content_type: Option<&HeaderValue>,
 ) -> Option<RenderedOperation> {
-    if !admit_body_input(
-        session,
-        capture,
-        content_type.map(|value| value.as_bytes().len()),
-    ) {
+    if !admit_body_input(session, capture, content_type.map(|value| value.as_bytes().len())) {
         return None;
     }
     let Some(admitted) = admit_native_body_structure(session, capture, content_type) else {
@@ -96,8 +84,7 @@ pub(super) fn redact_body_with_content_type_text(
     if !admit_body_input(session, capture, content_type.map(str::len)) {
         return None;
     }
-    let Some(admitted) = admit_body_structure(session, capture, content_type.map(str::as_bytes))
-    else {
+    let Some(admitted) = admit_body_structure(session, capture, content_type.map(str::as_bytes)) else {
         return Some(OperationSink::complete("<truncated>").finish());
     };
     Some(

@@ -80,9 +80,7 @@ pub(crate) fn redact_body_with_content_type_text(
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    if let Some(rendered) =
-        operation::redact_body_with_content_type_text(session, capture, content_type)
-    {
+    if let Some(rendered) = operation::redact_body_with_content_type_text(session, capture, content_type) {
         session.stage_rendered_operation(rendered)
     } else {
         session.stage_accounted_text(String::new())

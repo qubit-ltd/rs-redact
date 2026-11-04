@@ -115,16 +115,11 @@ impl<'session> HttpRedactionWriter<'session> {
     /// # Returns
     ///
     /// This HTTP writer for further operations in the same transaction.
-    pub fn body(
-        &mut self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&HeaderValue>,
-    ) -> &mut Self {
+    pub fn body(&mut self, capture: BodyCapture<'_>, content_type: Option<&HeaderValue>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if let Some(operation) = super::operation::redact_body(self.session, capture, content_type)
-        {
+        if let Some(operation) = super::operation::redact_body(self.session, capture, content_type) {
             self.session.append_rendered_operation(operation);
         }
         self
@@ -154,19 +149,13 @@ impl<'session> HttpRedactionWriter<'session> {
     /// # Returns
     ///
     /// This HTTP writer for further operations in the same transaction.
-    pub fn body_with_content_type_text(
-        &mut self,
-        capture: BodyCapture<'_>,
-        content_type: Option<&str>,
-    ) -> &mut Self {
+    pub fn body_with_content_type_text(&mut self, capture: BodyCapture<'_>, content_type: Option<&str>) -> &mut Self {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if let Some(operation) = super::operation::redact_body_with_content_type_text(
-            self.session,
-            capture,
-            content_type,
-        ) {
+        if let Some(operation) =
+            super::operation::redact_body_with_content_type_text(self.session, capture, content_type)
+        {
             self.session.append_rendered_operation(operation);
         }
         self
