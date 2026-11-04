@@ -290,6 +290,11 @@ impl RedactionPolicy {
 
     /// Returns the attached minimum floor, or `None` when it was explicitly
     /// disabled.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&RedactionFloor)` when a floor is enabled, or `None` when no
+    /// floor is attached.
     #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.rules.floor()
@@ -298,8 +303,19 @@ impl RedactionPolicy {
     /// Returns the final sensitivity for `field` after applying application
     /// rules and the enabled floor.
     ///
-    /// Returns `None` only when neither layer classifies the field as
-    /// sensitive.
+    /// Application and floor unknown-field fallbacks also contribute to the
+    /// result.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to classify using the application matching mode
+    ///   and each floor layer's own matching mode.
+    ///
+    /// # Returns
+    ///
+    /// `Some(sensitivity)` when an application rule, application unknown-field
+    /// fallback, or floor layer yields a sensitivity, using the strongest
+    /// result; `None` when none of those sources yields a sensitivity.
     #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for(field)
@@ -309,6 +325,11 @@ impl RedactionPolicy {
     ///
     /// An attached floor may use a different matching mode for its independent
     /// classification.
+    ///
+    /// # Returns
+    ///
+    /// The matching mode used by application rules. Floor layers may use a
+    /// different mode.
     #[must_use]
     #[inline(always)]
     pub fn matching(&self) -> FieldNameMatching {
@@ -318,6 +339,11 @@ impl RedactionPolicy {
     /// Returns the application layer's fallback for unclassified fields.
     ///
     /// An attached floor applies its own fallback independently.
+    ///
+    /// # Returns
+    ///
+    /// The fallback policy used by the application layer. An attached floor
+    /// applies its own fallback independently.
     #[must_use]
     #[inline(always)]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
@@ -339,6 +365,11 @@ impl RedactionPolicy {
     ///
     /// Use [`Self::floor`] to inspect the independent minimum-protection
     /// rules.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the application's explicit sensitive rules. Floor
+    /// rules are not included.
     #[inline(always)]
     pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.rules.application_sensitive_rules()
@@ -347,6 +378,11 @@ impl RedactionPolicy {
     /// Iterates allow rules configured in the application layer only.
     ///
     /// These rules never bypass an enabled floor.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the application's exact and suffix allow rules. Floor
+    /// rules are not included, and these allow rules do not bypass a floor.
     #[inline(always)]
     pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.rules.application_allow_rules()
@@ -377,6 +413,19 @@ impl RedactionPolicy {
     }
 
     /// Replaces the floor for this immutable policy.
+    ///
+    /// Any existing floor is discarded, so its protections no longer
+    /// contribute to classification. Use [`Self::add_floor`] to retain and
+    /// combine existing floor protection. See
+    /// [`RedactionRules::with_floor`] for a replacement example.
+    ///
+    /// # Parameters
+    ///
+    /// - `floor`: The floor that replaces any currently attached floor.
+    ///
+    /// # Returns
+    ///
+    /// A policy with `floor` as its only attached floor.
     #[must_use]
     #[inline(always)]
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
@@ -385,6 +434,18 @@ impl RedactionPolicy {
     }
 
     /// Adds mandatory minimum protection while retaining existing floor rules.
+    ///
+    /// The strongest classification across the existing and added floor is
+    /// used. See [`RedactionRules::add_floor`] for an aggregation example.
+    ///
+    /// # Parameters
+    ///
+    /// - `floor`: Additional minimum protection to combine with the attached
+    ///   floor, if any.
+    ///
+    /// # Returns
+    ///
+    /// A policy whose floor includes both the old and new protection.
     #[must_use]
     #[inline(always)]
     pub fn add_floor(mut self, floor: RedactionFloor) -> Self {
@@ -397,6 +458,11 @@ impl RedactionPolicy {
     /// # Security
     ///
     /// This explicitly removes minimum protection inherited from any source.
+    ///
+    /// # Returns
+    ///
+    /// A policy with no attached floor. Application rules and their
+    /// unknown-field policy remain active.
     #[must_use]
     #[inline(always)]
     pub fn disable_floor(mut self) -> Self {
@@ -409,6 +475,20 @@ impl RedactionPolicy {
     ///
     /// This is useful for diagnostics about configured application rules. Use
     /// [`Self::sensitivity_for`] for the final security decision.
+    ///
+    /// An [`FieldClassification::Unknown`] result describes only the
+    /// application layer. A floor may still classify the field, so consult
+    /// [`Self::sensitivity_for`] for the final result. See
+    /// [`RedactionRules::classify_field`] for an example.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to explain against application rules.
+    ///
+    /// # Returns
+    ///
+    /// The application-layer explanation. It must not be used as the final
+    /// confidentiality decision.
     ///
     /// A suffix rule can explain a weaker match even when another matching
     /// rule determines the stronger final sensitivity:

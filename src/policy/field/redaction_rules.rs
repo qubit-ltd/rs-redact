@@ -54,12 +54,28 @@ impl RedactionRules {
     }
 
     /// Returns the attached minimum floor, if enabled.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&RedactionFloor)` when a floor is enabled, or `None` when no
+    /// floor is attached.
     #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.floor.as_ref()
     }
 
     /// Resolves final sensitivity from application and floor layers.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to classify using the application matching mode
+    ///   and each floor layer's own matching mode.
+    ///
+    /// # Returns
+    ///
+    /// `Some(sensitivity)` when an application rule, application unknown-field
+    /// fallback, or floor layer yields a sensitivity, using the strongest
+    /// result; `None` when none of those sources yields a sensitivity.
     #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
@@ -69,6 +85,11 @@ impl RedactionRules {
     }
 
     /// Returns the application layer's field-name matching mode.
+    ///
+    /// # Returns
+    ///
+    /// The matching mode used by application rules. Floor layers may use a
+    /// different mode.
     #[must_use]
     #[inline(always)]
     pub fn matching(&self) -> FieldNameMatching {
@@ -76,6 +97,11 @@ impl RedactionRules {
     }
 
     /// Returns the application fallback for unclassified fields.
+    ///
+    /// # Returns
+    ///
+    /// The fallback policy used by the application layer. Floor layers apply
+    /// their own fallback independently.
     #[must_use]
     #[inline(always)]
     pub fn unknown_field_policy(&self) -> UnknownFieldPolicy {
@@ -83,6 +109,11 @@ impl RedactionRules {
     }
 
     /// Iterates only application sensitive rules, never floor rules.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the application's explicit sensitive rules. Floor
+    /// rules are not included.
     pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.application
             .sensitive
@@ -91,6 +122,11 @@ impl RedactionRules {
     }
 
     /// Iterates only application allow rules, never floor rules.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the application's exact and suffix allow rules. Floor
+    /// rules are not included, and these allow rules do not bypass a floor.
     pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.application
             .allow_exact
@@ -105,6 +141,40 @@ impl RedactionRules {
     }
 
     /// Replaces the floor for this rules snapshot.
+    ///
+    /// Any existing floor is discarded, so its protections no longer
+    /// contribute to classification. Use [`Self::add_floor`] to retain and
+    /// combine existing floor protection.
+    ///
+    /// # Parameters
+    ///
+    /// - `floor`: The floor that replaces any currently attached floor.
+    ///
+    /// # Returns
+    ///
+    /// A rules snapshot with `floor` as its only attached floor.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{RedactionFloor, RedactionPolicy, Sensitivity};
+    ///
+    /// let legacy = RedactionFloor::builder()
+    ///     .raise("legacy_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let provider = RedactionFloor::builder()
+    ///     .raise("provider_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| { fields.disable_floor(); })?
+    ///     .build()?
+    ///     .with_floor(legacy);
+    /// let replaced = policy.rules().clone().with_floor(provider);
+    ///
+    /// assert_eq!(replaced.sensitivity_for("legacy_pin"), None);
+    /// assert_eq!(replaced.sensitivity_for("provider_pin"), Some(Sensitivity::Secret));
+    /// # Ok::<(), qubit_redact::PolicyError>(())
+    /// ```
     #[must_use]
     #[inline(always)]
     pub fn with_floor(mut self, floor: RedactionFloor) -> Self {
@@ -113,6 +183,41 @@ impl RedactionRules {
     }
 
     /// Adds a floor without weakening an existing floor.
+    ///
+    /// When a floor already exists, both layers remain active and their
+    /// strongest sensitivity is used. Unlike [`Self::with_floor`], this does
+    /// not discard earlier floor protections.
+    ///
+    /// # Parameters
+    ///
+    /// - `floor`: Additional minimum protection to combine with the attached
+    ///   floor, if any.
+    ///
+    /// # Returns
+    ///
+    /// A rules snapshot whose floor includes both the old and new protection.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{RedactionFloor, RedactionPolicy, Sensitivity};
+    ///
+    /// let legacy = RedactionFloor::builder()
+    ///     .raise("legacy_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let provider = RedactionFloor::builder()
+    ///     .raise("provider_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| { fields.disable_floor(); })?
+    ///     .build()?
+    ///     .with_floor(legacy);
+    /// let combined = policy.rules().clone().add_floor(provider);
+    ///
+    /// assert_eq!(combined.sensitivity_for("legacy_pin"), Some(Sensitivity::Secret));
+    /// assert_eq!(combined.sensitivity_for("provider_pin"), Some(Sensitivity::Secret));
+    /// # Ok::<(), qubit_redact::PolicyError>(())
+    /// ```
     #[must_use]
     #[inline(always)]
     pub fn add_floor(mut self, floor: RedactionFloor) -> Self {
@@ -129,6 +234,11 @@ impl RedactionRules {
     ///
     /// This explicitly removes global and configured minimum protection. Use it
     /// only when the caller intentionally accepts responsibility for doing so.
+    ///
+    /// # Returns
+    ///
+    /// A rules snapshot with no attached floor. Application rules and their
+    /// unknown-field policy remain active.
     #[must_use]
     #[inline(always)]
     pub fn disable_floor(mut self) -> Self {
@@ -138,6 +248,38 @@ impl RedactionRules {
 
     /// Explains application-rule matching only; it is not the final safety
     /// decision.
+    ///
+    /// A result of [`FieldClassification::Unknown`] describes only the
+    /// application layer. A floor can still classify that field, so consult
+    /// [`Self::sensitivity_for`] for the final result.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to explain against application rules.
+    ///
+    /// # Returns
+    ///
+    /// The application-layer explanation. It must not be used as the final
+    /// confidentiality decision.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{FieldClassification, RedactionFloor, RedactionPolicy, Sensitivity};
+    ///
+    /// let floor = RedactionFloor::builder()
+    ///     .raise("provider_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| { fields.disable_floor(); })?
+    ///     .build()?
+    ///     .with_floor(floor);
+    /// let rules = policy.rules();
+    ///
+    /// assert_eq!(rules.classify_field("provider_pin"), FieldClassification::Unknown);
+    /// assert_eq!(rules.sensitivity_for("provider_pin"), Some(Sensitivity::Secret));
+    /// # Ok::<(), qubit_redact::PolicyError>(())
+    /// ```
     #[must_use]
     #[inline(always)]
     pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
