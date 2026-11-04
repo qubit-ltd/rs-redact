@@ -11,6 +11,7 @@ pub(in crate::formats) mod admission;
 pub(crate) mod batch_redaction;
 mod env_redaction_writer;
 pub(crate) mod inspection;
+mod operation;
 pub(crate) mod redaction;
 
 pub use env_redaction_writer::EnvRedactionWriter;

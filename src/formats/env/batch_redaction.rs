@@ -9,13 +9,9 @@
 
 use std::ffi::OsStr;
 
-use super::admission::admit_environment_name;
-use super::admission::collect_environment_pairs;
-use super::redaction::redact_os_pairs_with_policy;
-use super::redaction::redact_pair_with_policy;
+use super::operation;
 use crate::runtime::BatchSession;
 use crate::runtime::RedactionHandle;
-use crate::runtime::runtime_session::RuntimeSession;
 
 /// Redacts one UTF-8 environment pair as an individually resolvable batch item.
 ///
@@ -39,16 +35,10 @@ pub(crate) fn redact_pair(session: &mut BatchSession, name: &str, value: &str) -
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    if !session.admit_format_node(1)
-        || !session.admit_format_collection_item()
-        || !session.admit_format_node(2)
-        || !admit_environment_name(session, OsStr::new(name))
-        || !session.admit_input(name.len().saturating_add(value.len()))
-    {
-        return session.stage_accounted_text(String::new());
+    match operation::redact_pair(session, name, value) {
+        Some(result) => session.stage_rendered_operation(result),
+        None => session.stage_accounted_text(String::new()),
     }
-    let result = redact_pair_with_policy(session.policy(), name, value, session.remaining_output_bytes());
-    session.stage_rendered_operation(result)
 }
 
 /// Redacts borrowed OS-string environment pairs as one batch item.
@@ -80,9 +70,8 @@ where
     if session.is_output_exhausted() {
         return session.stage_exhausted_handle();
     }
-    let Some(pairs) = collect_environment_pairs(session, pairs) else {
-        return session.stage_accounted_text(String::new());
-    };
-    let result = redact_os_pairs_with_policy(session.policy(), pairs, session.remaining_output_bytes());
-    session.stage_rendered_operation(result)
+    match operation::redact_os_pairs(session, pairs) {
+        Some(result) => session.stage_rendered_operation(result),
+        None => session.stage_accounted_text(String::new()),
+    }
 }

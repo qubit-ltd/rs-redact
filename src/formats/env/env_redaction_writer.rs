@@ -9,12 +9,9 @@
 
 use std::ffi::OsStr;
 
-use super::admission::admit_environment_name;
-use super::admission::collect_environment_pairs;
-use super::redaction::redact_os_pairs_with_policy;
-use super::redaction::redact_pair_with_policy;
-use crate::runtime::TextSession;
+use super::operation;
 use crate::runtime::runtime_session::RuntimeSession;
+use crate::runtime::TextSession;
 
 /// A borrowed environment façade over one mutable diagnostic session.
 ///
@@ -70,21 +67,9 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        if !self.session.admit_format_node(1)
-            || !self.session.admit_format_collection_item()
-            || !self.session.admit_format_node(2)
-            || !admit_environment_name(self.session, OsStr::new(name))
-            || !self.session.admit_input(name.len().saturating_add(value.len()))
-        {
-            return self;
+        if let Some(result) = operation::redact_pair(self.session, name, value) {
+            self.session.append_rendered_operation(result);
         }
-        let result = redact_pair_with_policy(
-            self.session.policy(),
-            name,
-            value,
-            self.session.remaining_output_bytes(),
-        );
-        self.session.append_rendered_operation(result);
         self
     }
 
@@ -112,11 +97,9 @@ impl<'session> EnvRedactionWriter<'session> {
         if self.session.skip_aggregate_for_exhausted_output() {
             return self;
         }
-        let Some(pairs) = collect_environment_pairs(self.session, pairs) else {
-            return self;
-        };
-        let result = redact_os_pairs_with_policy(self.session.policy(), pairs, self.session.remaining_output_bytes());
-        self.session.append_rendered_operation(result);
+        if let Some(result) = operation::redact_os_pairs(self.session, pairs) {
+            self.session.append_rendered_operation(result);
+        }
         self
     }
 }
