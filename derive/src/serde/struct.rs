@@ -14,15 +14,17 @@ use quote::quote_spanned;
 use syn::Path;
 use syn::spanned::Spanned;
 
-use super::field::conditional_skip_event_allowed;
 use super::field::field_context;
 use super::field::field_is_skipped;
-use super::field::projected_predicate;
 use super::field::projected_raw;
 use super::field::raw_identifier;
-use super::field::serialization_condition;
 use super::field::serialized_carrier;
 use super::field_access::FieldAccess;
+use super::internal::field_events::field_count;
+use super::internal::field_events::named_field_event;
+use super::internal::field_events::positional_field_event;
+use super::internal::field_plan::prepare_field_plan;
+use super::internal::serialized_field_plan::SerializedFieldPlan;
 use super::source_function_path::SourceTypeContext;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldMode;
@@ -242,12 +244,7 @@ fn named_struct_body(
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
 ) -> TokenStream {
-    let type_name = source_context.ident;
-    let mut setups = Vec::new();
-    let mut conditions = Vec::new();
-    let mut serialized_names = Vec::new();
-    let mut carriers = Vec::new();
-    let mut skip_events = Vec::new();
+    let mut plans = Vec::<SerializedFieldPlan>::new();
 
     for (position, parsed) in fields.iter().enumerate() {
         if field_is_skipped(parsed.serde_attributes()) {
@@ -265,8 +262,6 @@ fn named_struct_body(
         } else {
             quote_spanned!(field.span()=> self.#identifier)
         };
-        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
-        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let key_raw = match parsed.attributes().mode() {
             FieldMode::KeyedBy(key) if legacy_nested => Some(quote_spanned!(field.span()=> &self.#key)),
             FieldMode::KeyedBy(key) => Some(quote_spanned!(field.span()=> self.#key)),
@@ -283,78 +278,49 @@ fn named_struct_body(
             projected_raw(raw, key_field.serde_attributes(), legacy_nested)
         });
         let context = field_context(None, None, &raw_name);
-        let carrier = format_ident!("__qubit_redact_serialized_{position}");
-        let value = serialized_carrier(
-            type_name,
+        if let Some(plan) = prepare_field_plan(
+            source_context,
             recursive_target,
             field,
             &context,
             parsed.attributes().mode(),
+            parsed.serde_attributes(),
             runtime,
-            parsed.serde_attributes().serialize_with(),
             FieldAccess {
-                raw: raw.clone(),
+                raw: raw_member,
                 key_raw,
             },
             legacy_nested,
-        );
-        let condition = serialization_condition(
-            source_context,
-            parsed.serde_attributes(),
-            parsed.attributes().mode(),
-            raw,
-            predicate,
-        );
-        setups.push(quote_spanned! {field.span()=>
-            let #carrier = if #condition {
-                ::core::option::Option::Some(#value)
-            } else {
-                ::core::option::Option::None
-            };
-        });
-        conditions.push(quote!(#carrier.is_some()));
-        serialized_names.push(serialized_name);
-        carriers.push(carrier);
-        skip_events.push(conditional_skip_event_allowed(
-            parsed.serde_attributes(),
-            parsed.attributes().mode(),
-        ));
+            position,
+            Some(serialized_name),
+            None,
+        ) {
+            plans.push(plan);
+        }
     }
 
-    let count_conditions = &conditions;
+    let setups = plans.iter().map(|plan| &plan.setup);
+    let conditions = plans.iter().map(|plan| plan.included.clone()).collect::<Vec<_>>();
+    let count_setup = field_count(&conditions, 0);
+    let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeStruct);
+    let state = quote!(&mut state);
     let serialized_name = container_attributes.name();
-    let calls = conditions
-        .iter()
-        .zip(&serialized_names)
-        .zip(&carriers)
-        .zip(&skip_events)
-        .map(|(((_condition, field_name), carrier), allowed)| {
-            let notify = allowed.as_ref().map(|allowed| {
-                quote! {
-                    else if #allowed {
-                        #serde::ser::SerializeStruct::skip_field(&mut state, #field_name)?;
-                    }
-                }
-            });
-            quote! {
-                if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
-                    #serde::ser::SerializeStruct::serialize_field(
-                        &mut state,
-                        #field_name,
-                        carrier,
-                    )?;
-                }
-                #notify
-            }
-        });
+    let calls = plans.iter().map(|plan| {
+        let carrier = {
+            let carrier = &plan.carrier;
+            quote!(#carrier)
+        };
+        named_field_event(
+            &trait_path,
+            &state,
+            &carrier,
+            plan.serialized_name.as_deref().expect("named field has a name"),
+            plan.skip_event.as_ref(),
+        )
+    });
     quote! {
         #(#setups)*
-        let mut field_count = 0usize;
-        #(
-            if #count_conditions {
-                field_count += 1;
-            }
-        )*
+        #count_setup
         #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
         let mut state = #serde::Serializer::serialize_struct(
             serializer,
@@ -491,10 +457,7 @@ fn tuple_struct_body(
     container_attributes: &SerdeContainerAttributes,
     legacy_nested: bool,
 ) -> TokenStream {
-    let type_name = source_context.ident;
-    let mut setups = Vec::new();
-    let mut conditions = Vec::new();
-    let mut carriers = Vec::new();
+    let mut plans = Vec::<SerializedFieldPlan>::new();
     for (position, parsed) in fields.iter().enumerate() {
         if field_is_skipped(parsed.serde_attributes()) {
             continue;
@@ -507,61 +470,44 @@ fn tuple_struct_body(
         } else {
             quote_spanned!(field.span()=> self.#projection_field)
         };
-        let predicate = projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
-        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
         let context = field_context(None, None, &index.index.to_string());
-        let carrier = format_ident!("__qubit_redact_serialized_{position}");
-        let value = serialized_carrier(
-            type_name,
+        if let Some(plan) = prepare_field_plan(
+            source_context,
             recursive_target,
             field,
             &context,
             parsed.attributes().mode(),
+            parsed.serde_attributes(),
             runtime,
-            parsed.serde_attributes().serialize_with(),
             FieldAccess {
-                raw: raw.clone(),
+                raw: raw_member,
                 key_raw: None,
             },
             legacy_nested,
-        );
-        let condition = serialization_condition(
-            source_context,
-            parsed.serde_attributes(),
-            parsed.attributes().mode(),
-            raw,
-            predicate,
-        );
-        setups.push(quote_spanned! {field.span()=>
-            let #carrier = if #condition {
-                ::core::option::Option::Some(#value)
-            } else {
-                ::core::option::Option::None
-            };
-        });
-        conditions.push(quote!(#carrier.is_some()));
-        carriers.push(carrier);
-    }
-    let count_conditions = &conditions;
-    let serialized_name = container_attributes.name();
-    let calls = conditions.iter().zip(&carriers).map(|(_condition, carrier)| {
-        quote! {
-            if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
-                #serde::ser::SerializeTupleStruct::serialize_field(
-                    &mut state,
-                    carrier,
-                )?;
-            }
+            position,
+            None,
+            None,
+        ) {
+            plans.push(plan);
         }
+    }
+    let setups = plans.iter().map(|plan| &plan.setup);
+    let conditions = plans.iter().map(|plan| plan.included.clone()).collect::<Vec<_>>();
+    let count_setup = field_count(&conditions, 0);
+    let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeTupleStruct);
+    let method: syn::Ident = syn::parse_quote!(serialize_field);
+    let state = quote!(&mut state);
+    let serialized_name = container_attributes.name();
+    let calls = plans.iter().map(|plan| {
+        let carrier = {
+            let carrier = &plan.carrier;
+            quote!(#carrier)
+        };
+        positional_field_event(&trait_path, &method, &state, &carrier)
     });
     quote! {
         #(#setups)*
-        let mut field_count = 0usize;
-        #(
-            if #count_conditions {
-                field_count += 1;
-            }
-        )*
+        #count_setup
         #runtime::domain::internal::admit_serializer_items(&serializer, field_count)?;
         let mut state = #serde::Serializer::serialize_tuple_struct(
             serializer,

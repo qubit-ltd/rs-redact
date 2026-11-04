@@ -22,11 +22,8 @@ use crate::model::UnnamedField;
 use crate::model::VariantData;
 use crate::serde::field::field_context;
 use crate::serde::field::field_is_skipped;
-use crate::serde::field::projected_predicate;
 use crate::serde::field::projected_raw;
 use crate::serde::field::raw_identifier;
-use crate::serde::field::serialization_condition;
-use crate::serde::field::serialized_carrier;
 use crate::serde::field_access::FieldAccess;
 use crate::serde::source_function_path::SourceTypeContext;
 /// Builds a field plan for each serializable named enum field.
@@ -45,19 +42,11 @@ pub(super) fn enum_named_plan(
     container_attributes: &SerdeContainerAttributes,
     variant: &VariantData<'_>,
     legacy_nested: bool,
-) -> (
-    TokenStream,
-    Vec<super::serialized_field_plan::SerializedFieldPlan>,
-) {
+) -> (TokenStream, Vec<super::serialized_field_plan::SerializedFieldPlan>) {
     let bindings = fields
         .iter()
         .enumerate()
-        .map(|(position, parsed)| {
-            format_ident!(
-                "__qubit_redact_field_{position}",
-                span = parsed.field().span()
-            )
-        })
+        .map(|(position, parsed)| format_ident!("__qubit_redact_field_{position}", span = parsed.field().span()))
         .collect::<Vec<_>>();
     let patterns = fields.iter().zip(&bindings).map(|(parsed, binding)| {
         let identifier = parsed.identifier();
@@ -80,13 +69,8 @@ pub(super) fn enum_named_plan(
         let identifier = parsed.identifier();
         let raw_name = raw_identifier(identifier);
         let container_name = container_attributes.rename_variant_field(&raw_name);
-        let default_name = variant
-            .serde_attributes()
-            .rename_field(&raw_name, container_name);
-        let serialized_name = parsed
-            .serde_attributes()
-            .rename()
-            .map_or(default_name, str::to_owned);
+        let default_name = variant.serde_attributes().rename_field(&raw_name, container_name);
+        let serialized_name = parsed.serde_attributes().rename().map_or(default_name, str::to_owned);
         let raw_member = quote_spanned!(field.span()=> #binding);
         let key_raw = match parsed.attributes().mode() {
             FieldMode::KeyedBy(key) => {
@@ -133,52 +117,6 @@ pub(super) fn enum_named_plan(
     (quote!({ #(#patterns),* }), plans)
 }
 
-/// Builds the legacy tuple consumed by enum representations not yet migrated.
-///
-/// # Panics
-///
-/// Panics if a named field plan has no serialized name.
-#[must_use]
-#[allow(clippy::too_many_arguments)]
-pub(super) fn enum_named_parts(
-    source_context: &SourceTypeContext<'_>,
-    recursive_target: &str,
-    variant_name: &Ident,
-    fields: &[NamedField<'_>],
-    runtime: &Path,
-    container_attributes: &SerdeContainerAttributes,
-    variant: &VariantData<'_>,
-    legacy_nested: bool,
-) -> (
-    TokenStream,
-    Vec<TokenStream>,
-    Vec<TokenStream>,
-    Vec<String>,
-    Vec<Ident>,
-) {
-    let (pattern, plans) = enum_named_plan(
-        source_context,
-        recursive_target,
-        variant_name,
-        fields,
-        runtime,
-        container_attributes,
-        variant,
-        legacy_nested,
-    );
-    let mut setups = Vec::with_capacity(plans.len());
-    let mut conditions = Vec::with_capacity(plans.len());
-    let mut names = Vec::with_capacity(plans.len());
-    let mut carriers = Vec::with_capacity(plans.len());
-    for plan in plans {
-        setups.push(plan.setup);
-        conditions.push(plan.included);
-        names.push(plan.serialized_name.expect("named field has a name"));
-        carriers.push(plan.carrier);
-    }
-    (pattern, setups, conditions, names, carriers)
-}
-
 /// Builds bindings, carriers, and conditions for tuple enum fields.
 ///
 /// # Parameters
@@ -205,7 +143,7 @@ pub(super) fn enum_named_parts(
 /// Panics if validation admitted keyed mode on a tuple field or map-level
 /// mode without a key sensitivity.
 #[must_use]
-pub(super) fn enum_unnamed_parts(
+pub(super) fn enum_unnamed_plan(
     source_context: &SourceTypeContext<'_>,
     recursive_target: &str,
     variant_name: &Ident,
@@ -213,8 +151,7 @@ pub(super) fn enum_unnamed_parts(
     fields: &[UnnamedField<'_>],
     runtime: &Path,
     legacy_nested: bool,
-) -> (TokenStream, Vec<TokenStream>, Vec<TokenStream>, Vec<Ident>) {
-    let type_name = source_context.ident;
+) -> (TokenStream, Vec<super::serialized_field_plan::SerializedFieldPlan>) {
     let bindings = fields
         .iter()
         .map(|parsed| {
@@ -232,9 +169,7 @@ pub(super) fn enum_unnamed_parts(
             quote!(#binding)
         }
     });
-    let mut setups = Vec::new();
-    let mut conditions = Vec::new();
-    let mut carriers = Vec::new();
+    let mut plans = Vec::new();
     for (position, (parsed, binding)) in fields.iter().zip(&bindings).enumerate() {
         if field_is_skipped(parsed.serde_attributes()) {
             continue;
@@ -242,49 +177,35 @@ pub(super) fn enum_unnamed_parts(
         let field = parsed.field();
         let field_name = parsed.index().index.to_string();
         let context = field_context(Some(variant_name), Some(variant_index), &field_name);
-        let carrier = format_ident!("__qubit_redact_serialized_{position}");
         let raw_member = quote_spanned!(field.span()=> #binding);
-        let predicate =
-            projected_predicate(raw_member.clone(), parsed.serde_attributes(), legacy_nested);
-        let raw = projected_raw(raw_member, parsed.serde_attributes(), legacy_nested);
-        let value = serialized_carrier(
-            type_name,
+        let condition_override = if fields.len() == 1 {
+            if matches!(parsed.attributes().mode(), FieldMode::Skip) {
+                Some(quote!(policy.is_disabled()))
+            } else {
+                Some(quote!(true))
+            }
+        } else {
+            None
+        };
+        if let Some(plan) = super::field_plan::prepare_field_plan(
+            source_context,
             recursive_target,
             field,
             &context,
             parsed.attributes().mode(),
+            parsed.serde_attributes(),
             runtime,
-            parsed.serde_attributes().serialize_with(),
             FieldAccess {
-                raw: raw.clone(),
+                raw: raw_member,
                 key_raw: None,
             },
             legacy_nested,
-        );
-        let condition = if fields.len() == 1 {
-            if matches!(parsed.attributes().mode(), FieldMode::Skip) {
-                quote!(policy.is_disabled())
-            } else {
-                quote!(true)
-            }
-        } else {
-            serialization_condition(
-                source_context,
-                parsed.serde_attributes(),
-                parsed.attributes().mode(),
-                raw,
-                predicate,
-            )
-        };
-        setups.push(quote_spanned! {field.span()=>
-            let #carrier = if #condition {
-                ::core::option::Option::Some(#value)
-            } else {
-                ::core::option::Option::None
-            };
-        });
-        conditions.push(quote!(#carrier.is_some()));
-        carriers.push(carrier);
+            position,
+            None,
+            condition_override,
+        ) {
+            plans.push(plan);
+        }
     }
-    (quote!((#(#patterns),*)), setups, conditions, carriers)
+    (quote!((#(#patterns),*)), plans)
 }

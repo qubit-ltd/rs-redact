@@ -14,13 +14,11 @@ use syn::Path;
 use syn::Result;
 
 use super::super::source_function_path::SourceTypeContext;
-use super::variant_fields::enum_named_parts;
-use super::variant_fields::enum_unnamed_parts;
+use super::variant_fields::enum_named_plan;
+use super::variant_fields::enum_unnamed_plan;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
-use crate::serde::field::conditional_skip_event_allowed;
-use crate::serde::field::field_is_skipped;
 use crate::serde::naming::named_content_proxy;
 use crate::serde::naming::serialized_variant_name;
 use crate::serde::naming::tuple_content_proxy;
@@ -62,7 +60,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
     let tag_serializer = adjacent_tag_serializer(serde, enum_name, variant.index(), &variant_name);
     let arm = match variant.fields() {
         FieldsData::Named(fields) => {
-            let (pattern, setups, _conditions, names, carriers) = enum_named_parts(
+            let (pattern, plans) = enum_named_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -72,11 +70,19 @@ pub(in crate::serde) fn adjacent_variant_arm(
                 variant,
                 legacy_nested,
             );
-            let skip_events = fields
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let names = plans
                 .iter()
-                .filter(|field| !field_is_skipped(field.serde_attributes()))
-                .map(|field| conditional_skip_event_allowed(field.serde_attributes(), field.attributes().mode()))
+                .map(|plan| plan.serialized_name.clone().expect("named field has a name"))
                 .collect::<Vec<_>>();
+            let carriers = plans
+                .iter()
+                .map(|plan| {
+                    let carrier = &plan.carrier;
+                    quote!(#carrier)
+                })
+                .collect::<Vec<_>>();
+            let skip_events = plans.iter().map(|plan| plan.skip_event.clone()).collect::<Vec<_>>();
             let (proxy_definition, proxy_value) = named_content_proxy(
                 rust_name,
                 &variant_name,
@@ -113,7 +119,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+            let (pattern, plans) = enum_unnamed_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -122,6 +128,14 @@ pub(in crate::serde) fn adjacent_variant_arm(
                 runtime,
                 legacy_nested,
             );
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let carriers = plans
+                .iter()
+                .map(|plan| {
+                    let carrier = &plan.carrier;
+                    quote!(#carrier)
+                })
+                .collect::<Vec<_>>();
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => {
@@ -171,7 +185,7 @@ pub(in crate::serde) fn adjacent_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) => {
-            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+            let (pattern, plans) = enum_unnamed_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -180,6 +194,14 @@ pub(in crate::serde) fn adjacent_variant_arm(
                 runtime,
                 legacy_nested,
             );
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let carriers = plans
+                .iter()
+                .map(|plan| {
+                    let carrier = &plan.carrier;
+                    quote!(#carrier)
+                })
+                .collect::<Vec<_>>();
             let (proxy_definition, proxy_value) = tuple_content_proxy(rust_name, runtime, serde, &carriers);
             quote! {
                 Self::#rust_name #pattern => {

@@ -17,6 +17,8 @@ use syn::ext::IdentExt;
 
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::VariantData;
+use crate::serde::internal::field_events::named_field_event;
+use crate::serde::internal::field_events::positional_field_event;
 /// Returns one variant's final serialized name.
 ///
 /// # Parameters
@@ -46,7 +48,7 @@ pub(super) fn serialized_variant_name(
 /// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
 /// * `names` - Serialized field names in carrier order.
-/// * `carriers` - Optional serialized carrier identifiers.
+/// * `carriers` - Expressions yielding the optional serialized carriers.
 /// * `skip_events` - Optional eligibility expressions aligned with `carriers`;
 ///   expressions are evaluated while constructing the proxy value and do not
 ///   evaluate field omission predicates.
@@ -61,7 +63,7 @@ pub(super) fn named_content_proxy(
     runtime: &Path,
     serde: &Path,
     names: &[String],
-    carriers: &[Ident],
+    carriers: &[TokenStream],
     skip_events: &[Option<TokenStream>],
 ) -> (TokenStream, TokenStream) {
     let unraw_variant_name = variant_name.unraw();
@@ -106,22 +108,16 @@ pub(super) fn named_content_proxy(
         .map(|allowed| allowed.clone().unwrap_or_else(|| quote!(false)))
         .collect::<Vec<_>>();
     let carrier_count = carriers.len();
+    let trait_path: Path = syn::parse_quote!(#serde::ser::SerializeStruct);
+    let state = quote!(&mut state);
     let calls = names
         .iter()
         .zip(&value_fields)
         .enumerate()
         .map(|(index, (name, value))| {
-            quote! {
-                if let ::core::option::Option::Some(value) = self.#value.as_ref() {
-                    #serde::ser::SerializeStruct::serialize_field(
-                        &mut state,
-                        #name,
-                        value,
-                    )?;
-                } else if self.__qubit_redact_skip_events[#index] {
-                    #serde::ser::SerializeStruct::skip_field(&mut state, #name)?;
-                }
-            }
+            let carrier = quote!(self.#value);
+            let skip_event = quote!(self.__qubit_redact_skip_events[#index]);
+            named_field_event(&trait_path, &state, &carrier, name, Some(&skip_event))
         });
     let definition = quote! {
         struct #proxy<#(#value_types),*> {
@@ -177,7 +173,7 @@ pub(super) fn named_content_proxy(
 /// * `variant_name` - Variant owning the generated proxy.
 /// * `runtime` - Resolved path to the redaction runtime.
 /// * `serde` - Resolved path to Serde.
-/// * `carriers` - Optional serialized carrier identifiers in tuple order.
+/// * `carriers` - Expressions yielding optional serialized carriers in tuple order.
 ///
 /// # Returns
 ///
@@ -187,7 +183,7 @@ pub(super) fn tuple_content_proxy(
     variant_name: &Ident,
     runtime: &Path,
     serde: &Path,
-    carriers: &[Ident],
+    carriers: &[TokenStream],
 ) -> (TokenStream, TokenStream) {
     let unraw_variant_name = variant_name.unraw();
     let proxy = format_ident!("__QubitRedactAdjacent{unraw_variant_name}Content");
@@ -221,15 +217,12 @@ pub(super) fn tuple_content_proxy(
         .map(|index| format_ident!("value_{index}"))
         .collect::<Vec<_>>();
     let count_fields = &value_fields;
+    let trait_path: Path = syn::parse_quote!(#serde::ser::SerializeTuple);
+    let method: Ident = syn::parse_quote!(serialize_element);
+    let state = quote!(&mut state);
     let calls = value_fields.iter().map(|value| {
-        quote! {
-            if let ::core::option::Option::Some(value) = self.#value.as_ref() {
-                #serde::ser::SerializeTuple::serialize_element(
-                    &mut state,
-                    value,
-                )?;
-            }
-        }
+        let carrier = quote!(self.#value);
+        positional_field_event(&trait_path, &method, &state, &carrier)
     });
     let definition = quote! {
         struct #proxy<#(#value_types),*> {

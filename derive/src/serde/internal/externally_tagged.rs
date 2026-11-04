@@ -17,7 +17,7 @@ use super::field_events::field_count;
 use super::field_events::named_field_event;
 use super::field_events::positional_field_event;
 use super::variant_fields::enum_named_plan;
-use super::variant_fields::enum_unnamed_parts;
+use super::variant_fields::enum_unnamed_plan;
 use crate::attributes::SerdeContainerAttributes;
 use crate::model::FieldsData;
 use crate::model::VariantData;
@@ -66,10 +66,7 @@ pub(in crate::serde) fn external_variant_arm(
                 legacy_nested,
             );
             let setups = plans.iter().map(|plan| &plan.setup);
-            let count_conditions = plans
-                .iter()
-                .map(|plan| plan.included.clone())
-                .collect::<Vec<_>>();
+            let count_conditions = plans.iter().map(|plan| plan.included.clone()).collect::<Vec<_>>();
             let count_setup = field_count(&count_conditions, 0);
             let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeStructVariant);
             let state = quote!(&mut state);
@@ -80,9 +77,7 @@ pub(in crate::serde) fn external_variant_arm(
                     &trait_path,
                     &state,
                     &carrier,
-                    plan.serialized_name
-                        .as_deref()
-                        .expect("named field has a name"),
+                    plan.serialized_name.as_deref().expect("named field has a name"),
                     plan.skip_event.as_ref(),
                 )
             });
@@ -104,7 +99,7 @@ pub(in crate::serde) fn external_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) if fields.len() == 1 => {
-            let (pattern, setups, _conditions, carriers) = enum_unnamed_parts(
+            let (pattern, plans) = enum_unnamed_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -113,6 +108,8 @@ pub(in crate::serde) fn external_variant_arm(
                 runtime,
                 legacy_nested,
             );
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let carriers = plans.iter().map(|plan| &plan.carrier).collect::<Vec<_>>();
             if carriers.is_empty() {
                 quote! {
                     Self::#rust_name #pattern => #runtime::domain::internal::serialize_unit_variant(
@@ -148,7 +145,7 @@ pub(in crate::serde) fn external_variant_arm(
             }
         }
         FieldsData::Unnamed(fields) => {
-            let (pattern, setups, conditions, carriers) = enum_unnamed_parts(
+            let (pattern, plans) = enum_unnamed_plan(
                 source_context,
                 recursive_target,
                 rust_name,
@@ -157,6 +154,9 @@ pub(in crate::serde) fn external_variant_arm(
                 runtime,
                 legacy_nested,
             );
+            let setups = plans.iter().map(|plan| &plan.setup);
+            let conditions = plans.iter().map(|plan| plan.included.clone()).collect::<Vec<_>>();
+            let carriers = plans.iter().map(|plan| plan.carrier.clone()).collect::<Vec<_>>();
             let count_setup = field_count(&conditions, 0);
             let trait_path: syn::Path = syn::parse_quote!(#serde::ser::SerializeTupleVariant);
             let method: syn::Ident = syn::parse_quote!(serialize_field);
