@@ -14,6 +14,7 @@ use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
 use super::RedactedValue;
 use crate::MaskingPolicy;
+use crate::RedactionPolicy;
 use crate::RedactionRules;
 
 /// Rules and observation state shared by one borrowed JSON serialization.
@@ -30,6 +31,25 @@ pub(crate) struct JsonRedactionState<'policy, 'marker> {
     pub(crate) enabled: bool,
     /// Whether an unkeyed scalar remained visible during serialization.
     passed_unkeyed: Cell<bool>,
+}
+
+impl<'policy> JsonRedactionState<'policy, 'policy> {
+    /// Creates traversal state from the policy used by ordinary JSON paths.
+    pub(crate) fn from_policy(policy: &'policy RedactionPolicy) -> Self {
+        let unkeyed = match policy.unkeyed_json_value_policy() {
+            crate::UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
+            crate::UnkeyedJsonValuePolicy::Redact => JsonUnkeyedValuePolicy::Redact {
+                marker: policy.masking().mask_opaque(crate::Sensitivity::Secret),
+            },
+        };
+        Self::new(
+            policy.rules(),
+            policy.rules(),
+            policy.masking(),
+            unkeyed,
+            !policy.is_disabled(),
+        )
+    }
 }
 
 impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
