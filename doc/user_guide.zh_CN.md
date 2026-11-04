@@ -135,8 +135,10 @@ fn main() {
 它遵循领域标注；`redact_json(text)` 则解析输入 JSON 并按 JSON key 分类，两者不可混用。
 
 调用方需要区分普通掩码与资源不足时的成功替代，可使用 `to_json_with_status()`。
-普通掩码、显式 skip、条件省略和 disabled 策略都会使 `is_complete()` 为 true；disabled
-仍可能暴露源值。库观察到的成功降级会返回具体原因，例如 `TraversalLimitReached`；编码、
+普通掩码、显式 skip、条件省略或关闭脱敏本身不会使结果不完整。只有本库未记录任何降级原因时，
+`is_complete()` 才返回 true。disabled 策略仍受共享结构限制，且可能暴露源值；因此即使关闭脱敏，
+资源不足时成功生成的安全替代仍可能返回 `is_complete() == false`。库观察到的成功降级会返回具体原因，
+例如 `TraversalLimitReached`；编码、
 payload 或 serializer 错误仍返回 `Err`，不会返回半截 JSON。状态只覆盖本库实际观察到的处理，
 不能证明自定义 serializer 输出了全部业务字段。应用可以拒绝或告警不完整结果，但不能回退到
 直接序列化源对象。

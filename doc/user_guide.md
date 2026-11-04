@@ -144,13 +144,16 @@ replacements and is not a completeness assertion. It follows domain annotations;
 `redact_json(text)` parses input JSON and classifies JSON keys.
 
 Use `to_json_with_status()` when the caller needs to distinguish ordinary masking from a
-successful resource fallback. `is_complete()` is true for ordinary masks, explicit skips,
-conditional omissions, and disabled policy; disabled policy can still expose source values.
-Successful library-observed fallbacks return reasons such as `TraversalLimitReached`, while
-encoding, payload, and serializer errors still return `Err` without partial JSON. The status
-covers only decisions this library observes; it cannot prove that a custom serializer emitted
-every business field. Applications can reject or report an incomplete result, but must never
-fall back to serializing the source object.
+successful resource fallback. Ordinary masks, explicit skips, conditional omissions, and
+disabling redaction do not by themselves make the result incomplete. `is_complete()` is true
+only when no library-observed degradation reason was recorded. Disabled policies still obey
+shared structural limits and can expose source values; successful resource fallbacks can
+therefore return `is_complete() == false` even when redaction is disabled. Successful
+library-observed fallbacks return reasons such as `TraversalLimitReached`, while encoding,
+payload, and serializer errors still return `Err` without partial JSON. The status covers only
+decisions this library observes; it cannot prove that a custom serializer emitted every
+business field. Applications can reject or report an incomplete result, but must never fall
+back to serializing the source object.
 
 <!-- redact-example: kind=run features=derive,json -->
 ```rust

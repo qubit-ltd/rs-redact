@@ -296,6 +296,29 @@ fn test_input_limit_skip_disabled_and_one_pass_status() {
     assert_eq!(single_pass.json(), "7");
     assert_eq!(source.0.get(), 2); // one projection plus one projection serialization callback
 }
+
+#[test]
+fn test_disabled_node_rejection_reports_incomplete_status() {
+    let value = Login {
+        password: "raw-secret".into(),
+    };
+    let policy = RedactionPolicy::disabled()
+        .to_builder()
+        .limits(|limits| {
+            limits.max_nodes(0);
+        })
+        .expect("valid limits")
+        .build()
+        .expect("valid policy");
+    let output = Redactor::new(policy)
+        .to_json_with_status(&value)
+        .expect("safe replacement is valid JSON");
+    let parsed: serde_json::Value = serde_json::from_str(output.json()).expect("complete JSON encoding");
+    assert_eq!(parsed, serde_json::json!("<redacted>"));
+    assert!(!output.is_complete());
+    assert!(output.reasons().contains(RedactionReason::TraversalLimitReached));
+    assert!(!output.json().contains("raw-secret"));
+}
 // =============================================================================
 //    Copyright (c) 2026 Haixing Hu.
 //
