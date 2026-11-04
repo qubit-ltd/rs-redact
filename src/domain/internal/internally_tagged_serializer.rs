@@ -85,6 +85,30 @@ struct InternallyTaggedSerializer<S> {
     tag_value: &'static str,
 }
 
+macro_rules! reject_scalar_methods {
+    ($($method:ident : $value:ty),* $(,)?) => {
+        $(
+            /// Rejects a non-map payload without invoking its value serializer.
+            ///
+            /// # Errors
+            ///
+            /// Always returns an error because the payload is not a map or struct.
+            ///
+            /// # Parameters
+            ///
+            /// - `_value`: Source event value. Ignored because this shape is rejected.
+            ///
+            /// # Returns
+            ///
+            /// No success value; this unsupported shape is always rejected.
+            #[inline(always)]
+            fn $method(self, _value: $value) -> Result<Self::Ok, Self::Error> {
+                self.unsupported()
+            }
+        )*
+    };
+}
+
 impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     /// Underlying serializer success value.
     type Ok = S::Ok;
@@ -157,277 +181,14 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
         self.serialize_map(Some(length))
     }
 
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_bool(self, _value: bool) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_i8(self, _value: i8) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_i16(self, _value: i16) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_i32(self, _value: i32) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_i64(self, _value: i64) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_i128(self, _value: i128) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_u8(self, _value: u8) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_u16(self, _value: u16) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_u32(self, _value: u32) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_u64(self, _value: u64) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_u128(self, _value: u128) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_f32(self, _value: f32) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_f64(self, _value: f64) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_char(self, _value: char) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_str(self, _value: &str) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
-    }
-    /// Rejects a non-map payload without invoking its value serializer.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error because the payload is not a map or struct.
-    ///
-    /// # Parameters
-    ///
-    /// - `_value`: Source event value. Ignored because this shape is rejected.
-    ///
-    /// # Returns
-    ///
-    /// No success value; this unsupported shape is always rejected.
-    #[inline(always)]
-    fn serialize_bytes(self, _value: &[u8]) -> Result<Self::Ok, Self::Error> {
-        self.unsupported()
+    reject_scalar_methods! {
+        serialize_bool: bool,
+        serialize_i8: i8, serialize_i16: i16, serialize_i32: i32,
+        serialize_i64: i64, serialize_i128: i128,
+        serialize_u8: u8, serialize_u16: u16, serialize_u32: u32,
+        serialize_u64: u64, serialize_u128: u128,
+        serialize_f32: f32, serialize_f64: f64,
+        serialize_char: char, serialize_str: &str, serialize_bytes: &[u8],
     }
     /// Rejects an option payload without invoking a value serializer.
     ///
