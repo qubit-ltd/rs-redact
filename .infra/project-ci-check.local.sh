@@ -9,4 +9,4 @@ python3 "$project_root/scripts/check_packaged_derive.py"
 python3 "$project_root/scripts/check_doc_examples_tests.py"
 python3 "$project_root/scripts/check_doc_examples.py"
 cargo test --locked --manifest-path "$project_root/fuzz/Cargo.toml" \
-  --bin command_inputs --bin multipart_body --bin direct_inputs
+  --bin command_inputs --bin multipart_body --bin direct_inputs --bin consumer_views

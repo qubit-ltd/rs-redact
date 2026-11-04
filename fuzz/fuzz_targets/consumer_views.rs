@@ -8,13 +8,17 @@
 //! Derived consumer projections under independent input, payload, and output
 //! bounds.
 
-#![no_main]
+#![cfg_attr(not(test), no_main)]
 
+#[cfg(not(test))]
 use std::collections::BTreeMap;
 
+#[cfg(not(test))]
 use libfuzzer_sys::fuzz_target;
 use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
+use qubit_redact::RedactionReason;
+use qubit_redact::RedactionReasons;
 use qubit_redact::Redactor;
 
 const SECRET: &str = "consumer-view-secret-427b93";
@@ -29,6 +33,7 @@ struct Login {
 
 #[derive(Redact)]
 #[redact(serde)]
+#[cfg(not(test))]
 struct Event {
     #[redact(nested)]
     login: Login,
@@ -38,12 +43,126 @@ struct Event {
     body: serde_json::Value,
 }
 
+#[derive(Clone, Copy)]
+enum StructuralLimit {
+    Nodes,
+    Depth,
+    Collection,
+    Output,
+}
+
+fn policy_with_structural_limit(limit: StructuralLimit) -> Redactor {
+    let policy = RedactionPolicy::builder()
+        .limits(|limits| match limit {
+            StructuralLimit::Nodes => {
+                limits.max_nodes(0);
+            }
+            StructuralLimit::Depth => {
+                limits.max_depth(0);
+            }
+            StructuralLimit::Collection => {
+                limits.max_collection_items(0);
+            }
+            StructuralLimit::Output => {
+                limits.max_output_bytes(0);
+            }
+        })
+        .expect("valid structural limit")
+        .build()
+        .expect("valid structural policy");
+    Redactor::new(policy)
+}
+
+fn assert_complete_standard_login() {
+    let login = Login {
+        label: "safe".into(),
+        password: SECRET.into(),
+    };
+    let status = Redactor::standard()
+        .to_json_with_status(&login)
+        .expect("standard login encodes");
+    assert!(status.is_complete());
+    assert_eq!(status.reasons(), RedactionReasons::empty());
+    assert!(!status.json().contains(SECRET));
+}
+
+fn check_controlled_status_case(scenario: u8) {
+    let login = Login {
+        label: "safe".into(),
+        password: SECRET.into(),
+    };
+
+    match scenario {
+        0 => {
+            let masked = Redactor::standard()
+                .to_json_with_status(&login)
+                .expect("masked login encodes");
+            assert!(masked.is_complete());
+            assert_eq!(masked.reasons(), RedactionReasons::empty());
+            assert!(masked.json().contains("<redacted>"));
+            assert!(!masked.json().contains(SECRET));
+        }
+        1 => {
+            let nodes = policy_with_structural_limit(StructuralLimit::Nodes)
+                .to_json_with_status(&login)
+                .expect("node refusal uses replacement");
+            assert!(!nodes.is_complete());
+            assert!(nodes.reasons().contains(RedactionReason::TraversalLimitReached));
+            assert_eq!(nodes.json(), "\"<redacted>\"");
+            assert!(!nodes.json().contains(SECRET));
+            assert_complete_standard_login();
+        }
+        2 => {
+            let depth = policy_with_structural_limit(StructuralLimit::Depth)
+                .to_json_with_status(&login)
+                .expect("depth refusal uses replacement");
+            assert!(!depth.is_complete());
+            assert!(depth.reasons().contains(RedactionReason::DepthLimitReached));
+            assert_eq!(depth.json(), "\"<redacted>\"");
+            assert!(!depth.json().contains(SECRET));
+            assert_complete_standard_login();
+        }
+        3 => {
+            let list = vec![Login {
+                label: "safe".into(),
+                password: SECRET.into(),
+            }];
+            let collection = policy_with_structural_limit(StructuralLimit::Collection)
+                .to_json_with_status(&list)
+                .expect("VecProjection collection refusal uses replacement");
+            assert!(!collection.is_complete());
+            assert!(collection.reasons().contains(RedactionReason::TraversalLimitReached));
+            assert_eq!(collection.json(), "\"<redacted>\"");
+            assert!(!collection.json().contains(SECRET));
+            assert_complete_standard_login();
+        }
+        4 => {
+            let output_error = policy_with_structural_limit(StructuralLimit::Output).to_json_with_status(&login);
+            assert!(output_error.is_err());
+            assert_complete_standard_login();
+        }
+        _ => unreachable!("scenario is bounded by the caller"),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn controlled_status_oracles_cover_each_refusal_and_recovery() {
+    for scenario in 0..=4 {
+        check_controlled_status_case(scenario);
+    }
+}
+
+#[cfg(not(test))]
 fuzz_target!(|data: &[u8]| {
-    let bounds = [0, 1, 4, 8, 9, 10, 16, 32, 128, 4096];
+    let bounds = [0, 1, 2, 4, 8, 16, 64, 256];
     let select = |index| bounds[usize::from(data.get(index).copied().unwrap_or_default()) % bounds.len()];
     let input = select(0);
     let payload = select(1);
     let output = select(2);
+    let nodes = select(3);
+    let depth = select(4);
+    let collection = select(5);
     let label: String = data
         .iter()
         .skip(3)
@@ -63,7 +182,10 @@ fuzz_target!(|data: &[u8]| {
             limits
                 .max_input_bytes(input)
                 .max_serde_payload_bytes(payload)
-                .max_output_bytes(output);
+                .max_output_bytes(output)
+                .max_nodes(nodes)
+                .max_depth(depth)
+                .max_collection_items(collection);
         })
         .expect("bounded draft")
         .build()
@@ -76,9 +198,16 @@ fuzz_target!(|data: &[u8]| {
     if let Ok(json) = serde_json::to_string(&view) {
         assert!(!json.contains(SECRET));
     }
-    if let Ok(json) = redactor.to_json(&event) {
-        assert!(json.len() <= output);
-        assert!(!json.contains(SECRET));
-        assert!(serde_json::from_str::<serde_json::Value>(&json).is_ok());
+    let plain = redactor.to_json(&event);
+    let reported = redactor.to_json_with_status(&event);
+    assert_eq!(plain.is_ok(), reported.is_ok());
+    if let (Ok(plain), Ok(reported)) = (plain, reported) {
+        assert_eq!(plain, reported.json());
+        assert!(reported.json().len() <= output);
+        assert!(!reported.json().contains(SECRET));
+        assert!(serde_json::from_str::<serde_json::Value>(reported.json()).is_ok());
+        assert_eq!(reported.is_complete(), reported.reasons() == RedactionReasons::empty());
     }
+    let scenario = data.get(6).copied().unwrap_or_default() % 5;
+    check_controlled_status_case(scenario);
 });

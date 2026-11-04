@@ -108,6 +108,8 @@ class ProjectCiHookTests(unittest.TestCase):
                 "multipart_body",
                 "--bin",
                 "direct_inputs",
+                "--bin",
+                "consumer_views",
             ],
         }
 
