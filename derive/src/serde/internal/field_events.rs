@@ -28,7 +28,7 @@ pub(in crate::serde) fn named_field_event(
         }
     });
     quote! {
-        if let ::core::option::Option::Some(carrier) = (#carrier).as_ref() {
+        if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
             #trait_path::serialize_field(#state, #serialized_name, carrier)?;
         }
         #notify
@@ -43,7 +43,7 @@ pub(in crate::serde) fn positional_field_event(
     carrier: &TokenStream,
 ) -> TokenStream {
     quote! {
-        if let ::core::option::Option::Some(carrier) = (#carrier).as_ref() {
+        if let ::core::option::Option::Some(carrier) = #carrier.as_ref() {
             #trait_path::#method(#state, carrier)?;
         }
     }
