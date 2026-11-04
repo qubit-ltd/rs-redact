@@ -112,6 +112,10 @@ class ProjectCiHookTests(unittest.TestCase):
                 "direct_inputs",
                 "--bin",
                 "consumer_views",
+                "--bin",
+                "json_text",
+                "--bin",
+                "structured_serde",
             ],
         }
 
