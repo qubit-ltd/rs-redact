@@ -25,7 +25,7 @@ These features represent separately selectable capabilities or optional dependen
 | `derive-json` | `derive`, `json` (implies `serde`) | test | Exercises derive behavior with JSON-specific APIs and projections. |
 | `bigdecimal` | `bigdecimal` (implies `serde`) | test | Covers BigDecimal serialization and redaction behavior. |
 | `http` | `http` (implies `json`, `serde`) | test | Covers HTTP integration with its required JSON stack. |
-| `uri` | `uri` | test | Covers URI support independently. |
+| `uri` | `uri` | test, doc | Covers URI support and Rustdoc independently. |
 | `http-uri` | `http`, `uri` (and implied `json`, `serde`) | test | Covers joint HTTP/URI formatting and policy paths. |
 | `json-arbitrary-precision` | `derive`, `http`, `serde_json/arbitrary_precision` | test | Preserves the targeted arbitrary-precision JSON behavior check. |
 | `all-root` | All workspace features | check, test, doc, clippy | Detects integration failures that appear only when capabilities are enabled together. |

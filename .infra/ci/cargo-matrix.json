@@ -58,7 +58,7 @@
     },
     {
       "name": "uri",
-      "commands": ["test"],
+      "commands": ["test", "doc"],
       "packages": ["qubit-redact"],
       "defaultFeatures": false,
       "features": ["uri"]
