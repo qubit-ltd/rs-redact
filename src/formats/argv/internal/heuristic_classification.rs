@@ -8,12 +8,11 @@
 
 //! Shared argv option parsing and pending-field classification.
 
+use super::argv_classification::ArgvClassification;
+use super::inline_assignment::InlineAssignment;
 use crate::formats::argv::ArgvItem;
 use crate::formats::argv::pending_field::PendingField;
 use crate::policy::RedactionPolicy;
-
-use super::argv_classification::ArgvClassification;
-use super::inline_assignment::InlineAssignment;
 
 /// Returns an option name without its leading dashes.
 #[inline]

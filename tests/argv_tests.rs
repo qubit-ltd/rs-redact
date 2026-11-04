@@ -198,7 +198,11 @@ fn heuristic_option_boundaries_and_consecutive_sensitive_options_keep_their_rule
         ArgvItem::plain(OsStr::new("consecutive-option-secret")),
     ]);
 
-    for secret in ["exact-option-secret", "triple-option-secret", "consecutive-option-secret"] {
+    for secret in [
+        "exact-option-secret",
+        "triple-option-secret",
+        "consecutive-option-secret",
+    ] {
         assert!(!rendered.contains(secret));
     }
     for boundary in ["\"--\"", "\"-\"", "\"---\""] {
@@ -250,10 +254,7 @@ fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
 #[test]
 fn refactor_argv_one_item_matches_batch() {
     let redactor = Redactor::standard();
-    let items = [ArgvItem::sensitive(
-        OsStr::new("raw-secret"),
-        Sensitivity::Secret,
-    )];
+    let items = [ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)];
     let one = redactor.redact_argv(items);
     let mut batch = redactor.diagnostic_batch();
     let handle = batch.redact_argv(items);

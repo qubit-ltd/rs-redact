@@ -10,9 +10,8 @@
 
 use std::ffi::OsStr;
 
-use crate::Sensitivity;
-
 use super::inline_assignment::InlineAssignment;
+use crate::Sensitivity;
 
 /// Classification of one argv item without rendering or copying its value.
 pub(in crate::formats::argv) enum ArgvClassification<'a> {
