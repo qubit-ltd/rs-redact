@@ -458,11 +458,17 @@ derive 0.9，再移除 derive patch、针对 registry 重跑 consumer 回归，�
 
 ## 10. 验证策略
 
-`.infra/bin/ci-check.sh` 读取 `.infra/ci/cargo-matrix.json` 执行兼容性检查。除 core 和各格式 feature 外，
-矩阵覆盖 derive-only、derive 与 Serde/JSON/HTTP/URI 的组合、BigDecimal 单独启用及与
-derive 组合，以及全部 feature；展开隐式依赖后覆盖全部 28 种 runtime feature 集。每组执行编译、测试（含 doctest）、rustdoc 和 Clippy；
+`.infra/ci/cargo-matrix.json` 定义 `.infra/bin/ci-check.sh` 执行的兼容性检查；权威的
+条目选择及其理由记录在 `.infra/ci/feature-matrix.md` 和 `.infra/ci/feature-matrix.zh_CN.md`。
+该矩阵是精选集合，不是 feature 笛卡尔积：保留 derive 包和
+`serde_json/arbitrary_precision` 专项检查、边界构建，以及
+覆盖独立 feature 交互的定向测试。评审或修改矩阵项前应先阅读该说明；执行器在读取矩阵
+的位置也提示了这一点。CI 会将项目 hook 和矩阵检查作为独立任务执行；Python 标准库校验器
+检查矩阵配置结构以及 manifest feature、workspace package 引用是否有效，但不判断某个 feature 组合是否
+合理或完整。新增条目的独有 `cfg`、API 或行为覆盖须记录在 feature-matrix 设计中。配置校验
+只检查结构和引用，仍需 CI 实际成功执行每个配置项。
 文档示例按真实依赖设置 feature gate。
-项目 CI hook 还会依次运行接线测试、发布包检查器测试、archive 回归、校验脚本测试和两种语言文档中的带注解示例。
+项目 CI hook 还会运行 hook 接线测试、发布包检查器及其测试、文档示例校验，以及 fuzz crate 测试。
 
 下游负向编译测试读取 Cargo JSON compiler message。只有在 fixture 源码具有 primary span、
 且匹配预期 API 或 trait 的 rustc error 才算预期拒绝；指定错误码时还必须精确匹配。

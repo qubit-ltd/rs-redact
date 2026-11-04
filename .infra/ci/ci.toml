@@ -6,5 +6,7 @@ fuzz_seconds_per_target = 10
 fuzz_max_len = 4096
 coverage_cfg_clippy = false
 audit_cached_fallback = true
+# This points to a curated matrix, not the Cartesian product. Read
+# feature-matrix.md and feature-matrix.zh_CN.md before reviewing or changing it.
 matrix = ".infra/ci/cargo-matrix.json"
 hook = ".infra/bin/project-ci-check.sh"

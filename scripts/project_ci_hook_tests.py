@@ -12,6 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 HOOK = PROJECT_ROOT / ".infra" / "project-ci-check.local.sh"
 EXPECTED_SCRIPTS = (
     "project_ci_hook_tests.py",
+    "check_feature_matrix_tests.py",
+    "check_feature_matrix.py",
     "check_packaged_derive_tests.py",
     "check_packaged_derive.py",
     "check_doc_examples_tests.py",

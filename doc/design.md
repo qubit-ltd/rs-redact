@@ -599,10 +599,17 @@ also verifies both normalized packages without uploading them.
 ## 10. Verification strategy
 
 `.infra/ci/cargo-matrix.json` defines the compatibility checks executed by `.infra/bin/ci-check.sh`.
-Besides core and individual format features, it includes derive-only, derive with
-Serde/JSON/HTTP/URI, BigDecimal with and without derive, and all-feature consumers.
-After accounting for implied features, all 28 distinct runtime feature sets are covered.
-Each combination runs compilation, tests including doctests, rustdoc, and Clippy.
+The authoritative rationale and selected entries are documented in the bilingual
+`.infra/ci/feature-matrix.md` and `.infra/ci/feature-matrix.zh_CN.md`. The matrix is a curated
+set, not a Cartesian product: it retains the derive-package and
+`serde_json/arbitrary_precision` special checks, boundary builds, and focused tests for distinct
+feature interactions. The project CI hook runs a Python standard-library validator as a
+separate CI task; it validates matrix structure and references to
+manifest features and workspace packages, without deciding whether a feature combination is
+appropriate or complete. Read the feature-matrix design before reviewing or changing matrix
+entries; document the distinct `cfg`, API, or behavior coverage for any proposed addition there.
+This validates configuration syntax and references; the CI matrix still has to execute each
+configured check successfully.
 Documentation gates follow the feature dependencies of their examples.
 
 Negative dependent-crate tests inspect Cargo JSON compiler messages. A passing rejection

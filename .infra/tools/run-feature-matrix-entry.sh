@@ -2,6 +2,8 @@
 set -euo pipefail
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+# The project's matrix is a curated set, not a Cartesian product. Read
+# both .infra/ci/feature-matrix.md and .infra/ci/feature-matrix.zh_CN.md first.
 matrix_file="$project_root/.infra/ci/cargo-matrix.json"
 entry_name="${1:-}"
 
