@@ -105,7 +105,7 @@ impl OperationSink {
     ///
     /// The truncated marker when it fits, or an exhausted empty operation
     /// when it does not.
-    #[must_use]
+    #[must_use = "record the fallback operation in its parent transaction"]
     pub(crate) fn output_limit_fallback(maximum: usize) -> RenderedOperation {
         const MARKER: &str = "<truncated>";
         let text = if MARKER.len() <= maximum { MARKER } else { "" };
