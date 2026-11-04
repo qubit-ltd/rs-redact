@@ -21,6 +21,7 @@ use crate::RedactionReasons;
 #[cfg(feature = "json")]
 #[derive(Default)]
 pub(super) struct StructuredSerdeReport {
+    /// Cumulative set of distinct reasons observed by this sink.
     pub(super) reasons: RedactionReasons,
 }
 
@@ -48,13 +49,24 @@ pub(super) struct StructuredSerdeBudget {
     pub(super) payload_bytes: usize,
     /// Active downstream forwarding of a scalar already charged by its owner.
     pub(super) payload_forwarding: usize,
-    /// Optional observers for calls currently active on this ledger.
+    /// Optional observers registered while this ledger was the active budget.
+    /// Each subsequent reason event is delivered to every observer in this
+    /// list; observers registered later do not receive earlier events.
     #[cfg(feature = "json")]
     pub(super) reports: Vec<Rc<RefCell<StructuredSerdeReport>>>,
 }
 
 #[cfg(feature = "json")]
 impl StructuredSerdeBudget {
+    /// Adds a reason to every currently registered observer on this ledger.
+    ///
+    /// Each sink stores reasons as a set, so repeated events do not create
+    /// duplicate entries. This does not notify observers belonging to another
+    /// budget.
+    ///
+    /// # Parameters
+    ///
+    /// - `reason`: Reason to add to each registered observer's cumulative set.
     pub(super) fn record(&mut self, reason: RedactionReason) {
         for report in &self.reports {
             let mut report = report.borrow_mut();

@@ -128,14 +128,33 @@ impl<'policy> RedactSerializeScope<'policy> {
     }
 }
 
-/// RAII registration for one optional caller report.
+/// RAII observer for reasons recorded by the budget active at registration.
+///
+/// A guard registered without an active budget owns an empty sink that receives
+/// no reasons. With an active budget, the sink observes later reason events on
+/// that budget; nested independent budgets do not broadcast to it. Each active
+/// observer on a budget receives the same later events. Its reasons accumulate
+/// as a deduplicated set, and events before registration are not included.
+///
+/// Dropping the guard unregisters its sink. Normal return and unwinding run
+/// this cleanup; `mem::forget` and process abort do not guarantee it.
 #[cfg(feature = "json")]
 pub(crate) struct SerdeReportGuard {
+    /// Per-call reason sink shared with the active ledger, if any.
     sink: Rc<Cell<StructuredSerdeReport>>,
 }
 
 #[cfg(feature = "json")]
 impl SerdeReportGuard {
+    /// Returns the cumulative distinct reasons observed since registration.
+    ///
+    /// A guard created outside an active structured budget always returns an
+    /// empty set because its sink is not registered with a ledger.
+    ///
+    /// # Returns
+    ///
+    /// The reasons recorded after this guard was registered, with duplicates
+    /// collapsed.
     pub(crate) fn reasons(&self) -> RedactionReasons {
         self.sink.borrow().reasons
     }
@@ -143,6 +162,10 @@ impl SerdeReportGuard {
 
 #[cfg(feature = "json")]
 impl Drop for SerdeReportGuard {
+    /// Removes this sink from every currently stored budget ledger.
+    ///
+    /// Cleanup runs on ordinary drop and Rust unwinding. Forgetting the guard
+    /// or aborting the process does not run this cleanup.
     fn drop(&mut self) {
         STRUCTURED_SERDE_BUDGETS.with(|slot| {
             for budget in slot.borrow_mut().iter_mut() {
@@ -153,6 +176,16 @@ impl Drop for SerdeReportGuard {
 }
 
 #[cfg(feature = "json")]
+/// Registers a fresh reason observer with the currently active budget.
+///
+/// If there is no active budget, the returned guard has an unregistered empty
+/// sink. Otherwise, later reasons recorded on that budget are sent to this
+/// observer along with every other observer already registered there. A
+/// separate nested budget does not automatically forward its events.
+///
+/// # Returns
+///
+/// A guard whose sink contains only reasons recorded after registration.
 pub(crate) fn register_report() -> SerdeReportGuard {
     let sink = Rc::new(Cell::new(StructuredSerdeReport::default()));
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -163,6 +196,15 @@ pub(crate) fn register_report() -> SerdeReportGuard {
     SerdeReportGuard { sink }
 }
 
+/// Records one reason on the active budget and notifies its registered
+/// observers.
+///
+/// Without an active budget this is a no-op. When the `json` feature is
+/// disabled, this function intentionally records nothing.
+///
+/// # Parameters
+///
+/// - `reason`: Reason to add to the active budget's cumulative report set.
 pub(super) fn record_reason(reason: RedactionReason) {
     #[cfg(feature = "json")]
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -175,6 +217,16 @@ pub(super) fn record_reason(reason: RedactionReason) {
 }
 
 #[cfg(feature = "json")]
+/// Records each supported reason bit on the active budget.
+///
+/// This forwards only `InputLimitReached`, `OutputLimitReached`,
+/// `TraversalLimitReached`, `DepthLimitReached`, `InvalidJson`, and
+/// `FormattingFailed`. Other present or future reason variants are ignored.
+/// With no active budget, each forwarded event is a no-op.
+///
+/// # Parameters
+///
+/// - `reasons`: Set whose supported reasons are forwarded individually.
 pub(super) fn record_reasons(reasons: RedactionReasons) {
     for reason in [
         RedactionReason::InputLimitReached,
