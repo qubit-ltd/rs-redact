@@ -2,7 +2,7 @@
 
 [中文设计文档](design.zh_CN.md) · [User Guide](user_guide.md) · [README](../README.md)
 
-Current runtime: qubit-redact 0.10.0; workspace derive: qubit-redact-derive 0.9.0. The runtime requires derive 0.9 or newer within that minor line; the package version numbers are independent. Rust 1.94, empty default features.
+Current runtime: qubit-redact 0.10.0; workspace derive: qubit-redact-derive 0.10. The runtime requires derive 0.10 or newer within that minor line; the package version numbers are independent. Rust 1.94, empty default features.
 
 ## 1. Goals and boundaries
 
@@ -592,7 +592,7 @@ manifest, preserving the publication order (derive, then runtime) without a regi
 dependency cycle. The package regression builds both normalized archives, patches a
 temporary consumer only to those extracted archives, and runs skip, keyed_by, and
 recursive projection regressions. This verifies archive contents, not registry resolution.
-Publish derive 0.9 first, repeat the consumer regression without a derive patch against
+Publish derive 0.10 first, repeat the consumer regression without a derive patch against
 the registry, then publish runtime 0.10. `cargo publish --workspace --dry-run --all-features`
 also verifies both normalized packages without uploading them.
 

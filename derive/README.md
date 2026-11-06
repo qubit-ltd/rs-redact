@@ -22,8 +22,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
-This runtime release uses `qubit-redact-derive` 0.9. Applications that depend on
-`qubit-redact-derive` directly should update their requirement from `0.8` to `0.9`.
+This runtime release uses `qubit-redact-derive` 0.10. Applications that depend on
+`qubit-redact-derive` directly should update their requirement from `0.9` to `0.10`.
 
 ## Quick Start
 

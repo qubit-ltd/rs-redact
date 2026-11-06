@@ -2,7 +2,7 @@
 
 [English Design](design.md) · [中文用户手册](user_guide.zh_CN.md) · [README](../README.zh_CN.md)
 
-当前 runtime：qubit-redact 0.10.0；仓库 derive：qubit-redact-derive 0.9.0。runtime 要求 derive 0.9 系列；两个包的版本号独立。Rust 1.94，默认空 feature。
+当前 runtime：qubit-redact 0.10.0；仓库 derive：qubit-redact-derive 0.10。runtime 要求 derive 0.10 系列；两个包的版本号独立。Rust 1.94，默认空 feature。
 
 ## 1. 目标与边界
 
@@ -453,7 +453,7 @@ derive crate 通过仅含 path 的开发依赖引用 workspace runtime，以执�
 Cargo 从发布清单移除这条本地依赖，保持先 derive、后 runtime 的发布顺序，不产生 registry
 依赖环。包回归会构建两个规范化 archive，并让临时 consumer 仅 patch 到解包 archive，运行
 skip、keyed_by 和递归投影回归；这能验证 archive 内容，不代表 registry 解析已验证。先发布
-derive 0.9，再移除 derive patch、针对 registry 重跑 consumer 回归，最后发布 runtime 0.10。
+derive 0.10，再移除 derive patch、针对 registry 重跑 consumer 回归，最后发布 runtime 0.10。
 `cargo publish --workspace --dry-run --all-features` 也会验证规范化发布包，但不会上传。
 
 ## 10. 验证策略
