@@ -22,7 +22,7 @@ program you can place in `src/main.rs` of a test app.
 - [Advanced Usage](#advanced-usage)
 - [Standard vs Strict Policy](#standard-vs-strict-policy)
 - [Field Rules, Floors, and Allow Lists](#field-rules-floors-and-allow-lists)
-- [Budget Units and Migration to 0.8](#budget-units-and-migration-to-08)
+- [Budget Units](#budget-units)
 - [Errors and Diagnostics](#errors-and-diagnostics)
 - [Handle Incomplete Results](#handle-incomplete-results)
 - [Troubleshooting](#troubleshooting)
@@ -502,13 +502,9 @@ flatten is unsupported. JSON text fields retain their string
 wire type; parsed Value fields retain JSON structure. Generated Serde adapters follow Serde's
 representation events and effective names: transparent types forward the field event, adjacent
 tags report the enum name, variant index, and effective variant name, and untagged named variants
-report the effective container name. JSON shape is unchanged. The corrected `Some` and fixed-array
-Tuple events apply to direct source serialization enabled by `#[redact(serde)]` and borrowed views.
-Non-JSON serializers can observe these event changes, so stored data may need its old decoder or an
-explicit format version. When migrating, read old data with the old implementation and re-encode it
-with the corrected one; do not assume the new event layout decodes old data automatically.
-In particular, `Option<Map>::Some` now emits `Some` containing the map. The library does not
-automatically decode the earlier layout.
+report the effective container name. JSON shape is unchanged. The `Some` and fixed-array Tuple events apply to direct
+source serialization enabled by `#[redact(serde)]` and borrowed views. Non-JSON serializers observe these
+representation events. `Option<Map>::Some` emits `Some` containing the map.
 Redact attributes are supported on containers and fields, not enum variants. Variant-level
 `#[redact(...)]` is rejected at compile time; put field behavior on that variant's fields, or
 remove the attribute from a unit variant.
@@ -1121,8 +1117,7 @@ fn main() {
 | `uri` | generic URI parsing and redaction |
 
 Keep the default empty feature set for scalar and manually implemented domain
-redaction. In the 0.8 release line, `serde` provides structured serialization,
-while BigDecimal support is enabled explicitly with the `bigdecimal` feature.
+redaction. Enable `bigdecimal` explicitly when using BigDecimal.
 
 ## Standard vs Strict Policy
 
@@ -1387,14 +1382,12 @@ an inspection error as sensitive because classification was inconclusive.
 Existing redactors, composers, and batches keep the immutable snapshot they
 already own; replacement does not retroactively toggle in-flight work.
 
-## Budget Units and Migration to 0.8
+## Budget Units
 
 Each transparent domain wrapper consumes one structural node and one depth
 level before its field callback runs. The field continues to consume its usual
-field budget. Calls that relied on a transparent wrapper fitting exactly at a
-depth or node limit may now truncate or fail inspection; allow one additional
-depth level and root node for each transparent wrapper in the traversed value.
-With sufficient budgets, the text representation and API remain unchanged.
+field budget. Size `max_nodes` and `max_depth` for every wrapper in the traversed
+value.
 
 | Entry point | Structure and input limits | Logical Serde payload | Final encoded bytes |
 | --- | --- | --- | --- |
@@ -1419,12 +1412,13 @@ Sibling keys used only for `keyed_by` classification are admitted against
 also serialized as an ordinary field, that output operation is charged under its
 own existing limits. Dynamic map keys are separate Serde payload events and are
 counted there.
-In 0.8, replace former `batch()` calls with `diagnostic_batch()`. Use `finish()`
-for the default diagnostic marker or `finish_with_marker(marker)` for a custom one.
-Enable `bigdecimal` explicitly when using BigDecimal; enabling `serde` alone no longer suffices.
+Use `diagnostic_batch()` to create a diagnostic batch. Call `finish()` for the
+default marker or `finish_with_marker(marker)` for a custom one. Enable
+`bigdecimal` explicitly when using BigDecimal; `serde` alone does not enable it.
 
-Migrate 0.6 configurations that limited direct Serde payloads with `max_output_bytes` to
-`max_serde_payload_bytes`. Set both when `to_json` must obey both ceilings; they are never implicitly linked.
+Configure `max_serde_payload_bytes` to limit direct Serde payloads. Set
+`max_output_bytes` separately when `to_json` must also obey a final encoded-byte
+ceiling; the limits are independent.
 
 For a derived `#[redact(json)]` field stored as `serde_json::Value`, JSON-specific limits
 (`max_json_depth`, nodes, collection items, key/string/number bytes, and JSON payload bytes)

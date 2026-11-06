@@ -21,7 +21,7 @@
 - [进阶用法](#进阶用法)
 - [标准策略与 strict 策略](#标准策略与-strict-策略)
 - [字段规则、floor 与 allow](#字段规则floor-与-allow)
-- [预算计量与 0.8 迁移](#预算计量与-08-迁移)
+- [预算计量](#预算计量)
 - [错误与诊断](#错误与诊断)
 - [处理不完整结果](#处理不完整结果)
 - [排障](#排障)
@@ -461,10 +461,8 @@ adapter 路径中的匿名 const 参数不能使用 `Self`（例如 `encode::<{S
 flatten 不受支持。JSON 文本字段序列化后仍是字符串，已解析 Value 字段保留 JSON 结构。生成的 Serde
 adapter 也遵循 Serde 表示事件和生效后的名称：transparent 类型直接转发字段事件，adjacent tag
 使用枚举名、变体索引和生效后的变体名，untagged 具名变体使用生效后的容器名。JSON 结构形状保持
-不变。本次修正的 `Some` 与固定数组 Tuple 事件同时适用于 `#[redact(serde)]` 启用的源对象序列化
-和借用 view。非 JSON serializer 会观察到这些事件变化，已存储数据可能需要旧 decoder 或明确的
-格式版本。迁移时应由旧实现读取旧数据，再用修正后的实现重编码；不能假设新事件布局能直接解码旧数据。
-其中 `Option<Map>::Some` 会以 `Some` 事件包住 map。库不会自动解码旧事件布局。
+不变。`Some` 与固定数组 Tuple 事件同时适用于 `#[redact(serde)]` 启用的源对象序列化和借用 view。
+非 JSON serializer 会观察到这些表示事件；`Option<Map>::Some` 会以 `Some` 事件包住 map。
 `redact` 属性只支持容器和字段，不支持 enum variant。variant 级 `#[redact(...)]` 会在编译时报错；请把字段行为移到 variant 内的字段，或从 unit variant 移除该属性。
 
 adapter 的 const 参数使用源类型名：
@@ -1023,8 +1021,8 @@ fn main() {
 | `http` | JSON、URL、header、form、multipart 和 body capture |
 | `uri` | 通用 URI 解析与脱敏 |
 
-只使用标量和手写领域实现时可保持默认空 feature 集。在 0.8 版本系列中，`serde` 提供结构化
-序列化，BigDecimal 支持则通过 `bigdecimal` feature 显式启用。
+只使用标量和手写领域实现时可保持默认空 feature 集。使用 BigDecimal 时需显式启用
+`bigdecimal` feature。
 
 ## 标准策略与 strict 策略
 
@@ -1258,11 +1256,10 @@ fn main() {
 以及每次重新获取快照的生成格式化代码。已经创建的 `Redactor`、文本组合器和批处理对象继续
 持有原有不可变快照；替换不会追溯切换正在进行的工作。
 
-## 预算计量与 0.8 迁移
+## 预算计量
 
-每个 transparent 领域包装层都会在字段回调前消耗一个结构节点和一层深度；字段仍按原规则计费。过去依赖
-transparent 包装层恰好不计入深度或节点上限的调用，现在可能截断或使 inspection 失败；应按实际经过的每层
-transparent 包装补足一个深度层和一个根节点。预算充足时，文本表示和 API 保持不变。
+每个 transparent 领域包装层都会在字段回调前消耗一个结构节点和一层深度；字段仍按原规则计费。请根据
+遍历值中包装层的数量，为 `max_nodes` 和 `max_depth` 配置足够预算。
 
 | 入口 | 结构与输入限制 | Serde 逻辑载荷 | 最终编码字节 |
 | --- | --- | --- | --- |
@@ -1283,12 +1280,11 @@ argv heuristics 的 option 或 assignment 分类键不受 `max_key_bytes` 限制
 `max_input_bytes`。若该兄弟字段也作为普通字段序列化，其输出操作仍按各自现有额度计费。
 动态 map 键属于独立的 Serde 载荷事件，按该规则计入载荷。
 Serde 载荷与最终输出限制超过 `isize::MAX` 时策略构造报错。
-升级到 0.8 时，将旧的 `batch()` 调用改为 `diagnostic_batch()`。默认诊断标记使用
-`finish()`，自定义标记使用 `finish_with_marker(marker)`。使用 BigDecimal 时需显式启用
-`bigdecimal`，仅启用 `serde` 已不再提供该能力。
+使用 `diagnostic_batch()` 创建诊断批处理。默认标记调用 `finish()`，自定义标记调用
+`finish_with_marker(marker)`。使用 BigDecimal 时需显式启用 `bigdecimal`；仅启用 `serde` 不会启用此能力。
 
-0.6 中用于限制直接 Serde 载荷的 `max_output_bytes` 配置须迁移到
-`max_serde_payload_bytes`；需要同时限制 `to_json` 时设置两个值，二者不会自动联动。
+使用 `max_serde_payload_bytes` 限制直接 Serde 载荷。若还要限制 `to_json` 的最终编码字节，
+需单独配置 `max_output_bytes`；两个限制互不联动。
 
 派生类型的 `#[redact(json)]` 字段若存储为 `serde_json::Value`，会针对该字段完整值树检查
 JSON 专属限制（`max_json_depth`、节点数、集合项、key/string/number 字节和 JSON 载荷字节）。
