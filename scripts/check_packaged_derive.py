@@ -12,8 +12,14 @@ import tempfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
-RUNTIME_VERSION = "0.10.0"
-DERIVE_VERSION = "0.9.0"
+
+
+def package_version(manifest: Path) -> str:
+    return tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["version"]
+
+
+RUNTIME_VERSION = package_version(ROOT / "Cargo.toml")
+DERIVE_VERSION = package_version(ROOT / "derive/Cargo.toml")
 DERIVE_DOC_COMMIT = "6f51ef2634e3f79b75449626826fc1a1ac42e14f"
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
 
