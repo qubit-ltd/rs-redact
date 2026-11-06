@@ -30,6 +30,15 @@ pub(crate) struct RedactedValue<'value, 'policy, 'marker, 'state> {
 
 impl<'value, 'policy, 'marker, 'state> RedactedValue<'value, 'policy, 'marker, 'state> {
     /// Creates a root value with no enclosing field rule.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Source tree borrowed for serialization without cloning.
+    /// - `state`: Policy and observation state borrowed for this traversal.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed view whose root has no enclosing object-key context.
     #[must_use]
     #[inline]
     pub(in crate::formats::json) const fn with_state(
@@ -44,6 +53,20 @@ impl<'value, 'policy, 'marker, 'state> RedactedValue<'value, 'policy, 'marker, '
     }
 
     /// Creates a child value inheriting the active state and selected context.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Child value borrowed from the source tree.
+    /// - `state`: Shared policy and observation state for the traversal.
+    /// - `context`: Rule selected by the enclosing object, or an unkeyed
+    ///   context.
+    ///
+    /// # Returns
+    ///
+    /// A borrowed view retaining the supplied context without copying the
+    /// value.
+    #[must_use]
+    #[inline]
     const fn child(
         value: &'value Value,
         state: &'state JsonRedactionState<'policy, 'marker>,
@@ -55,6 +78,25 @@ impl<'value, 'policy, 'marker, 'state> RedactedValue<'value, 'policy, 'marker, '
 
 impl Serialize for RedactedValue<'_, '_, '_, '_> {
     /// Serializes the value after applying the inherited JSON redaction rule.
+    ///
+    /// Records any unkeyed scalar passed through by the active policy.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Serializer receiving the redacted JSON representation.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Output serializer consumed by this operation.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's success value after the complete value has been
+    /// emitted.
+    ///
+    /// # Errors
+    ///
+    /// Propagates serializer errors from writing scalar values or containers.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -113,6 +155,28 @@ impl Serialize for RedactedValue<'_, '_, '_, '_> {
 }
 
 impl RedactedValue<'_, '_, '_, '_> {
+    /// Emits a sensitive value as a JSON string using its selected mask.
+    ///
+    /// Empty source strings remain empty; non-string values use the opaque
+    /// mask. Other strings are masked lazily without allocating an
+    /// intermediate string.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Serializer receiving the masked string.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Output serializer consumed by this operation.
+    /// - `level`: Sensitivity selecting the mask from the shared policy.
+    ///
+    /// # Returns
+    ///
+    /// The serializer's success value after emitting the masked string.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors reported while serializing the string.
     fn serialize_masked<S: Serializer>(&self, serializer: S, level: Sensitivity) -> Result<S::Ok, S::Error> {
         let masking = self.state.masking.for_level(level);
         if let Value::String(text) = self.value {

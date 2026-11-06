@@ -285,6 +285,29 @@ impl Redactor {
     }
 }
 
+/// Encodes a borrowed redacted projection once under the final JSON byte limit.
+///
+/// Storage is published only after serialization and UTF-8 validation succeed;
+/// neither serialization failure nor a rejected write exposes partial output.
+///
+/// # Type Parameters
+///
+/// - `'value`: Source borrow retained during projection serialization.
+/// - `T`: Possibly unsized source whose redacted fields implement `Serialize`.
+///
+/// # Parameters
+///
+/// - `redactor`: Policy owner supplying the projection and encoded byte limit.
+/// - `value`: Source borrowed for a single serialization of its redacted view.
+///
+/// # Returns
+///
+/// Complete compact JSON owned independently of the borrowed source.
+///
+/// # Errors
+///
+/// Propagates projection serialization and output-limit errors. Invalid UTF-8
+/// from the encoded storage is reported as an invalid-data JSON I/O error.
 fn encode_json<'value, T: RedactSerializeSource + ?Sized>(
     redactor: &Redactor,
     value: &'value T,

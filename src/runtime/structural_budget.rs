@@ -31,24 +31,6 @@ pub(crate) struct StructuralBudget {
 }
 
 impl StructuralBudget {
-    /// Copies remaining shared JSON capacity without charging the ledger.
-    #[cfg(feature = "json")]
-    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
-        let remaining_items = self
-            .budget
-            .limits()
-            .max_sequence_items()
-            .map(|maximum| maximum.saturating_sub(self.collection_items_seen));
-        JsonStructurePreflight {
-            remaining_nodes: self.budget.remaining_nodes(),
-            remaining_items,
-            max_relative_depth: self
-                .max_depth
-                .map(|maximum| maximum.saturating_sub(root_depth.saturating_sub(1))),
-            traversal_closed: self.traversal_closed,
-        }
-    }
-
     /// Creates the structural ledger from immutable transaction limits.
     ///
     /// # Parameters
@@ -67,6 +49,35 @@ impl StructuralBudget {
             max_depth: limits.max_depth(),
             traversal_closed: false,
             collection_items_seen: 0,
+        }
+    }
+
+    /// Copies remaining shared JSON capacity without charging the ledger.
+    ///
+    /// # Parameters
+    ///
+    /// - `root_depth`: Root-inclusive depth of the JSON value in the shared
+    ///   traversal, used to derive its remaining relative depth allowance.
+    ///
+    /// # Returns
+    ///
+    /// A read-only capacity snapshot with the current traversal-closed state.
+    /// Each absent capacity or depth ceiling means that dimension is unlimited.
+    #[must_use]
+    #[cfg(feature = "json")]
+    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
+        let remaining_items = self
+            .budget
+            .limits()
+            .max_sequence_items()
+            .map(|maximum| maximum.saturating_sub(self.collection_items_seen));
+        JsonStructurePreflight {
+            remaining_nodes: self.budget.remaining_nodes(),
+            remaining_items,
+            max_relative_depth: self
+                .max_depth
+                .map(|maximum| maximum.saturating_sub(root_depth.saturating_sub(1))),
+            traversal_closed: self.traversal_closed,
         }
     }
 

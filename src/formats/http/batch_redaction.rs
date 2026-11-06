@@ -17,6 +17,13 @@ use crate::runtime::RedactionHandle;
 
 /// Redacts one URL as a batch item staged in the session.
 ///
+/// # Parameters
+///
+/// - `session`: Batch session whose limits and staged items are updated.
+/// - `value`: Borrowed URL text to redact.
+///
+/// # Returns
+///
 /// The returned handle identifies the staged result and must be retained when
 /// the caller needs to resolve that item after the batch completes.
 #[must_use]
@@ -33,6 +40,13 @@ pub(crate) fn redact_url(session: &mut BatchSession, value: &str) -> RedactionHa
 
 /// Redacts headers as a batch item staged in the session.
 ///
+/// # Parameters
+///
+/// - `session`: Batch session whose limits and staged items are updated.
+/// - `headers`: Borrowed HTTP headers to redact.
+///
+/// # Returns
+///
 /// The returned handle identifies the staged result and must be retained when
 /// the caller needs to resolve that item after the batch completes.
 #[must_use]
@@ -48,6 +62,14 @@ pub(crate) fn redact_headers(session: &mut BatchSession, headers: &HeaderMap) ->
 }
 
 /// Redacts a captured body with a parsed Content-Type as a staged batch item.
+///
+/// # Parameters
+///
+/// - `session`: Batch session whose limits and staged items are updated.
+/// - `capture`: Borrowed body bytes and source-length metadata.
+/// - `content_type`: Native Content-Type value, or `None` when unavailable.
+///
+/// # Returns
 ///
 /// The returned handle identifies the staged result and must be retained when
 /// the caller needs to resolve that item after the batch completes.
@@ -68,6 +90,14 @@ pub(crate) fn redact_body(
 }
 
 /// Redacts a captured body with textual Content-Type as a staged batch item.
+///
+/// # Parameters
+///
+/// - `session`: Batch session whose limits and staged items are updated.
+/// - `capture`: Borrowed body bytes and source-length metadata.
+/// - `content_type`: Textual Content-Type value, or `None` when unavailable.
+///
+/// # Returns
 ///
 /// The returned handle identifies the staged result and must be retained when
 /// the caller needs to resolve that item after the batch completes.

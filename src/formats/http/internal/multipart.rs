@@ -9,10 +9,14 @@
 
 use std::borrow::Cow;
 use std::io::Write;
+use std::str::from_utf8;
+
+use form_urlencoded::parse;
 
 use super::super::internal::AdmittedMultipart;
 use super::super::internal::AdmittedMultipartBody;
 use super::super::internal::MultipartSegments;
+use super::AdmittedNdjson;
 use super::BoundedBodyWriter;
 use super::MultipartPartMetadata;
 use super::content_type;
@@ -41,11 +45,14 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// * `require_form_data` - Whether part dispositions must be `form-data`.
 /// * `bytes` - Complete bounded body bytes.
 /// * `policy` - HTTP policy that supplies body limits and rendering choices.
+/// * `max_output_bytes` - Maximum rendered summary size in bytes.
+/// * `admitted` - Optional mutable structured values retained during admission.
 ///
 /// # Returns
 ///
 /// A summary, pass-through flag, and rendering-truncation flag, or `None` for
-/// malformed input.
+/// malformed input, inconsistent admission data, or invalid rendered UTF-8.
+#[must_use]
 pub(in crate::formats::http) fn redact(
     redactor: &FieldRedactor<'_>,
     boundary: &str,
@@ -101,10 +108,22 @@ pub(in crate::formats::http) fn redact(
 
 /// Charges multipart parts and nested structured values to one transaction.
 ///
+/// # Parameters
+///
+/// * `session` - Transaction whose structural and key budgets are charged.
+/// * `boundary` - Multipart delimiter boundary.
+/// * `require_form_data` - Whether dispositions must be `form-data`.
+/// * `bytes` - Complete bounded multipart body.
+///
 /// # Returns
 ///
-/// The admitted part data, or the parser/limit failure from a nested structured
-/// part.
+/// The admitted part data. Malformed multipart framing or headers yield an
+/// empty admission record; nested structured failures are returned as errors.
+///
+/// # Errors
+///
+/// Returns `Limit` when a transaction budget is exhausted, or the nested
+/// structured parser error for invalid JSON, NDJSON, or UTF-8.
 pub(in crate::formats::http) fn admit_structure(
     session: &mut dyn RuntimeSession,
     boundary: &str,
@@ -135,13 +154,13 @@ pub(in crate::formats::http) fn admit_structure(
         }
         let value = match metadata.content_type() {
             Some(value) if content_type::is_json(value) => {
-                let text = std::str::from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
+                let text = from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
                 let value = admit_json_text_value_at_depth(session, text, 3)?;
                 Some(AdmittedMultipartBody::Json(value))
             }
             Some(value) if content_type::is_ndjson(value) => {
-                let text = std::str::from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
-                let mut lines = super::AdmittedNdjson::new(text.ends_with('\n'));
+                let text = from_utf8(body).map_err(|_| JsonAdmissionError::Invalid)?;
+                let mut lines = AdmittedNdjson::new(text.ends_with('\n'));
                 for line in text.lines() {
                     if json::is_blank_ndjson_line(line) {
                         lines.push_blank();
@@ -165,6 +184,13 @@ pub(in crate::formats::http) fn admit_structure(
 }
 
 /// Classifies every multipart part without rendering or retaining body data.
+///
+/// # Parameters
+///
+/// * `session` - Inspection transaction updated with sensitivity or failure.
+/// * `boundary` - Multipart delimiter boundary.
+/// * `require_form_data` - Whether dispositions must be `form-data`.
+/// * `bytes` - Complete bounded multipart body.
 pub(in crate::formats::http) fn inspect(
     session: &mut InspectionSession,
     boundary: &str,
@@ -218,8 +244,11 @@ pub(in crate::formats::http) fn inspect(
             Some(value) if content_type::is_form(value) => {
                 inspect_form(session, body, 3);
             }
-            Some(value) if content_type::is_text(value) => {
-                if std::str::from_utf8(body).is_err() {
+            Some(value) if !content_type::is_text(value) => {
+                session.observe_sensitivity(Sensitivity::Secret);
+            }
+            Some(_) | None => {
+                if from_utf8(body).is_err() {
                     session.fail_inspection(RedactionReason::InvalidMultipart);
                     return;
                 }
@@ -227,21 +256,17 @@ pub(in crate::formats::http) fn inspect(
                     session.observe_sensitivity(Sensitivity::Secret);
                 }
             }
-            None => {
-                if std::str::from_utf8(body).is_err() {
-                    session.fail_inspection(RedactionReason::InvalidMultipart);
-                    return;
-                }
-                if session.policy().http().text_body_policy() == TextBodyPolicy::Redact {
-                    session.observe_sensitivity(Sensitivity::Secret);
-                }
-            }
-            Some(_) => session.observe_sensitivity(Sensitivity::Secret),
         }
     }
 }
 
 /// Charges each non-empty URL-encoded form field at `field_depth`.
+///
+/// # Parameters
+///
+/// * `session` - Transaction charged for fields and decoded keys.
+/// * `bytes` - URL-encoded form body.
+/// * `field_depth` - Structural depth charged for each non-empty field.
 ///
 /// # Returns
 ///
@@ -265,7 +290,7 @@ pub(in crate::formats::http) fn admit_form_fields(
             return false;
         }
         if valid
-            && let Some((key, _)) = form_urlencoded::parse(field).next()
+            && let Some((key, _)) = parse(field).next()
             && !session.admit_domain_key(&key)
         {
             return false;
@@ -276,10 +301,16 @@ pub(in crate::formats::http) fn admit_form_fields(
 
 /// Resolves body rules without retaining an immutable session borrow.
 ///
+/// # Parameters
+///
+/// * `session` - Transaction supplying the immutable body-rule policy.
+/// * `field` - Raw body field name to resolve.
+///
 /// # Returns
 ///
 /// Whether `field` matches a configured sensitive-body rule.
 #[must_use]
+#[inline]
 fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
     let policy = session.policy();
     FieldRedactor::new(policy.rules(), policy.http().body_rules(), policy.masking()).is_sensitive(field)
@@ -295,11 +326,15 @@ fn body_field_is_sensitive(session: &dyn RuntimeSession, field: &str) -> bool {
 /// * `require_form_data` - Whether disposition must be `form-data`.
 /// * `max_output_bytes` - Remaining transaction output allowance supplied by
 ///   the caller.
+/// * `admitted` - `None` without admission data, `Some(None)` for an
+///   unstructured part, or `Some(Some(value))` for a mutable structured
+///   payload.
 ///
 /// # Returns
 ///
 /// A summary line, pass-through flag, and rendering-truncation flag, or `None`
-/// for malformed input.
+/// for malformed input or missing or incompatible structured admission data.
+#[must_use]
 fn redact_part(
     redactor: &FieldRedactor<'_>,
     segment: &[u8],
@@ -315,7 +350,7 @@ fn redact_part(
     } else if name == markers::MULTIPART_UNNAMED {
         (Cow::Owned(markers::MULTIPART_PART.to_string()), false, false)
     } else if let Some(level) = redactor.sensitivity(name) {
-        match std::str::from_utf8(body) {
+        match from_utf8(body) {
             Ok(text) => (
                 Cow::Owned(
                     redactor
@@ -360,10 +395,16 @@ fn redact_part(
 
 /// Parses one part's headers and metadata without inspecting its body.
 ///
+/// # Parameters
+///
+/// * `segment` - Part bytes without delimiter lines.
+/// * `require_form_data` - Whether disposition must be `form-data`.
+///
 /// # Returns
 ///
 /// The parsed metadata and borrowed body, or `None` when required headers are
 /// missing, duplicated, or malformed.
+#[must_use]
 fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartMetadata<'_>, &[u8])> {
     let (headers, body) = split_headers_body(segment)?;
     let mut disposition = None;
@@ -384,6 +425,11 @@ fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartM
 
 /// Redacts a non-sensitive named part according to its declared type.
 ///
+/// # Type Parameters
+///
+/// * `'body` - Lifetime of the input body and any pass-through text borrowed
+///   into the returned value.
+///
 /// # Parameters
 ///
 /// * `redactor` - Structured-body field redactor.
@@ -392,11 +438,16 @@ fn parse_part(segment: &[u8], require_form_data: bool) -> Option<(MultipartPartM
 /// * `part_type` - Optional part Content-Type text.
 /// * `max_output_bytes` - Remaining transaction output allowance supplied by
 ///   the caller.
+/// * `admitted` - `None` without admission data, `Some(None)` for an
+///   unstructured part, or `Some(Some(value))` for a mutable structured
+///   payload.
 ///
 /// # Returns
 ///
 /// Safe part text, pass-through flag, and rendering-truncation flag, or `None`
-/// for invalid UTF-8, JSON, or serialization.
+/// for invalid UTF-8, failed serialization, or missing or incompatible
+/// structured admission data.
+#[must_use]
 fn redact_non_sensitive_part<'body>(
     redactor: &FieldRedactor<'_>,
     body: &'body [u8],
@@ -425,21 +476,16 @@ fn redact_non_sensitive_part<'body>(
             let value = form::redact_bounded(redactor, body, max_output_bytes);
             (Cow::Owned(value), false, false)
         }),
-        Some(value) if content_type::is_text(value) => {
-            let text = std::str::from_utf8(body).ok()?;
+        Some(value) if !content_type::is_text(value) => {
+            Some((Cow::Owned(markers::MULTIPART_PART.to_string()), false, false))
+        }
+        Some(_) | None => {
+            let text = from_utf8(body).ok()?;
             match policy.http().text_body_policy() {
                 TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
                 TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
             }
         }
-        None => {
-            let text = std::str::from_utf8(body).ok()?;
-            match policy.http().text_body_policy() {
-                TextBodyPolicy::Redact => Some((Cow::Owned(markers::MULTIPART_TEXT.to_string()), false, false)),
-                TextBodyPolicy::PassThrough => Some((Cow::Borrowed(text), true, false)),
-            }
-        }
-        Some(_) => Some((Cow::Owned(markers::MULTIPART_PART.to_string()), false, false)),
     }
 }
 
@@ -453,6 +499,7 @@ fn redact_non_sensitive_part<'body>(
 ///
 /// Header text and body bytes, or `None` for missing separation or invalid
 /// UTF-8.
+#[must_use]
 #[inline]
 fn split_headers_body(segment: &[u8]) -> Option<(&str, &[u8])> {
     let (header_end, body_start) = segment
@@ -465,8 +512,5 @@ fn split_headers_body(segment: &[u8]) -> Option<(&str, &[u8])> {
                 .position(|window| window == b"\n\n")
                 .map(|index| (index, index + 2))
         })?;
-    Some((
-        std::str::from_utf8(&segment[..header_end]).ok()?,
-        &segment[body_start..],
-    ))
+    Some((from_utf8(&segment[..header_end]).ok()?, &segment[body_start..]))
 }

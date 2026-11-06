@@ -195,6 +195,21 @@ pub(in crate::serde::entry) fn projection_field_type(
 
 /// Builds one borrowed projection member, retaining a callable Serde predicate
 /// without making the concrete source field type part of its declaration.
+///
+/// # Parameters
+///
+/// * `input` - Source identity and generics used to resolve recursive fields.
+/// * `field` - Source field whose type is projected.
+/// * `mode` - Redaction mode deciding whether recursive projection is needed.
+/// * `attributes` - Serialization controls selecting concrete types and
+///   predicates.
+/// * `parameter` - Independent type parameter for ordinary field capabilities.
+/// * `lifetime` - Lifetime of the projected field borrow.
+///
+/// # Returns
+///
+/// A borrowed field type, paired with a predicate function pointer when needed.
+#[must_use]
 fn projection_member_type(
     input: &DeriveInput,
     field: &Field,
@@ -216,6 +231,18 @@ fn projection_member_type(
 }
 
 /// Returns whether a field predicate is stored in the borrowed projection.
+///
+/// # Parameters
+///
+/// * `attributes` - Serialization controls determining whether to retain a
+///   predicate.
+///
+/// # Returns
+///
+/// `true` for a non-skipped field with a predicate and no custom serializer;
+/// otherwise `false`.
+#[must_use]
+#[inline]
 fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
     !attributes.skip() && attributes.skip_serializing_if().is_some() && attributes.serialize_with().is_none()
 }
@@ -228,6 +255,7 @@ fn projection_uses_saved_predicate(attributes: &SerdeAttributes) -> bool {
 /// * `projection` - Generated projection type identifier.
 /// * `model` - Validated source shape and source fields.
 /// * `marker` - Fresh member name used by the projection declaration.
+/// * `source` - Expression yielding the source value to borrow or match.
 ///
 /// # Returns
 ///
@@ -307,6 +335,21 @@ pub(super) fn projection_constructor_for(
 }
 
 /// Builds a field value and rebinds a saved predicate to its source type.
+///
+/// # Parameters
+///
+/// * `source_context` - Source identity and generics used to resolve the
+///   predicate.
+/// * `attributes` - Serialization controls deciding whether to retain a
+///   predicate.
+/// * `raw` - Borrowed field expression, consumed and returned unchanged when no
+///   predicate is retained.
+///
+/// # Returns
+///
+/// The field expression, paired with a source-bound predicate closure when
+/// needed.
+#[must_use]
 fn projection_member_value(
     source_context: &SourceTypeContext<'_>,
     attributes: &SerdeAttributes,

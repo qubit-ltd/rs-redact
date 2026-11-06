@@ -7,6 +7,8 @@
 // =============================================================================
 //! Byte-bounded URI rendering.
 
+use std::str::from_utf8;
+
 use crate::RedactionReason;
 use crate::runtime::OperationSink;
 use crate::runtime::RenderedOperation;
@@ -21,12 +23,33 @@ pub(crate) struct BoundedUriWriter {
 }
 
 impl BoundedUriWriter {
-    /// Creates a bounded URI writer.
+    /// Creates a bounded URI writer with an empty runtime-owned sink.
+    ///
+    /// # Parameters
+    ///
+    /// - `max_bytes`: Maximum retained output bytes, including any truncation
+    ///   marker.
+    ///
+    /// # Returns
+    ///
+    /// A writer that escapes URI text within the supplied output bound.
     #[must_use]
+    #[inline]
     pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
             sink: OperationSink::new(max_bytes, TRUNCATED, false),
         }
+    }
+
+    /// Reports whether output can no longer accept payload.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the sink has closed further output; `false` otherwise.
+    #[must_use]
+    #[inline]
+    pub(crate) fn is_full(&self) -> bool {
+        self.sink.is_full()
     }
 
     /// Writes text after escaping log-unsafe characters while preserving
@@ -84,24 +107,33 @@ impl BoundedUriWriter {
     /// output bound rejected it and closed further output.
     pub(crate) fn write_percent_encoded(&mut self, byte: u8) -> bool {
         let encoded = [b'%', hex_digit(byte >> 4), hex_digit(byte & 0x0f)];
-        let piece = std::str::from_utf8(&encoded).expect("percent encoding is always valid ASCII");
+        let piece = from_utf8(&encoded).expect("percent encoding is always valid ASCII");
         self.sink.write_atom(piece)
     }
 
-    /// Reports whether output can no longer accept payload.
-    #[must_use]
-    #[inline]
-    pub(crate) fn is_full(&self) -> bool {
-        self.sink.is_full()
-    }
-
     /// Finalizes URI atoms without discarding output exhaustion provenance.
+    ///
+    /// # Returns
+    ///
+    /// The owned rendered text and completion provenance, including an
+    /// output-limit reason when the sink rejected output.
+    #[inline]
     pub(crate) fn finish(self) -> RenderedOperation {
         self.sink.finish_with_reason(RedactionReason::OutputLimitReached)
     }
 }
 
 /// Converts one nibble to an uppercase hexadecimal digit.
+///
+/// # Parameters
+///
+/// - `value`: Nibble in the range `0..=15` supplied by byte decomposition.
+///
+/// # Returns
+///
+/// The ASCII byte of the corresponding uppercase hexadecimal digit.
+#[must_use]
+#[inline]
 const fn hex_digit(value: u8) -> u8 {
     match value {
         0..=9 => b'0' + value,

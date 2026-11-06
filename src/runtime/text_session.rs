@@ -108,6 +108,21 @@ impl TextSession {
     }
 
     /// Redacts and appends a scalar field with a minimum sensitivity.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized scalar implementing `Display`.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Minimum sensitivity applied alongside policy classification.
+    /// - `field`: Raw key admitted before classification.
+    /// - `value`: Borrowed scalar formatted only if its selected policy needs
+    ///   it.
+    ///
+    /// # Returns
+    ///
+    /// This transaction after staging the safe field rendering.
     pub(crate) fn field_at_least<T>(&mut self, level: Sensitivity, field: &str, value: &T) -> &mut Self
     where
         T: Display + ?Sized,

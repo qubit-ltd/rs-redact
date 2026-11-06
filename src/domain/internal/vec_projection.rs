@@ -27,6 +27,7 @@ use crate::Sensitivity;
 ///
 /// * `'a`: The source borrow lifetime.
 /// * `T`: The nested source type.
+#[must_use]
 pub struct VecProjection<'a, T>(
     /// The elements borrowed for this traversal.
     &'a [T],
@@ -34,12 +35,29 @@ pub struct VecProjection<'a, T>(
 
 impl<T> RedactSerializeSource for Vec<T> {
     /// A projection borrowing the source container.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a`: The source borrow retained by the projection.
     type RedactedFields<'a>
         = VecProjection<'a, T>
     where
         Self: 'a;
 
     /// Borrows the source; the caller must establish a serialization scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a`: The source borrow retained by the returned projection.
+    ///
+    /// # Parameters
+    ///
+    /// * `_policy`: Unused here; serialization reads the active scope's policy.
+    ///
+    /// # Returns
+    ///
+    /// A lazy projection borrowing the vector's elements without cloning or
+    /// traversing them, valid for the source borrow.
     #[inline(always)]
     fn redacted_fields<'a>(&'a self, _policy: &RedactionPolicy) -> Self::RedactedFields<'a> {
         VecProjection(self)

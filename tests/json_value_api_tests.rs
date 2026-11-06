@@ -120,7 +120,7 @@ fn test_disabled_borrowed_json_value_respects_node_limit_across_rendering_entry_
 }
 
 #[test]
-fn all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
+fn test_all_parsed_json_value_entry_points_borrow_and_redact_the_same_value() {
     struct Payload<'value>(&'value Value);
 
     impl Redact for Payload<'_> {

@@ -23,13 +23,47 @@ use crate::Sensitivity;
 
 /// Lazily serializes each borrowed tuple element through its redaction
 /// projection.
-pub struct TupleProjection<'value, T: ?Sized>(&'value T);
+///
+/// The source is borrowed without cloning or visiting its elements.
+/// Serialization requires an active redaction scope and applies its policy to
+/// each element.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the source tuple borrowed by this projection.
+/// - `T`: Possibly unsized source; serialization is implemented for tuples of
+///   one through twelve elements with serializable redaction projections.
+#[must_use]
+pub struct TupleProjection<'value, T: ?Sized>(
+    /// Source tuple retained by reference until this lazy projection is
+    /// dropped.
+    &'value T,
+);
 
 macro_rules! tuple_projection {
     ($count:expr; $($name:ident => $index:tt),+) => {
         impl<$($name),+> RedactSerializeSource for ($($name,)+) {
+            /// Lazy projection retaining the source tuple borrow.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `'a`: Lifetime of the borrowed source tuple.
             type RedactedFields<'a> = TupleProjection<'a, Self> where Self: 'a;
 
+            /// Borrows the tuple without visiting its elements or retaining the policy.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `'a`: Lifetime of the source borrow retained in the projection.
+            ///
+            /// # Parameters
+            ///
+            /// - `_policy`: Policy supplied by the caller; serialization uses the active scope.
+            ///
+            /// # Returns
+            ///
+            /// A lazy projection borrowing this tuple.
+            #[inline]
             fn redacted_fields<'a>(&'a self, _policy: &RedactionPolicy) -> Self::RedactedFields<'a> {
                 TupleProjection(self)
             }
@@ -39,6 +73,23 @@ macro_rules! tuple_projection {
         where
             $($name: RedactSerializeSource + 'value, <$name as RedactSerializeSource>::RedactedFields<'value>: Serialize,)+
         {
+            /// Serializes admitted tuple elements under the active redaction policy.
+            ///
+            /// # Type Parameters
+            ///
+            /// - `S`: Serializer defining the output and error types.
+            ///
+            /// # Parameters
+            ///
+            /// - `serializer`: Destination for the tuple or its opaque mask.
+            ///
+            /// # Returns
+            ///
+            /// The serializer output after writing the admitted representation.
+            ///
+            /// # Errors
+            ///
+            /// Returns an error when no redaction scope is active or serialization fails.
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,

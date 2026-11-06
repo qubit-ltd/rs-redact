@@ -15,17 +15,15 @@ use syn::Generics;
 use syn::Ident;
 use syn::Path;
 use syn::PathArguments;
+use syn::QSelf;
+use syn::ReturnType;
+use syn::Token;
 use syn::Type;
 use syn::TypeParamBound;
-
-/// Source type identity needed while emitting Serde attribute paths.
-pub(super) struct SourceTypeContext<'a> {
-    /// Identifier that names the source declaration.
-    pub(super) ident: &'a Ident,
-    /// Lifetime, type, and const parameters declared by the source.
-    pub(super) generics: &'a Generics,
-}
 use syn::parse_quote;
+use syn::punctuated::Punctuated;
+
+pub(super) use super::internal::source_type_context::SourceTypeContext;
 
 /// Generates a function path in the lexical context of the derived source.
 ///
@@ -33,6 +31,15 @@ use syn::parse_quote;
 /// declared generic arguments. Nested type arguments and bare function types
 /// are traversed; qself paths retain their explicit qualification and opaque
 /// generic argument forms are preserved.
+///
+/// # Parameters
+///
+/// - `context`: Source declaration whose identity replaces lexical `Self`.
+/// - `path`: Function path to copy and rebind.
+///
+/// # Returns
+///
+/// Tokens for the rebound path, leaving the input path unchanged.
 #[must_use]
 pub(super) fn source_function_path(context: &SourceTypeContext<'_>, path: &Path) -> TokenStream {
     let mut path = path.clone();
@@ -58,6 +65,15 @@ pub(super) fn source_function_path(context: &SourceTypeContext<'_>, path: &Path)
 ///
 /// Type arguments, associated type values, and nested bare function types are
 /// inspected. Lifetime, const, and opaque arguments do not count as type uses.
+///
+/// # Parameters
+///
+/// - `path`: Path whose generic type arguments are inspected.
+///
+/// # Returns
+///
+/// Whether a supported generic type argument contains lexical `Self`.
+#[must_use]
 pub(super) fn path_has_self_type_argument(path: &Path) -> bool {
     path.segments.iter().any(|segment| {
         let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
@@ -76,6 +92,15 @@ pub(super) fn path_has_self_type_argument(path: &Path) -> bool {
 /// References, tuples, arrays, pointers, qself roots, path arguments, and bare
 /// function inputs/outputs are traversed. Opaque or unsupported type forms do
 /// not count as a discovered use.
+///
+/// # Parameters
+///
+/// - `ty`: Type syntax to inspect recursively.
+///
+/// # Returns
+///
+/// Whether a supported nested type contains lexical `Self`.
+#[must_use]
 fn type_uses_self(ty: &Type) -> bool {
     match ty {
         Type::Reference(value) => type_uses_self(&value.elem),
@@ -97,8 +122,8 @@ fn type_uses_self(ty: &Type) -> bool {
         Type::FnPtr(value) => {
             value.inputs.iter().any(|argument| type_uses_self(&argument.ty))
                 || match &value.output {
-                    syn::ReturnType::Default => false,
-                    syn::ReturnType::Type(_, ty) => type_uses_self(ty.as_ref()),
+                    ReturnType::Default => false,
+                    ReturnType::Type(_, ty) => type_uses_self(ty.as_ref()),
                 }
         }
         Type::TraitObject(value) => value.bounds.iter().any(|bound| match bound {
@@ -112,6 +137,12 @@ fn type_uses_self(ty: &Type) -> bool {
 /// Rebinds source `Self` inside angle-bracketed type arguments on a path.
 ///
 /// Lifetime, const, and opaque generic arguments are left unchanged.
+///
+/// # Parameters
+///
+/// - `path`: Path whose generic arguments are updated in place.
+/// - `source`: Source type identifier used for replacement.
+/// - `generics`: Source parameters included in the replacement type.
 fn replace_self_in_path_arguments(path: &mut Path, source: &Ident, generics: &Generics) {
     for segment in &mut path.segments {
         if let PathArguments::AngleBracketed(arguments) = &mut segment.arguments {
@@ -142,6 +173,12 @@ fn replace_self_in_arguments(arguments: &mut AngleBracketedGenericArguments, sou
 /// Nested references, tuples, arrays, slices, pointers, parentheses, groups,
 /// qself roots, path type arguments, and bare function signatures are visited.
 /// Const generic arguments and unparsed token forms are preserved unchanged.
+///
+/// # Parameters
+///
+/// - `ty`: Type syntax updated in place.
+/// - `source`: Source type identifier used for replacement.
+/// - `generics`: Source parameters included in the replacement type.
 fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
     match ty {
         Type::Reference(value) => replace_self_in_type(&mut value.elem, source, generics),
@@ -159,7 +196,7 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
             for argument in &mut value.inputs {
                 replace_self_in_type(&mut argument.ty, source, generics);
             }
-            if let syn::ReturnType::Type(_, ty) = &mut value.output {
+            if let ReturnType::Type(_, ty) = &mut value.output {
                 replace_self_in_type(ty.as_mut(), source, generics);
             }
         }
@@ -189,7 +226,7 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
             .iter()
             .skip(1)
             .cloned()
-            .collect::<syn::punctuated::Punctuated<_, syn::Token![::]>>();
+            .collect::<Punctuated<_, Token![::]>>();
         if remaining.is_empty() {
             type_path.qself = None;
             type_path.path = match source_type {
@@ -197,7 +234,7 @@ fn replace_self_in_type(ty: &mut Type, source: &Ident, generics: &Generics) {
                 _ => unreachable!(),
             };
         } else {
-            type_path.qself = Some(syn::QSelf {
+            type_path.qself = Some(QSelf {
                 lt_token: Default::default(),
                 ty: Box::new(source_type),
                 position: 0,
@@ -237,9 +274,13 @@ mod tests {
             ),
         ];
         for (mut ty, expected) in cases {
-            assert!(type_uses_self(&ty));
+            assert!(type_uses_self(&ty), "Self in function syntax must be detected");
             replace_self_in_type(&mut ty, &source, &generics);
-            assert_eq!(ty.to_token_stream().to_string(), expected.to_token_stream().to_string());
+            assert_eq!(
+                ty.to_token_stream().to_string(),
+                expected.to_token_stream().to_string(),
+                "rebinding must preserve function syntax and substitute source generics"
+            );
         }
     }
 
@@ -248,16 +289,27 @@ mod tests {
         let source: Ident = parse_quote!(Source);
         let generics: Generics = parse_quote!(<'a, T, const N: usize>);
         let mut ty: Type = parse_quote!(for<'b> unsafe extern "C" fn(&'b Self) -> Self);
-        assert!(type_uses_self(&ty));
+        assert!(type_uses_self(&ty), "Self in function syntax must be detected");
         replace_self_in_type(&mut ty, &source, &generics);
         let expected: Type = parse_quote!(for<'b> unsafe extern "C" fn(&'b Source<'a, T, N>) -> Source<'a, T, N>);
-        assert_eq!(ty.to_token_stream().to_string(), expected.to_token_stream().to_string());
+        assert_eq!(
+            ty.to_token_stream().to_string(),
+            expected.to_token_stream().to_string(),
+            "rebinding must preserve function syntax and substitute source generics"
+        );
 
         let mut no_self: Type = parse_quote!(unsafe extern "C" fn(u8) -> u16);
         let original = no_self.to_token_stream().to_string();
-        assert!(!type_uses_self(&no_self));
+        assert!(
+            !type_uses_self(&no_self),
+            "Self-free syntax must not be detected as Self"
+        );
         replace_self_in_type(&mut no_self, &source, &generics);
-        assert_eq!(no_self.to_token_stream().to_string(), original);
+        assert_eq!(
+            no_self.to_token_stream().to_string(),
+            original,
+            "rebinding must preserve Self-free syntax"
+        );
     }
 
     #[test]
@@ -266,27 +318,39 @@ mod tests {
         let generics: Generics = parse_quote!(<'a, T, const N: usize>);
 
         let mut direct: Type = parse_quote!(dyn Marker<Self>);
-        assert!(type_uses_self(&direct));
+        assert!(type_uses_self(&direct), "Self in a trait argument must be detected");
         replace_self_in_type(&mut direct, &source, &generics);
         let expected: Type = parse_quote!(dyn Marker<Source<'a, T, N>>);
         assert_eq!(
             direct.to_token_stream().to_string(),
-            expected.to_token_stream().to_string()
+            expected.to_token_stream().to_string(),
+            "rebinding must preserve trait bounds and substitute source generics"
         );
 
         let mut nested: Type = parse_quote!(dyn Marker<&Self> + Send + 'a);
-        assert!(type_uses_self(&nested));
+        assert!(
+            type_uses_self(&nested),
+            "Self nested in a trait argument must be detected"
+        );
         replace_self_in_type(&mut nested, &source, &generics);
         let expected: Type = parse_quote!(dyn Marker<&Source<'a, T, N>> + Send + 'a);
         assert_eq!(
             nested.to_token_stream().to_string(),
-            expected.to_token_stream().to_string()
+            expected.to_token_stream().to_string(),
+            "rebinding must preserve trait bounds and substitute source generics"
         );
 
         let mut no_self: Type = parse_quote!(dyn Marker<String> + Send + 'a);
         let original = no_self.to_token_stream().to_string();
-        assert!(!type_uses_self(&no_self));
+        assert!(
+            !type_uses_self(&no_self),
+            "Self-free syntax must not be detected as Self"
+        );
         replace_self_in_type(&mut no_self, &source, &generics);
-        assert_eq!(no_self.to_token_stream().to_string(), original);
+        assert_eq!(
+            no_self.to_token_stream().to_string(),
+            original,
+            "rebinding must preserve Self-free syntax"
+        );
     }
 }

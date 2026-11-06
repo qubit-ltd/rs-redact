@@ -46,6 +46,7 @@ impl<'a> MultipartSegments<'a> {
     /// # Returns
     ///
     /// A constant-state borrowed iterator, or `None` for invalid framing.
+    #[must_use]
     pub(in crate::formats::http) fn new(bytes: &'a [u8], boundary: &str) -> Option<Self> {
         let delimiter = format!("--{boundary}");
         let closing = format!("{delimiter}--");
@@ -71,9 +72,21 @@ impl<'a> MultipartSegments<'a> {
 
     /// Classifies a line as a delimiter after trimming trailing spaces/tabs.
     ///
+    /// # Parameters
+    ///
+    /// * `start` - Inclusive line offset within the retained body.
+    /// * `end` - Exclusive line offset, excluding its line ending.
+    ///
+    /// # Returns
+    ///
     /// `None` means the line is not a recognized delimiter (including a
     /// non-UTF-8 line), `Some(false)` is an opening delimiter, and
     /// `Some(true)` is the closing delimiter.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `start..end` is not a valid range in the retained body.
+    #[must_use]
     fn delimiter_at(&self, start: usize, end: usize) -> Option<bool> {
         let line = std::str::from_utf8(&self.bytes[start..end]).ok()?;
         let line = line.trim_end_matches([' ', '\t']);
@@ -88,10 +101,14 @@ impl<'a> MultipartSegments<'a> {
 }
 
 impl<'a> Iterator for MultipartSegments<'a> {
+    /// Segment bytes borrowed for the lifetime of the original body.
     type Item = &'a [u8];
 
     /// Returns the next non-whitespace segment as a slice of the source body.
     ///
+    /// # Returns
+    ///
+    /// `Some` contains the next non-blank segment; `None` marks exhaustion.
     /// A malformed closing epilogue terminates iteration with `None`; the
     /// constructor's full validation pass normally detects it before replay.
     fn next(&mut self) -> Option<Self::Item> {
@@ -134,6 +151,20 @@ impl<'a> Iterator for MultipartSegments<'a> {
 ///
 /// A CR immediately before LF is excluded from the content range; an
 /// unterminated final line ends at `bytes.len()`.
+///
+/// # Parameters
+///
+/// * `bytes` - Complete body whose line boundaries are scanned.
+/// * `position` - Start offset of the line, at most `bytes.len()`.
+///
+/// # Returns
+///
+/// The content start, exclusive content end, and next scan offset.
+///
+/// # Panics
+///
+/// Panics if `position` exceeds `bytes.len()`.
+#[must_use]
 #[inline]
 fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
     if let Some(relative) = bytes[position..].iter().position(|byte| *byte == b'\n') {
@@ -146,6 +177,16 @@ fn next_line(bytes: &[u8], position: usize) -> (usize, usize, usize) {
 }
 
 /// Removes one trailing CRLF or LF sequence from a borrowed segment.
+///
+/// # Parameters
+///
+/// * `value` - Segment bytes, possibly ending with a line terminator.
+///
+/// # Returns
+///
+/// A slice borrowed from `value`, excluding one trailing line terminator if
+/// present; otherwise the original slice, without allocating.
+#[must_use]
 #[inline]
 fn strip_line_ending(value: &[u8]) -> &[u8] {
     value
@@ -162,12 +203,22 @@ mod tests {
     fn test_segments_preserve_strict_framing_cases() {
         let multiple = b"--b \t\r\nfirst\r\n--b\r\n \t\n--b\nsecond\n--b--\n \t";
         let segments = MultipartSegments::new(multiple, "b").expect("framing should be valid");
-        assert_eq!(segments.collect::<Vec<_>>(), [b"first".as_slice(), b"second"]);
+        assert_eq!(
+            segments.collect::<Vec<_>>(),
+            [b"first".as_slice(), b"second"],
+            "blank segments must be skipped without changing payloads"
+        );
 
         let empty = MultipartSegments::new(b"--b--\r\n", "b").expect("empty multipart is valid");
-        assert_eq!(empty.count(), 0);
+        assert_eq!(empty.count(), 0, "a closing delimiter alone yields no segments");
 
-        assert!(MultipartSegments::new(b"--b\r\nfirst\r\n", "b").is_none());
-        assert!(MultipartSegments::new(b"--b--\r\nnot-whitespace", "b").is_none());
+        assert!(
+            MultipartSegments::new(b"--b\r\nfirst\r\n", "b").is_none(),
+            "a closing delimiter is required"
+        );
+        assert!(
+            MultipartSegments::new(b"--b--\r\nnot-whitespace", "b").is_none(),
+            "the epilogue must contain only whitespace"
+        );
     }
 }

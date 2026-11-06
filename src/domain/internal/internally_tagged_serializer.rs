@@ -133,6 +133,11 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
     type SerializeStructVariant = Impossible<S::Ok, S::Error>;
 
     /// Preserves the destination serializer's human-readable representation.
+    ///
+    /// # Returns
+    ///
+    /// `true` when the destination requests human-readable data; `false` when
+    /// it requests a compact representation.
     #[inline(always)]
     fn is_human_readable(&self) -> bool {
         self.serializer.is_human_readable()
@@ -204,6 +209,11 @@ impl<S: Serializer> Serializer for InternallyTaggedSerializer<S> {
         self.unsupported()
     }
     /// Rejects an option payload with a value without invoking its serializer.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized serializable payload type, whose serializer is
+    ///   not invoked because option payloads are rejected.
     ///
     /// # Errors
     ///

@@ -8,5 +8,7 @@
 //! Private runtime implementation state.
 
 pub(super) mod input_capture;
+#[cfg(feature = "json")]
+pub(super) mod json_structure_preflight_error;
 pub(super) mod scalar_failure;
 pub(super) mod text_output_buffer;

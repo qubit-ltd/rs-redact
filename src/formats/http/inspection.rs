@@ -9,6 +9,7 @@
 
 use std::str;
 
+use form_urlencoded::parse as parse_form;
 use http::HeaderMap;
 use http::HeaderValue;
 use serde_json::Value;
@@ -33,6 +34,12 @@ use crate::runtime::InspectionSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Completely classifies one absolute HTTP URL.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving budget charges, classifications,
+///   and failures.
+/// * `input` - Absolute URL text to parse and classify.
 pub(crate) fn inspect_url(session: &mut InspectionSession, input: &str) {
     if !session.admit_input(input.len()) || !session.admit_format_node(1) {
         return;
@@ -48,6 +55,12 @@ pub(crate) fn inspect_url(session: &mut InspectionSession, input: &str) {
 }
 
 /// Completely classifies one HTTP header collection.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving budget charges and
+///   classifications.
+/// * `headers` - Borrowed headers, including their native sensitivity flags.
 pub(crate) fn inspect_headers(session: &mut InspectionSession, headers: &HeaderMap) {
     if !session.admit_format_node(1) {
         return;
@@ -72,6 +85,14 @@ pub(crate) fn inspect_headers(session: &mut InspectionSession, headers: &HeaderM
 }
 
 /// Completely classifies one body using a native Content-Type header.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving budget charges, classifications,
+///   and failures.
+/// * `capture` - Borrowed body bytes and source truncation metadata.
+/// * `content_type` - Native Content-Type header, or `None` to infer JSON from
+///   body bytes.
 pub(crate) fn inspect_body(
     session: &mut InspectionSession,
     capture: BodyCapture<'_>,
@@ -94,6 +115,14 @@ pub(crate) fn inspect_body(
 }
 
 /// Completely classifies one body using textual Content-Type metadata.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving budget charges, classifications,
+///   and failures.
+/// * `capture` - Borrowed body bytes and source truncation metadata.
+/// * `content_type` - Content-Type text, or `None` to infer JSON from body
+///   bytes.
 pub(crate) fn inspect_body_with_content_type_text(
     session: &mut InspectionSession,
     capture: BodyCapture<'_>,
@@ -107,6 +136,13 @@ pub(crate) fn inspect_body_with_content_type_text(
 
 /// Inspects a body after its captured bytes and content type have been
 /// admitted.
+///
+/// # Parameters
+///
+/// * `session` - Transaction whose input-byte budget has already been charged.
+/// * `capture` - Admitted borrowed body bytes and source truncation metadata.
+/// * `content_type` - Admitted Content-Type text, or `None` to infer JSON from
+///   body bytes.
 fn inspect_admitted_body(session: &mut InspectionSession, capture: BodyCapture<'_>, content_type: Option<&str>) {
     if capture.is_source_truncated() {
         if !session.admit_format_node(1) {
@@ -186,6 +222,12 @@ fn inspect_admitted_body(session: &mut InspectionSession, capture: BodyCapture<'
 
 /// Recursively classifies URL credentials, path, query, fragment, and nested
 /// URLs.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving classifications and failures.
+/// * `url` - Parsed URL whose structure has already been admitted.
+/// * `depth` - Current nested-URL depth, with zero for the outer URL.
 fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) {
     if !url.username().is_empty() {
         session.observe_sensitivity(Sensitivity::High);
@@ -233,6 +275,19 @@ fn inspect_parsed_url(session: &mut InspectionSession, url: &Url, depth: usize) 
 /// value budgets are charged during one shared admission pass before values
 /// are classified. Returns `false` after recording invalid input or an
 /// exhausted budget.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving structural budgets and
+///   classifications.
+/// * `bytes` - JSON document bytes already charged to the input budget.
+/// * `root_depth` - Structural depth of the document root.
+///
+/// # Returns
+///
+/// `true` after admission and classification; `false` after an invalid-input
+/// or budget failure has been recorded in `session`.
+#[must_use]
 pub(in crate::formats::http) fn inspect_json_bytes(
     session: &mut InspectionSession,
     bytes: &[u8],
@@ -256,6 +311,13 @@ pub(in crate::formats::http) fn inspect_json_bytes(
 }
 
 /// Classifies JSON values against HTTP body-context rules.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving sensitivity observations.
+/// * `value` - JSON value admitted under the transaction budgets.
+/// * `unkeyed` - Whether scalar values use the unkeyed-value policy rather than
+///   a field name.
 fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: bool) {
     match value {
         Value::Array(values) => {
@@ -286,6 +348,19 @@ fn inspect_json_value(session: &mut InspectionSession, value: &Value, unkeyed: b
 /// same transaction budgets. An empty top-level stream consumes one root
 /// node; nested streams rely on their already admitted multipart ancestors.
 /// Returns `false` after recording invalid input or an exhausted budget.
+///
+/// # Parameters
+///
+/// * `session` - Shared transaction receiving structural budgets and
+///   classifications.
+/// * `bytes` - NDJSON stream bytes already charged to the input budget.
+/// * `root_depth` - Structural depth assigned to each record root.
+///
+/// # Returns
+///
+/// `true` after all records and any empty-stream root are admitted; `false`
+/// after an invalid-input or budget failure has been recorded in `session`.
+#[must_use]
 pub(in crate::formats::http) fn inspect_ndjson(
     session: &mut InspectionSession,
     bytes: &[u8],
@@ -324,7 +399,7 @@ pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, by
         session.fail_inspection(RedactionReason::InvalidForm);
         return;
     }
-    for (key, _) in form_urlencoded::parse(bytes) {
+    for (key, _) in parse_form(bytes) {
         if let Some(sensitivity) = body_fields(session).sensitivity(&key) {
             session.observe_sensitivity(sensitivity);
         }
@@ -332,11 +407,31 @@ pub(in crate::formats::http) fn inspect_form(session: &mut InspectionSession, by
 }
 
 /// Returns the first non-whitespace body byte.
+///
+/// # Parameters
+///
+/// * `bytes` - Borrowed body bytes to scan without allocation.
+///
+/// # Returns
+///
+/// `Some(byte)` for the first byte that is not ASCII whitespace; `None`
+/// for an empty body or one containing only ASCII whitespace.
 fn body_first_non_whitespace(bytes: &[u8]) -> Option<u8> {
     bytes.iter().copied().find(|byte| !byte.is_ascii_whitespace())
 }
 
 /// Borrows HTTP query classification rules.
+///
+/// # Parameters
+///
+/// * `session` - Transaction lending immutable policy rules for this query
+///   context.
+///
+/// # Returns
+///
+/// A lightweight query-rule view borrowing the session policy.
+#[must_use]
+#[inline]
 fn query_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
@@ -346,6 +441,17 @@ fn query_fields(session: &InspectionSession) -> FieldRedactor<'_> {
 }
 
 /// Borrows HTTP header classification rules.
+///
+/// # Parameters
+///
+/// * `session` - Transaction lending immutable policy rules for this header
+///   context.
+///
+/// # Returns
+///
+/// A lightweight header-rule view borrowing the session policy.
+#[must_use]
+#[inline]
 fn header_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),
@@ -355,6 +461,17 @@ fn header_fields(session: &InspectionSession) -> FieldRedactor<'_> {
 }
 
 /// Borrows HTTP body classification rules.
+///
+/// # Parameters
+///
+/// * `session` - Transaction lending immutable policy rules for this body
+///   context.
+///
+/// # Returns
+///
+/// A lightweight body-rule view borrowing the session policy.
+#[must_use]
+#[inline]
 fn body_fields(session: &InspectionSession) -> FieldRedactor<'_> {
     FieldRedactor::new(
         session.policy().rules(),

@@ -8,6 +8,7 @@
 //! Generic capability bounds inferred from selected field modes.
 
 use std::collections::BTreeSet;
+use std::convert::identity;
 
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
@@ -37,6 +38,7 @@ use syn::token::Comma;
 use crate::model::ContainerData;
 use crate::model::FieldMode;
 use crate::model::FieldsData;
+
 /// Adds capability bounds needed by borrowing redaction.
 ///
 /// Bounds are added only when a field type refers to one of the input's type
@@ -228,6 +230,18 @@ pub(crate) fn generics_for_field_and_adapter(generics: &Generics, field_type: &T
 }
 
 /// Selects parameters from a token seed and closes over dependent bounds.
+///
+/// # Parameters
+///
+/// * `generics` - Original declaration whose parameters and predicates are
+///   filtered.
+/// * `seed` - Consumed tokens identifying the initially required parameters.
+///
+/// # Returns
+///
+/// A cloned declaration retaining referenced parameters and transitively
+/// related bounds; the original declaration is unchanged.
+#[must_use]
 fn generics_for_tokens(generics: &Generics, seed: TokenStream) -> Generics {
     let parameter_names = generic_parameter_names(generics);
     let mut used = BTreeSet::new();
@@ -447,6 +461,7 @@ fn token_stream_uses_parameter(tokens: TokenStream, parameters: &[String]) -> bo
 ///
 /// The original predicate when it is not recursive, or one predicate for
 /// each stored field type that participates in the recursive bound.
+#[must_use]
 pub(crate) fn non_recursive_predicates(input: &DeriveInput, predicate: WherePredicate) -> Vec<WherePredicate> {
     let WherePredicate::Type(bound) = &predicate else {
         return vec![predicate];
@@ -478,6 +493,7 @@ pub(crate) fn non_recursive_predicates(input: &DeriveInput, predicate: WherePred
 ///
 /// `Some` with the non-recursive stored types when recursion is found, or
 /// `None` when the type does not contain a supported recursive occurrence.
+#[must_use]
 fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
     let rendered = ty.to_token_stream().to_string();
     if rendered == target || rendered == "Self" {
@@ -540,6 +556,16 @@ fn recursive_types<'a>(ty: &'a Type, target: &str) -> Option<Vec<&'a Type>> {
 
 /// Returns the token-rendered identity of the derive target, including its
 /// declared generic arguments.
+///
+/// # Parameters
+///
+/// * `input` - Derive input supplying the type name and generic arguments.
+///
+/// # Returns
+///
+/// The target's token-rendered name and generic arguments for syntax
+/// comparisons.
+#[must_use]
 pub(crate) fn recursive_target(input: &DeriveInput) -> String {
     let name = &input.ident;
     let (_, arguments, _) = input.generics.split_for_impl();
@@ -547,12 +573,35 @@ pub(crate) fn recursive_target(input: &DeriveInput) -> String {
 }
 
 /// Checks whether a type syntax node names the current derived type or `Self`.
+///
+/// # Parameters
+///
+/// * `ty` - Type syntax node to compare.
+/// * `target` - Token-rendered identity returned by `recursive_target`.
+///
+/// # Returns
+///
+/// `true` when the node names the target or `Self`, and `false` otherwise.
+#[must_use]
+#[inline]
 pub(crate) fn matches_recursive_type(ty: &Type, target: &str) -> bool {
     matches_recursive_target(ty, target)
 }
 
 /// Reports whether a field type contains the complete derived target through
 /// a storage wrapper recognized by recursive bound expansion.
+///
+/// # Parameters
+///
+/// * `input` - Derive input identifying the complete recursive target.
+/// * `ty` - Field type syntax to inspect through recognized storage wrappers.
+///
+/// # Returns
+///
+/// `true` when the target or `Self` occurs through supported syntax, and
+/// `false` when no such occurrence is found.
+#[must_use]
+#[inline]
 pub(crate) fn contains_recursive_type(input: &DeriveInput, ty: &Type) -> bool {
     recursive_types(ty, &recursive_target(input)).is_some()
 }
@@ -569,6 +618,7 @@ pub(crate) fn contains_recursive_type(input: &DeriveInput, ty: &Type) -> bool {
 ///
 /// `Some(true)` for supported recursive storage, `Some(false)` for unsupported
 /// recursive storage, or `None` when the type is not recursive.
+#[must_use]
 fn nested_recursion_supported(ty: &Type, target: &str) -> Option<bool> {
     if matches_recursive_target(ty, target) {
         return Some(true);
@@ -581,7 +631,7 @@ fn nested_recursion_supported(ty: &Type, target: &str) -> Option<bool> {
                 return None;
             }
             let supported = matches!(segment.ident.to_string().as_str(), "Option" | "Box" | "Vec");
-            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
                 return None;
             };
             (
@@ -608,7 +658,7 @@ fn nested_recursion_supported(ty: &Type, target: &str) -> Option<bool> {
     if nested_results.is_empty() {
         None
     } else {
-        Some(supported_wrapper && nested_results.into_iter().all(std::convert::identity))
+        Some(supported_wrapper && nested_results.into_iter().all(identity))
     }
 }
 
@@ -622,6 +672,7 @@ fn nested_recursion_supported(ty: &Type, target: &str) -> Option<bool> {
 /// # Returns
 ///
 /// `true` when the syntax node names the recursive target.
+#[must_use]
 fn matches_recursive_target(ty: &Type, target: &str) -> bool {
     let rendered = ty.to_token_stream().to_string();
     rendered == target || rendered == "Self"

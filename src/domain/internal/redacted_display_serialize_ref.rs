@@ -17,6 +17,12 @@ use crate::RedactionPolicy;
 use crate::Sensitivity;
 
 /// Keeps the textual adapter alive for the complete field serialization.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed source field.
+/// - `'policy`: Independent lifetime of the borrowed serialization policy.
+/// - `T`: Possibly unsized source type; serialization requires [`Display`].
 #[doc(hidden)]
 pub struct RedactedDisplaySerializeRef<'value, 'policy, T: ?Sized> {
     /// Borrowed raw field, never formatted at construction.

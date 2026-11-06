@@ -20,7 +20,16 @@ pub(crate) struct MaskedJsonText<'a> {
 }
 
 impl<'a> MaskedJsonText<'a> {
-    /// Creates a lazy masked text view.
+    /// Creates a lazy masked text view without allocating or masking yet.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Masking algorithm borrowed for the lifetime of the view.
+    /// - `value`: Source string borrowed for the same lifetime.
+    ///
+    /// # Returns
+    ///
+    /// A view that applies the policy when formatted.
     #[must_use]
     #[inline]
     pub(crate) const fn new(policy: &'a MaskPolicy, value: &'a str) -> Self {
@@ -29,6 +38,20 @@ impl<'a> MaskedJsonText<'a> {
 }
 
 impl fmt::Display for MaskedJsonText<'_> {
+    /// Streams the masked source string into the supplied formatter.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination receiving the masked text.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when all masked text has been written.
+    ///
+    /// # Errors
+    ///
+    /// Returns the destination's formatting error if writing fails.
+    #[inline]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.policy.write_masked(self.value, formatter)
     }

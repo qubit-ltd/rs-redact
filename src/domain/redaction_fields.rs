@@ -9,6 +9,9 @@
 
 use std::fmt::Debug;
 
+#[cfg(feature = "json")]
+use serde_json::Value;
+
 use crate::Sensitivity;
 use crate::domain::Redact;
 use crate::domain::RedactLevelValue;
@@ -17,6 +20,14 @@ use crate::domain::internal::resolve_keyed_field;
 use crate::policy::ResolvedField;
 
 /// Provides bounded redaction operations for named domain fields.
+///
+/// The scope is supplied by [`RedactionWriter::record`], `tuple`, or
+/// `transparent`; it borrows the writer and shares its session limits.
+///
+/// # Type Parameters
+///
+/// * `'writer` - Temporary borrow of the domain writer for this scope.
+/// * `'session` - Lifetime of the session borrowed by that writer.
 ///
 /// # Examples
 ///
@@ -133,6 +144,25 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// value whose classification depends on runtime policy. Every field
     /// requiring redaction must use [`Self::sensitive_at_least`] or another
     /// redaction-aware writer method instead.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `access` - Lazy source accessor, evaluated only when this operation
+    ///   needs the value.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    ///
+    /// # Panics
+    ///
+    /// Propagates accessor or formatter panics when rendering needs the value.
     pub fn unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -151,6 +181,25 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// This is the derive-facing semantic alias for [`Self::unredacted`] and
     /// carries the same trust-boundary requirements.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `access` - Lazy source accessor, evaluated only when this operation
+    ///   needs the value.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    ///
+    /// # Panics
+    ///
+    /// Propagates accessor or formatter panics when rendering needs the value.
     #[inline]
     pub fn unmarked<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
@@ -180,6 +229,11 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// [`Sensitivity::Secret`]: a disabled policy restores source values and
     /// therefore evaluates the closure. Lower effective sensitivity levels
     /// may also require the raw value to produce a partial mask.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
     ///
     /// # Parameters
     ///
@@ -254,6 +308,21 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// values. This is the sealed-value contract used by derive expansion:
     /// callers choose the exact level for every scalar leaf, and policy rules
     /// classify surrounding named fields without changing those leaf levels.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Supported scalar or recursive container with level-aware
+    ///   redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` - Exact sensitivity applied to each scalar leaf.
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     #[doc(hidden)]
     pub fn sensitive_value_exact<T>(&mut self, level: Sensitivity, name: &str, value: &T) -> &mut Self
     where
@@ -292,6 +361,10 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// * `name` - Display label and field-admission name.
     /// * `value` - JSON text to parse and redact.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     #[cfg(feature = "json")]
     pub fn json(&mut self, name: &str, value: &str) -> &mut Self {
         if !self.admit_field(name) {
@@ -325,8 +398,12 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     ///
     /// * `name` - Display label and field-admission name.
     /// * `value` - Parsed JSON value to redact.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     #[cfg(feature = "json")]
-    pub fn json_value(&mut self, name: &str, value: &serde_json::Value) -> &mut Self {
+    pub fn json_value(&mut self, name: &str, value: &Value) -> &mut Self {
         if !self.admit_field(name) {
             self.write_field_truncated();
             return self;
@@ -340,8 +417,22 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Writes a supported JSON string variant through its sealed capability.
-    #[cfg(feature = "json")]
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Supported JSON string representation.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     #[doc(hidden)]
+    #[cfg(feature = "json")]
+    #[inline]
     pub fn json_text_value<T>(&mut self, name: &str, value: &T) -> &mut Self
     where
         T: super::RedactJsonValue + ?Sized,
@@ -361,10 +452,18 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     /// admission fails, a safe replacement is written within the current
     /// transaction budget. Nested output shares this transaction's budget.
     ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Domain value implementing recursive redaction.
+    ///
     /// # Parameters
     ///
     /// * `name` - Display label and field-admission name.
     /// * `value` - Nested domain value to redact.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     pub fn nested<T>(&mut self, name: &str, value: &T) -> &mut Self
     where
         T: Redact + ?Sized,
@@ -382,11 +481,321 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
+    /// Writes a supported map with an explicit key sensitivity.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Supported map with level-aware key and value redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Borrowed source value to write through this scope.
+    /// * `key_level` - Sensitivity applied to each map key.
+    /// * `value_level` - `Some(level)` applies that exact value level; `None`
+    ///   leaves values unmarked.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    #[doc(hidden)]
+    #[inline]
+    pub fn map_level_values<T>(
+        &mut self,
+        name: &str,
+        value: &T,
+        key_level: Sensitivity,
+        value_level: Option<Sensitivity>,
+    ) -> &mut Self
+    where
+        T: super::RedactMapKeyValue + ?Sized,
+    {
+        value.write_redacted_map_levels(self, name, key_level, value_level);
+        self
+    }
+
+    /// Writes a supported map field through its sealed capability.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Supported map exposing its sealed redaction capability.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    #[inline]
+    pub fn map<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: super::RedactMapValue,
+    {
+        value.write_redacted_map(self, name);
+        self
+    }
+
+    /// Writes a supported map field through its sealed capability.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Supported map exposing its sealed redaction capability.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    #[doc(hidden)]
+    #[inline]
+    pub fn map_value<T>(&mut self, name: &str, value: &T) -> &mut Self
+    where
+        T: super::RedactMapValue,
+    {
+        self.map(name, value)
+    }
+
+    /// Writes a value whose sensitivity is selected by a sibling policy key.
+    ///
+    /// The output field name remains `name`, while `key` is the runtime text
+    /// used for policy lookup. This matches map-entry classification semantics:
+    /// pass-through keys preserve the value, and sensitive keys redact it at
+    /// the policy-selected level.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `K` - Possibly unsized key exposing policy lookup text.
+    /// * `T` - Possibly unsized debug value with level-aware redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `key` - Business key used for policy classification.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    #[doc(hidden)]
+    pub fn keyed_value<K, T>(&mut self, name: &str, key: &K, value: &T) -> &mut Self
+    where
+        K: AsRef<str> + ?Sized,
+        T: RedactLevelValue + Debug + ?Sized,
+    {
+        if !self.admit_field(name) {
+            self.write_field_truncated();
+            return self;
+        }
+        let key = key.as_ref();
+        if !self.writer.session.admit_domain_key(key) {
+            self.write_field_truncated();
+            return self;
+        }
+        let policy = self.writer.session.policy();
+        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
+        if self.writer.session.is_inspection() {
+            if let Some(ResolvedField::Sensitive { sensitivity }) = resolved {
+                self.writer.session.observe_sensitivity(sensitivity);
+            }
+            return self;
+        }
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        match resolved {
+            Some(ResolvedField::Sensitive { sensitivity }) => {
+                value.write_redacted_level(self.writer, sensitivity);
+            }
+            Some(ResolvedField::PassThrough) | None => self.writer.write_debug(&value),
+        }
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Writes a lazy debug value classified by a business key.
+    ///
+    /// `name` is only the displayed field label; `key` selects the complete
+    /// runtime policy, including floors and unknown-field handling. High and
+    /// secret rules avoid evaluating `access`. Pass-through and disabled policy
+    /// preserve the value. Inspection never evaluates the accessor.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Field label used in the diagnostic representation.
+    /// * `key` - Business key used for policy classification.
+    /// * `access` - Source accessor, invoked only after admission when needed.
+    ///
+    /// # Returns
+    /// This scope for further field operations.
+    ///
+    /// # Panics
+    /// Propagates accessor or formatter panics when rendering needs the value.
+    pub fn keyed<T, F>(&mut self, name: &str, key: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        if !self.admit_field(name) {
+            self.write_field_truncated();
+            return self;
+        }
+        if !self.writer.session.admit_domain_key(key) {
+            self.write_field_truncated();
+            return self;
+        }
+        let policy = self.writer.session.policy();
+        let resolved = if policy.is_disabled() {
+            ResolvedField::PassThrough
+        } else {
+            resolve_keyed_field(policy, key)
+        };
+        match resolved {
+            ResolvedField::PassThrough => self.write_admitted_unredacted(name, access),
+            ResolvedField::Sensitive { sensitivity } => {
+                if self.writer.session.is_inspection() {
+                    self.writer.session.observe_sensitivity(sensitivity);
+                    return self;
+                }
+                self.write_prefix(name);
+                if !self.writer.can_write() {
+                    return self;
+                }
+                if matches!(sensitivity, Sensitivity::High | Sensitivity::Secret) {
+                    let masked = self
+                        .writer
+                        .session
+                        .policy()
+                        .masking()
+                        .mask_opaque_bounded(sensitivity, self.writer.remaining_output_bytes());
+                    self.writer.write_debug(&masked);
+                } else {
+                    self.writer.write_masked_debug(sensitivity, &access());
+                }
+                self.writer.write_fragment(", ");
+                self
+            }
+        }
+    }
+
+    /// Writes a structured value classified by a sibling business key.
+    ///
+    /// A pass-through outer key does not turn the child into an unclassified
+    /// `Debug` value: the child is written through [`Redact`] and can still
+    /// apply rules to its own fields.  A sensitive outer key masks the whole
+    /// payload, which is the only safe treatment when the business key
+    /// classifies the payload itself.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Possibly unsized domain value supporting redaction and debug
+    ///   output.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `key` - Business key used for policy classification.
+    /// * `value` - Borrowed source value to write through this scope.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    pub fn keyed_nested<T>(&mut self, name: &str, key: &str, value: &T) -> &mut Self
+    where
+        T: Redact + Debug + ?Sized,
+    {
+        if !self.admit_field(name) || !self.writer.session.admit_domain_key(key) {
+            self.write_field_truncated();
+            return self;
+        }
+        let policy = self.writer.session.policy();
+        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
+        if self.writer.session.is_inspection() {
+            match resolved {
+                Some(ResolvedField::Sensitive { sensitivity }) => {
+                    self.writer.session.observe_sensitivity(sensitivity);
+                }
+                Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
+            }
+            return self;
+        }
+        self.write_prefix(name);
+        if !self.writer.can_write() {
+            return self;
+        }
+        match resolved {
+            Some(ResolvedField::Sensitive { sensitivity }) => {
+                self.writer.write_masked_debug(sensitivity, value);
+            }
+            Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
+        }
+        self.writer.write_fragment(", ");
+        self
+    }
+
+    /// Omits a field while redaction is enabled and restores it when disabled.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `access` - Lazy source accessor, evaluated only when this operation
+    ///   needs the value.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
+    ///
+    /// # Panics
+    ///
+    /// Propagates accessor or formatter panics when rendering needs the value.
+    pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
+    where
+        T: Debug,
+        F: FnOnce() -> T,
+    {
+        if self.writer.session.policy().is_disabled() {
+            self.unredacted(name, access)
+        } else {
+            self
+        }
+    }
+
     /// Writes admitted entries from a supported text-keyed map.
     ///
-    /// Each entry is admitted before the iterator advances. Sensitive keys use
+    /// Budget preflight precedes iterator advancement; yielded entries and
+    /// keys are then admitted before rendering. Sensitive keys use
     /// the active runtime policy; keys not selected by that policy retain their
     /// debug representation.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `I` - Consumed iterator source of owned or borrowed key/value pairs.
+    /// * `K` - Debug key exposing text for policy lookup.
+    /// * `V` - Debug value supporting level-aware redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `entries` - Iterator source consumed as entries are admitted.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     pub(crate) fn map_entries<I, K, V>(&mut self, name: &str, entries: I) -> &mut Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -490,7 +899,26 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
-    /// Writes map keys at a fixed level and leaves values unmarked.
+    /// Writes map keys at a fixed level, optionally fixing the value level too.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'value` - Lifetime of the borrowed keys and values.
+    /// * `I` - Consumed iterator source of borrowed key/value pairs.
+    /// * `K` - Key supporting level-aware redaction.
+    /// * `V` - Debug value supporting level-aware redaction.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    /// * `entries` - Iterator source consumed as entries are admitted.
+    /// * `key_level` - Sensitivity applied to each map key.
+    /// * `value_level` - `Some(level)` applies that exact value level; `None`
+    ///   leaves values unmarked.
+    ///
+    /// # Returns
+    ///
+    /// This scope for continued chained field output.
     pub(crate) fn map_key_level_entries<'value, I, K, V>(
         &mut self,
         name: &str,
@@ -517,203 +945,27 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self
     }
 
-    /// Writes a supported map with an explicit key sensitivity.
-    #[doc(hidden)]
-    pub fn map_level_values<T>(
-        &mut self,
-        name: &str,
-        value: &T,
-        key_level: Sensitivity,
-        value_level: Option<Sensitivity>,
-    ) -> &mut Self
-    where
-        T: super::RedactMapKeyValue + ?Sized,
-    {
-        value.write_redacted_map_levels(self, name, key_level, value_level);
-        self
-    }
-
-    /// Writes a supported map field through its sealed capability.
-    pub fn map<T>(&mut self, name: &str, value: &T) -> &mut Self
-    where
-        T: super::RedactMapValue,
-    {
-        value.write_redacted_map(self, name);
-        self
-    }
-
-    /// Writes a supported map field through its sealed capability.
-    #[doc(hidden)]
-    pub fn map_value<T>(&mut self, name: &str, value: &T) -> &mut Self
-    where
-        T: super::RedactMapValue,
-    {
-        self.map(name, value)
-    }
-
-    /// Writes a value whose sensitivity is selected by a sibling policy key.
+    /// Writes an unredacted field after its structural node was admitted by
+    /// the calling field operation.
     ///
-    /// The output field name remains `name`, while `key` is the runtime text
-    /// used for policy lookup. This matches map-entry classification semantics:
-    /// pass-through keys preserve the value, and sensitive keys redact it at
-    /// the policy-selected level.
-    #[doc(hidden)]
-    pub fn keyed_value<K, T>(&mut self, name: &str, key: &K, value: &T) -> &mut Self
-    where
-        K: AsRef<str> + ?Sized,
-        T: RedactLevelValue + Debug + ?Sized,
-    {
-        if !self.admit_field(name) {
-            self.write_field_truncated();
-            return self;
-        }
-        let key = key.as_ref();
-        if !self.writer.session.admit_domain_key(key) {
-            self.write_field_truncated();
-            return self;
-        }
-        let policy = self.writer.session.policy();
-        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
-        if self.writer.session.is_inspection() {
-            if let Some(ResolvedField::Sensitive { sensitivity }) = resolved {
-                self.writer.session.observe_sensitivity(sensitivity);
-            }
-            return self;
-        }
-        self.write_prefix(name);
-        if !self.writer.can_write() {
-            return self;
-        }
-        match resolved {
-            Some(ResolvedField::Sensitive { sensitivity }) => {
-                value.write_redacted_level(self.writer, sensitivity);
-            }
-            Some(ResolvedField::PassThrough) | None => self.writer.write_debug(&value),
-        }
-        self.writer.write_fragment(", ");
-        self
-    }
-
-    /// Writes a lazy debug value classified by a business key.
+    /// # Type Parameters
     ///
-    /// `name` is only the displayed field label; `key` selects the complete
-    /// runtime policy, including floors and unknown-field handling. High and
-    /// secret rules avoid evaluating `access`. Pass-through and disabled policy
-    /// preserve the value. Inspection never evaluates the accessor.
+    /// * `T` - Debug value produced by the accessor.
+    /// * `F` - One-shot lazy accessor for the source value.
     ///
     /// # Parameters
     ///
-    /// * `name` - Field label used in the diagnostic representation.
-    /// * `key` - Business key used for policy classification.
-    /// * `access` - Source accessor, invoked only after admission when needed.
+    /// * `name` - Display label and field-admission name.
+    /// * `access` - Lazy source accessor, evaluated only when this operation
+    ///   needs the value.
     ///
     /// # Returns
-    /// This scope for further field operations.
+    ///
+    /// This scope for continued chained field output.
     ///
     /// # Panics
-    /// Propagates accessor or formatter panics when rendering needs the value.
-    pub fn keyed<T, F>(&mut self, name: &str, key: &str, access: F) -> &mut Self
-    where
-        T: Debug,
-        F: FnOnce() -> T,
-    {
-        if !self.admit_field(name) {
-            self.write_field_truncated();
-            return self;
-        }
-        if !self.writer.session.admit_domain_key(key) {
-            self.write_field_truncated();
-            return self;
-        }
-        let policy = self.writer.session.policy();
-        let resolved = if policy.is_disabled() {
-            ResolvedField::PassThrough
-        } else {
-            resolve_keyed_field(policy, key)
-        };
-        match resolved {
-            ResolvedField::PassThrough => self.write_admitted_unredacted(name, access),
-            ResolvedField::Sensitive { sensitivity } => {
-                if self.writer.session.is_inspection() {
-                    self.writer.session.observe_sensitivity(sensitivity);
-                    return self;
-                }
-                self.write_prefix(name);
-                if !self.writer.can_write() {
-                    return self;
-                }
-                if matches!(sensitivity, Sensitivity::High | Sensitivity::Secret) {
-                    let masked = self
-                        .writer
-                        .session
-                        .policy()
-                        .masking()
-                        .mask_opaque_bounded(sensitivity, self.writer.remaining_output_bytes());
-                    self.writer.write_debug(&masked);
-                } else {
-                    self.writer.write_masked_debug(sensitivity, &access());
-                }
-                self.writer.write_fragment(", ");
-                self
-            }
-        }
-    }
-
-    /// Writes a structured value classified by a sibling business key.
     ///
-    /// A pass-through outer key does not turn the child into an unclassified
-    /// `Debug` value: the child is written through [`Redact`] and can still
-    /// apply rules to its own fields.  A sensitive outer key masks the whole
-    /// payload, which is the only safe treatment when the business key
-    /// classifies the payload itself.
-    pub fn keyed_nested<T>(&mut self, name: &str, key: &str, value: &T) -> &mut Self
-    where
-        T: Redact + Debug + ?Sized,
-    {
-        if !self.admit_field(name) || !self.writer.session.admit_domain_key(key) {
-            self.write_field_truncated();
-            return self;
-        }
-        let policy = self.writer.session.policy();
-        let resolved = (!policy.is_disabled()).then(|| resolve_keyed_field(policy, key));
-        if self.writer.session.is_inspection() {
-            match resolved {
-                Some(ResolvedField::Sensitive { sensitivity }) => {
-                    self.writer.session.observe_sensitivity(sensitivity);
-                }
-                Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
-            }
-            return self;
-        }
-        self.write_prefix(name);
-        if !self.writer.can_write() {
-            return self;
-        }
-        match resolved {
-            Some(ResolvedField::Sensitive { sensitivity }) => {
-                self.writer.write_masked_debug(sensitivity, value);
-            }
-            Some(ResolvedField::PassThrough) | None => value.write_redacted(self.writer),
-        }
-        self.writer.write_fragment(", ");
-        self
-    }
-
-    /// Omits a field while redaction is enabled and restores it when disabled.
-    pub fn skipped<T, F>(&mut self, name: &str, access: F) -> &mut Self
-    where
-        T: Debug,
-        F: FnOnce() -> T,
-    {
-        if self.writer.session.policy().is_disabled() {
-            self.unredacted(name, access)
-        } else {
-            self
-        }
-    }
-
-    /// Writes an unredacted field after its structural node was admitted by
-    /// the calling field operation.
+    /// Propagates accessor or formatter panics when rendering needs the value.
     fn write_admitted_unredacted<T, F>(&mut self, name: &str, access: F) -> &mut Self
     where
         T: Debug,
@@ -733,7 +985,17 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
     }
 
     /// Returns whether the next field may be inspected.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
+    ///
+    /// # Returns
+    ///
+    /// `true` if admission succeeded; `false` if the current limits reject the
+    /// field or item.
     #[must_use]
+    #[inline]
     fn admit_field(&mut self, name: &str) -> bool {
         if self.writer.session.domain_frame_is_truncated() || !self.writer.can_write() {
             return false;
@@ -741,13 +1003,22 @@ impl<'writer, 'session> RedactionFields<'writer, 'session> {
         self.writer.session.admit_domain_field() && self.writer.session.admit_domain_key(name)
     }
 
-    /// Admits one tuple item against the active collection limit.
+    /// Admits one map entry against the active collection limit.
+    ///
+    /// # Returns
+    ///
+    /// `true` if admission succeeded; `false` if the current limits reject the
+    /// field or item.
     #[inline]
     fn admit_item(&mut self) -> bool {
         !self.writer.session.domain_frame_is_truncated() && self.writer.session.admit_domain_collection_item()
     }
 
     /// Writes the field-name prefix for named structures.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - Display label and field-admission name.
     fn write_prefix(&mut self, name: &str) {
         if self.named {
             self.writer.write_fragment(name);

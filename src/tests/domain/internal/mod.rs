@@ -8,3 +8,5 @@
 //! Internal domain contracts that require crate-private access.
 
 mod keyed_policy_tests;
+#[cfg(feature = "json")]
+mod redact_level_serialize_tests;

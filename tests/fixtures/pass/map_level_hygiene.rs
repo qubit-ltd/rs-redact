@@ -5,7 +5,8 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Map-level generated tokens remain hygienic when `Some` and `None` are shadowed.
+//! Map-level generated tokens remain hygienic when `Some` and `None` are
+//! shadowed.
 
 use std::collections::BTreeMap;
 

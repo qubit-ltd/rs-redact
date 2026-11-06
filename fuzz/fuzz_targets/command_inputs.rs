@@ -169,7 +169,7 @@ fn assert_non_utf8_environment_is_redacted(data: &[u8]) {
     value_bytes.extend_from_slice(FUZZ_SECRET.as_bytes());
     value_bytes.extend_from_slice(&data[..data.len().min(16)]);
     let value = OsString::from_vec(value_bytes);
-    let redacted = redact_os_environment_pair(std::ffi::OsStr::new("PASSWORD"), &value);
+    let redacted = redact_os_environment_pair(OsStr::new("PASSWORD"), &value);
     assert!(!redacted.contains(FUZZ_SECRET));
 
     let key = OsString::from_vec(b"PASS\xffWORD".to_vec());
@@ -190,6 +190,7 @@ fn assert_non_utf8_argv_is_redacted() {
 }
 
 /// Redacts argv with option-name heuristics through one complete transaction.
+#[must_use]
 #[cfg(not(test))]
 fn redact_argv_heuristically<'a, I>(items: I) -> String
 where
@@ -206,9 +207,10 @@ where
 
 /// Redacts a possibly non-UTF-8 environment assignment through the shared
 /// session adapter.
+#[must_use]
 #[cfg(unix)]
 #[cfg(not(test))]
-fn redact_os_environment_pair(name: &std::ffi::OsStr, value: &std::ffi::OsStr) -> String {
+fn redact_os_environment_pair(name: &OsStr, value: &OsStr) -> String {
     let output = Redactor::standard()
         .text_composer()
         .env(|env| {
@@ -247,6 +249,8 @@ fuzz_target!(|data: &[u8]| {
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStrExt;
 
     use super::raw_tokens;
 
@@ -270,7 +274,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_rr2_raw_argv_preserves_non_utf8_bytes() {
-        use std::os::unix::ffi::OsStrExt;
         let tokens = raw_tokens(&[2, 0xff, b'=']);
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0].as_bytes(), [0xff, b'=']);

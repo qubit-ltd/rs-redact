@@ -9,7 +9,7 @@
 
 use std::fmt::Write;
 
-#[path = "support/log_safety.rs"]
+#[path = "../tests/log_safety_tests/support/log_safety.rs"]
 mod log_safety;
 
 use http::HeaderValue;
@@ -22,6 +22,15 @@ use qubit_redact::formats::http::BodyCapture;
 const FUZZ_SECRET: &str = "http-body-fuzz-secret-427b93e1";
 
 /// Encodes arbitrary bytes for use in valid structured bodies.
+///
+/// # Parameters
+///
+/// - `input`: Bytes to encode, limited to the first 2,048 bytes.
+///
+/// # Returns
+///
+/// Lowercase hexadecimal text, with two characters per encoded byte.
+#[must_use]
 fn encoded_noise(input: &[u8]) -> String {
     let mut encoded = String::with_capacity(input.len().saturating_mul(2));
     for byte in input.iter().take(2_048) {
@@ -31,6 +40,15 @@ fn encoded_noise(input: &[u8]) -> String {
 }
 
 /// Checks the publication invariants shared by every fuzzed operation.
+///
+/// # Parameters
+///
+/// - `output`: Redacted output whose published text is checked.
+/// - `max_output_bytes`: Inclusive byte limit imposed by the active policy.
+///
+/// # Panics
+///
+/// Panics if the text exceeds the byte limit or contains log-unsafe characters.
 fn assert_output_invariants(output: &RedactionTextOutput, max_output_bytes: usize) {
     let text = output.text().as_str();
     assert!(text.len() <= max_output_bytes);

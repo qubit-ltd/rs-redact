@@ -35,27 +35,6 @@ pub(crate) struct JsonStructureAdmission<'runtime> {
 }
 
 impl<'runtime> JsonStructureAdmission<'runtime> {
-    /// Returns a read-only structural capacity snapshot for a nested JSON root.
-    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
-        self.structural.json_preflight(root_depth)
-    }
-
-    /// Records a preflight rejection in both transaction and active summaries.
-    pub(crate) fn reject_preflight(&mut self, reason: JsonStructurePreflightError) {
-        let reason = match reason {
-            // Invalid JSON is replaced by the JSON adapter, which records
-            // `InvalidJson` on that complete safe replacement. Recording a
-            // truncated summary here would incorrectly degrade the operation.
-            JsonStructurePreflightError::Invalid => return,
-            JsonStructurePreflightError::DepthLimit => RedactionReason::DepthLimitReached,
-            JsonStructurePreflightError::TraversalLimit => {
-                self.structural.close_traversal();
-                RedactionReason::TraversalLimitReached
-            }
-        };
-        self.record_summary(RedactionSummary::truncated(reason));
-    }
-
     /// Creates a narrow admission capability from disjoint runtime borrows.
     ///
     /// # Parameters
@@ -87,6 +66,45 @@ impl<'runtime> JsonStructureAdmission<'runtime> {
             summary,
             active_operation_summary,
         }
+    }
+
+    /// Returns a read-only structural capacity snapshot for a nested JSON root.
+    ///
+    /// # Parameters
+    ///
+    /// - `root_depth`: Root-inclusive depth of the nested JSON root.
+    ///
+    /// # Returns
+    ///
+    /// Remaining structural capacity without consuming the shared budget.
+    #[must_use]
+    #[inline]
+    pub(crate) fn json_preflight(&self, root_depth: usize) -> JsonStructurePreflight {
+        self.structural.json_preflight(root_depth)
+    }
+
+    /// Records a preflight rejection in both transaction and active summaries.
+    ///
+    /// Invalid JSON leaves accounting unchanged because the JSON adapter
+    /// records its safe replacement. Traversal rejection also closes
+    /// further admission.
+    ///
+    /// # Parameters
+    ///
+    /// - `reason`: Validation failure to translate into structural truncation.
+    pub(crate) fn reject_preflight(&mut self, reason: JsonStructurePreflightError) {
+        let reason = match reason {
+            // Invalid JSON is replaced by the JSON adapter, which records
+            // `InvalidJson` on that complete safe replacement. Recording a
+            // truncated summary here would incorrectly degrade the operation.
+            JsonStructurePreflightError::Invalid => return,
+            JsonStructurePreflightError::DepthLimit => RedactionReason::DepthLimitReached,
+            JsonStructurePreflightError::TraversalLimit => {
+                self.structural.close_traversal();
+                RedactionReason::TraversalLimitReached
+            }
+        };
+        self.record_summary(RedactionSummary::truncated(reason));
     }
 
     /// Admits one JSON node at its root-inclusive structural depth.

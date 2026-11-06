@@ -17,6 +17,13 @@ use super::redact_serialize_scope::RedactSerializeScope;
 ///
 /// Serialization parses the source as JSON, applies the policy's redaction
 /// and resource limits, and forwards the result to the destination serializer.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed JSON text source.
+/// - `'policy`: Lifetime of the borrowed redaction policy.
+/// - `T`: Possibly unsized source type; serialization requires
+///   [`RedactJsonSerialize`].
 #[doc(hidden)]
 #[cfg(feature = "json")]
 pub struct RedactedJsonSerializeRef<'value, 'policy, T: ?Sized> {

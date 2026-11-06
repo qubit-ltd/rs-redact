@@ -20,6 +20,11 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// input-byte budgets before its explicit or heuristic classification is
 /// observed. Inspection stops as soon as any required budget admission fails.
 ///
+/// # Type Parameters
+///
+/// - `'items`: Lifetime of the argument values borrowed by the items.
+/// - `I`: Input collection or iterator yielding borrowed argument items.
+///
 /// # Parameters
 ///
 /// - `session`: Transaction state that supplies policy, shared budgets, and the

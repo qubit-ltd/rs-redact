@@ -44,6 +44,16 @@ pub struct RedactionRules {
 
 impl RedactionRules {
     /// Creates immutable rules from application rules and an optional floor.
+    ///
+    /// # Parameters
+    ///
+    /// - `application`: Owned application rules to share between snapshot
+    ///   clones.
+    /// - `floor`: Minimum protection to attach, or `None` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// A snapshot sharing the application rules and owning the optional floor.
     #[must_use]
     #[inline(always)]
     pub(crate) fn new(application: RedactionPolicyInner, floor: Option<RedactionFloor>) -> Self {
@@ -59,6 +69,7 @@ impl RedactionRules {
     ///
     /// `Some(&RedactionFloor)` when a floor is enabled, or `None` when no
     /// floor is attached.
+    #[must_use]
     #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.floor.as_ref()
@@ -76,6 +87,7 @@ impl RedactionRules {
     /// `Some(sensitivity)` when an application rule, application unknown-field
     /// fallback, or floor layer yields a sensitivity, using the strongest
     /// result; `None` when none of those sources yields a sensitivity.
+    #[must_use]
     #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field(field) {
@@ -114,6 +126,7 @@ impl RedactionRules {
     ///
     /// An iterator over the application's explicit sensitive rules. Floor
     /// rules are not included.
+    #[inline]
     pub fn application_sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.application
             .sensitive
@@ -127,6 +140,7 @@ impl RedactionRules {
     ///
     /// An iterator over the application's exact and suffix allow rules. Floor
     /// rules are not included, and these allow rules do not bypass a floor.
+    #[inline]
     pub fn application_allow_rules(&self) -> impl Iterator<Item = AllowRule<'_>> {
         self.application
             .allow_exact
@@ -138,6 +152,50 @@ impl RedactionRules {
                     .iter()
                     .map(|field| AllowRule::new(field, FieldNameMatching::ExactOrTokenSuffix)),
             )
+    }
+
+    /// Explains application-rule matching only; it is not the final safety
+    /// decision.
+    ///
+    /// A result of [`FieldClassification::Unknown`] describes only the
+    /// application layer. A floor can still classify that field, so consult
+    /// [`Self::sensitivity_for`] for the final result.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `'a`: Lifetime of rule names borrowed from this snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to explain against application rules.
+    ///
+    /// # Returns
+    ///
+    /// The application-layer explanation. It must not be used as the final
+    /// confidentiality decision.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use qubit_redact::{FieldClassification, RedactionFloor, RedactionPolicy, Sensitivity};
+    ///
+    /// let floor = RedactionFloor::builder()
+    ///     .raise("provider_pin", Sensitivity::Secret)?
+    ///     .build()?;
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| { fields.disable_floor(); })?
+    ///     .build()?
+    ///     .with_floor(floor);
+    /// let rules = policy.rules();
+    ///
+    /// assert_eq!(rules.classify_field("provider_pin"), FieldClassification::Unknown);
+    /// assert_eq!(rules.sensitivity_for("provider_pin"), Some(Sensitivity::Secret));
+    /// # Ok::<(), qubit_redact::PolicyError>(())
+    /// ```
+    #[must_use]
+    #[inline(always)]
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
+        classify_inner(&self.application, field, self.application.matching, true)
     }
 
     /// Replaces the floor for this rules snapshot.
@@ -246,47 +304,17 @@ impl RedactionRules {
         self
     }
 
-    /// Explains application-rule matching only; it is not the final safety
-    /// decision.
-    ///
-    /// A result of [`FieldClassification::Unknown`] describes only the
-    /// application layer. A floor can still classify that field, so consult
-    /// [`Self::sensitivity_for`] for the final result.
+    /// Resolves final sensitivity using exact-only matching in both layers.
     ///
     /// # Parameters
     ///
-    /// - `field`: Field name to explain against application rules.
+    /// - `field`: Field name to resolve without token-suffix matching.
     ///
     /// # Returns
     ///
-    /// The application-layer explanation. It must not be used as the final
-    /// confidentiality decision.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use qubit_redact::{FieldClassification, RedactionFloor, RedactionPolicy, Sensitivity};
-    ///
-    /// let floor = RedactionFloor::builder()
-    ///     .raise("provider_pin", Sensitivity::Secret)?
-    ///     .build()?;
-    /// let policy = RedactionPolicy::builder()
-    ///     .fields(|fields| { fields.disable_floor(); })?
-    ///     .build()?
-    ///     .with_floor(floor);
-    /// let rules = policy.rules();
-    ///
-    /// assert_eq!(rules.classify_field("provider_pin"), FieldClassification::Unknown);
-    /// assert_eq!(rules.sensitivity_for("provider_pin"), Some(Sensitivity::Secret));
-    /// # Ok::<(), qubit_redact::PolicyError>(())
-    /// ```
+    /// `Some(level)` for the strongest application or floor requirement, or
+    /// `None` when both layers permit pass-through.
     #[must_use]
-    #[inline(always)]
-    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
-        classify_inner(&self.application, field, self.application.matching, true)
-    }
-
-    /// Resolves final sensitivity using exact-only matching in both layers.
     #[inline(always)]
     pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         match self.resolve_field_exact(field) {
@@ -296,6 +324,16 @@ impl RedactionRules {
     }
 
     /// Resolves exact-only sensitivity from application and floor rules.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to resolve without token-suffix matching.
+    ///
+    /// # Returns
+    ///
+    /// The strongest layer decision, or pass-through when neither requires
+    /// redaction.
+    #[must_use]
     pub(crate) fn resolve_field_exact(&self, field: &str) -> ResolvedField {
         let application = sensitivity_inner(&self.application, field, FieldNameMatching::Exact, true);
         let floor = self.floor.as_ref().and_then(|floor| {
@@ -309,18 +347,46 @@ impl RedactionRules {
     }
 
     /// Resolves final sensitivity for `field` exactly once.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name resolved using each layer's matching mode.
+    ///
+    /// # Returns
+    ///
+    /// The strongest layer decision, or pass-through when neither requires
+    /// redaction.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn resolve_field(&self, field: &str) -> ResolvedField {
         self.resolve_field_with_matching(field, self.application.matching)
     }
 
     /// Clones only the application-rule layer for builder reconstruction.
+    ///
+    /// # Returns
+    ///
+    /// An independent copy of the application rules, excluding floor
+    /// protection.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn clone_application(&self) -> RedactionPolicyInner {
         (*self.application).clone()
     }
 
     /// Resolves final sensitivity using `matching` for application rules.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to resolve against application and floor rules.
+    /// - `matching`: Application candidate matching mode; floor layers retain
+    ///   their own matching modes.
+    ///
+    /// # Returns
+    ///
+    /// The strongest layer decision, or pass-through when neither requires
+    /// redaction.
+    #[must_use]
     fn resolve_field_with_matching(&self, field: &str, matching: FieldNameMatching) -> ResolvedField {
         let application = sensitivity_inner(&self.application, field, matching, true);
         let floor = self.floor.as_ref().and_then(|floor| {
@@ -350,6 +416,8 @@ impl RedactionRules {
 ///
 /// The stronger present sensitivity, or [`ResolvedField::PassThrough`] when
 /// neither source requires redaction.
+#[must_use]
+#[inline]
 fn resolved_max(application: Option<Sensitivity>, floor: Option<Sensitivity>) -> ResolvedField {
     match application.into_iter().chain(floor).max() {
         Some(sensitivity) => ResolvedField::Sensitive { sensitivity },
@@ -358,6 +426,22 @@ fn resolved_max(application: Option<Sensitivity>, floor: Option<Sensitivity>) ->
 }
 
 /// Classifies one field against a single rule layer.
+///
+/// # Type Parameters
+///
+/// - `'a`: Lifetime of canonical rule names borrowed from `inner`.
+///
+/// # Parameters
+///
+/// - `inner`: Rule layer whose canonical names are borrowed by the result.
+/// - `field`: Field name to classify.
+/// - `matching`: Whether token-suffix candidates are also considered.
+/// - `allow`: Whether allow rules may stop classification.
+///
+/// # Returns
+///
+/// The first matching allow or sensitive rule, or `Unknown` when no rule
+/// matches.
 #[must_use]
 fn classify_inner<'a>(
     inner: &'a RedactionPolicyInner,
@@ -431,6 +515,7 @@ fn classify_inner<'a>(
 /// The strongest matching sensitivity, the layer's unknown-field fallback
 /// when no rule matches, or `None` when an applicable allow rule stops the
 /// search or the layer has no sensitivity requirement.
+#[must_use]
 fn sensitivity_inner(
     inner: &RedactionPolicyInner,
     field: &str,

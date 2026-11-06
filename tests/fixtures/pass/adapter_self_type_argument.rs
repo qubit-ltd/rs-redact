@@ -46,17 +46,11 @@ fn main() {
     assert_eq!(serde_json::to_value(&source).unwrap(), expected);
 
     let redactor = Redactor::standard();
-    assert_eq!(
-        serde_json::to_value(redactor.redact_view(&source)).unwrap(),
-        expected
-    );
+    assert_eq!(serde_json::to_value(redactor.redact_view(&source)).unwrap(), expected);
 
     #[cfg(feature = "json")]
     {
         let encoded = redactor.to_json(&source).unwrap();
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&encoded).unwrap(),
-            expected
-        );
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&encoded).unwrap(), expected);
     }
 }

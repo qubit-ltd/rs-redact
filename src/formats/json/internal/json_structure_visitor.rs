@@ -22,6 +22,13 @@ use super::JsonStructureSeed;
 use crate::runtime::JsonStructureAdmission;
 
 /// Streams unique decoder events through the formal transaction ledger.
+///
+/// # Type Parameters
+///
+/// - `'admission`: Exclusive borrow of the shared structural ledger.
+/// - `'runtime`: Lifetime of the runtime accounting state borrowed by the
+///   ledger.
+/// - `'rejected`: Exclusive borrow of the shared structural-rejection flag.
 pub(crate) struct JsonStructureVisitor<'admission, 'runtime, 'rejected> {
     /// Narrow structural ledger shared by every nested seed.
     pub(super) admission: &'admission mut JsonStructureAdmission<'runtime>,
@@ -36,12 +43,41 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     type Value = Value;
 
     /// Writes the expected JSON description, propagating formatter errors.
+    ///
+    /// # Parameters
+    ///
+    /// - `formatter`: Destination for the expected-value description.
+    ///
+    /// # Returns
+    ///
+    /// Success after writing the description.
+    ///
+    /// # Errors
+    ///
+    /// Propagates an error from the formatter.
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a JSON value")
     }
 
     /// Returns the admitted Boolean as JSON; never returns the deserializer
     /// error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Boolean value to retain.
+    ///
+    /// # Returns
+    ///
+    /// The JSON Boolean.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
     where
         E: Error,
@@ -51,6 +87,23 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
 
     /// Returns the admitted signed integer as JSON; never returns the
     /// deserializer error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Signed integer to retain.
+    ///
+    /// # Returns
+    ///
+    /// The JSON signed number.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -60,6 +113,23 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
 
     /// Returns the admitted unsigned integer as JSON; never returns the
     /// deserializer error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Unsigned integer to retain.
+    ///
+    /// # Returns
+    ///
+    /// The JSON unsigned number.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -69,6 +139,23 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
 
     /// Returns the admitted float as JSON, or a custom deserializer error `E`
     /// for NaN or infinity.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Floating-point value, which must be finite.
+    ///
+    /// # Returns
+    ///
+    /// The finite JSON number.
+    ///
+    /// # Errors
+    ///
+    /// Returns a custom `E` for NaN or infinity.
+    #[inline]
     fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -80,6 +167,22 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
 
     /// Copies the admitted string into JSON; never returns the deserializer
     /// error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Borrowed string copied into the output tree.
+    ///
+    /// # Returns
+    ///
+    /// A JSON string owning a copy of `value`.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
     where
         E: Error,
@@ -89,6 +192,23 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
 
     /// Retains the admitted string without copying; never returns the
     /// deserializer error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: Owned string moved into the output tree.
+    ///
+    /// # Returns
+    ///
+    /// A JSON string owning `value`.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
     where
         E: Error,
@@ -97,6 +217,19 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     }
 
     /// Returns JSON null for absence; never returns the deserializer error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Returns
+    ///
+    /// JSON null.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_none<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -105,6 +238,19 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     }
 
     /// Returns JSON null for unit; never returns the deserializer error `E`.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: Error type supplied by the deserializer.
+    ///
+    /// # Returns
+    ///
+    /// JSON null.
+    ///
+    /// # Errors
+    ///
+    /// Never returns an error.
+    #[inline]
     fn visit_unit<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
@@ -117,6 +263,22 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     /// `A` supplies nested events. Propagates its decoding or structural
     /// admission error; children charge the shared ledger and may set the
     /// rejection flag.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `A`: Serde access implementation supplying nested decoder events.
+    ///
+    /// # Parameters
+    ///
+    /// - `sequence`: Source of nested array elements.
+    ///
+    /// # Returns
+    ///
+    /// The array in source order.
+    ///
+    /// # Errors
+    ///
+    /// Propagates decoding and structural-admission errors from nested seeds.
     fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
     where
         A: SeqAccess<'de>,
@@ -139,6 +301,22 @@ impl<'de> Visitor<'de> for JsonStructureVisitor<'_, '_, '_> {
     /// `A` supplies keys and values. Propagates its decoding or structural
     /// admission error; children charge the shared ledger and may set the
     /// rejection flag.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `A`: Serde access implementation supplying nested decoder events.
+    ///
+    /// # Parameters
+    ///
+    /// - `map`: Source of parsed object keys and nested values.
+    ///
+    /// # Returns
+    ///
+    /// The object retaining its parsed keys.
+    ///
+    /// # Errors
+    ///
+    /// Propagates decoding and structural-admission errors from nested seeds.
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
     where
         A: MapAccess<'de>,

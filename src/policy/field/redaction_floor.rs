@@ -66,6 +66,10 @@ static STANDARD_FLOOR: LazyLock<RedactionFloor> = LazyLock::new(|| {
 
 impl RedactionFloor {
     /// Returns the built-in conservative floor.
+    ///
+    /// # Returns
+    ///
+    /// A cheap clone sharing the immutable standard layers and rule index.
     #[must_use]
     #[inline(always)]
     pub fn standard() -> Self {
@@ -73,13 +77,58 @@ impl RedactionFloor {
     }
 
     /// Creates a deterministic empty floor builder.
+    ///
+    /// # Returns
+    ///
+    /// An owned builder with no configured field rules.
     #[must_use]
     #[inline(always)]
     pub fn builder() -> RedactionFloorBuilder {
         RedactionFloorBuilder::empty()
     }
 
-    /// Iterates the floor's canonical sensitive rules.
+    /// Builds a floor from already constructed policy layers, preserving their
+    /// order and keeping each layer available for independent resolution.
+    ///
+    /// The sensitive index merges only explicitly configured canonical field
+    /// rules, retaining the strongest level for each field. It supports
+    /// enumerating the floor's canonical sensitive rules; actual resolution
+    /// still evaluates the retained layers so each layer's matching mode and
+    /// unknown-field fallback remain effective. This constructor does not
+    /// deduplicate layers; callers are responsible for supplying valid layers.
+    ///
+    /// # Parameters
+    ///
+    /// * `layers` - Owned layer handles to retain in their supplied order.
+    ///
+    /// # Returns
+    ///
+    /// A floor owning the supplied handles and a newly merged canonical index.
+    #[must_use]
+    pub(crate) fn from_layers(layers: Vec<Arc<RedactionPolicyInner>>) -> Self {
+        let mut sensitive_index = BTreeMap::new();
+        for layer in &layers {
+            for (field, level) in &layer.sensitive {
+                sensitive_index
+                    .entry(field.clone())
+                    .and_modify(|current: &mut Sensitivity| *current = (*current).max(*level))
+                    .or_insert(*level);
+            }
+        }
+        Self {
+            layers: layers.into(),
+            sensitive_index: Arc::new(sensitive_index),
+        }
+    }
+
+    /// Iterates the floor's canonical sensitive rules without allocating.
+    ///
+    /// # Returns
+    ///
+    /// A lazy iterator borrowing canonical field names from this floor, in
+    /// canonical-name order.
+    #[must_use = "iterators are lazy and do nothing unless consumed"]
+    #[inline]
     pub fn sensitive_rules(&self) -> impl Iterator<Item = SensitiveFieldRule<'_>> {
         self.sensitive_index
             .iter()
@@ -87,6 +136,11 @@ impl RedactionFloor {
     }
 
     /// Creates a floor builder by copying `self` exactly.
+    ///
+    /// # Returns
+    ///
+    /// An owned editable copy of the first layer, retaining shared additional
+    /// layers and their independent matching behavior.
     #[must_use]
     #[inline(always)]
     pub fn to_builder(&self) -> RedactionFloorBuilder {
@@ -96,6 +150,16 @@ impl RedactionFloor {
     /// Combines two floors by retaining the strongest classification for every
     /// canonical field. This is used when a format boundary adds mandatory
     /// protection to an application policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - Additional floor whose layers are shared rather than copied.
+    ///
+    /// # Returns
+    ///
+    /// A floor preserving this floor's layers and their order, then appending
+    /// previously absent layer allocations from `other`. If every
+    /// additional layer is already present, both existing indexes are shared.
     #[must_use]
     pub(crate) fn combine(&self, other: &Self) -> Self {
         if other
@@ -113,35 +177,14 @@ impl RedactionFloor {
         }
         Self::from_layers(layers)
     }
-
-    /// Builds a floor from already constructed policy layers, preserving their
-    /// order and keeping each layer available for independent resolution.
-    ///
-    /// The sensitive index merges only explicitly configured canonical field
-    /// rules, retaining the strongest level for each field. It supports
-    /// enumerating the floor's canonical sensitive rules; actual resolution
-    /// still evaluates the retained layers so each layer's matching mode and
-    /// unknown-field fallback remain effective. This constructor does not
-    /// deduplicate layers; callers are responsible for supplying valid layers.
-    pub(crate) fn from_layers(layers: Vec<Arc<RedactionPolicyInner>>) -> Self {
-        let mut sensitive_index = BTreeMap::new();
-        for layer in &layers {
-            for (field, level) in &layer.sensitive {
-                sensitive_index
-                    .entry(field.clone())
-                    .and_modify(|current: &mut Sensitivity| *current = (*current).max(*level))
-                    .or_insert(*level);
-            }
-        }
-        Self {
-            layers: layers.into(),
-            sensitive_index: Arc::new(sensitive_index),
-        }
-    }
 }
 
 impl Default for RedactionFloor {
     /// Returns the built-in conservative floor.
+    ///
+    /// # Returns
+    ///
+    /// A cheap clone sharing the immutable standard layers and rule index.
     #[inline(always)]
     fn default() -> Self {
         Self::standard()
@@ -151,25 +194,20 @@ impl Default for RedactionFloor {
 impl fmt::Display for RedactionFloor {
     /// Writes the diagnostic type name, propagating any destination formatter
     /// error.
+    ///
+    /// # Parameters
+    ///
+    /// * `formatter` - Destination for the diagnostic label.
+    ///
+    /// # Returns
+    ///
+    /// Success after the label is written.
+    ///
+    /// # Errors
+    ///
+    /// Returns the destination formatter's error if writing fails.
     #[inline(always)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("RedactionFloor")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::RedactionFloor;
-
-    /// Combining an already present standard floor retains both shared indexes.
-    #[test]
-    fn test_floor_combine_reuses_standard_allocations() {
-        let standard = RedactionFloor::standard();
-        let combined = standard.combine(&RedactionFloor::standard());
-
-        assert!(Arc::ptr_eq(&standard.layers, &combined.layers));
-        assert!(Arc::ptr_eq(&standard.sensitive_index, &combined.sensitive_index));
     }
 }

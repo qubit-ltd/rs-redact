@@ -8,10 +8,13 @@
 
 pub use runtime::__qubit_redact_serde;
 pub use runtime::__qubit_redact_serde_optional;
+pub use runtime::Redact;
+pub use runtime::RedactionCompletion;
+pub use runtime::RedactionPolicy;
+pub use runtime::RedactionWriter;
+pub use runtime::Redactor;
+pub use runtime::Sensitivity;
 pub use runtime::domain;
-pub use runtime::{
-    Redact, RedactionCompletion, RedactionPolicy, RedactionWriter, Redactor, Sensitivity,
-};
 
 #[derive(qubit_redact_derive::Redact)]
 struct Record {
@@ -26,8 +29,5 @@ fn main() {
     let output = Redactor::standard().redact_text(&record);
     assert!(output.text().as_str().contains("<redacted>"));
     assert!(!output.text().as_str().contains("raw-secret"));
-    assert_eq!(
-        output.summary().completion(),
-        RedactionCompletion::Complete
-    );
+    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
 }

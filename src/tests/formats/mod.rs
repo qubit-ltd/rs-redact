@@ -7,6 +7,7 @@
 // =============================================================================
 //! Internal format instrumentation contracts.
 
+mod argv;
 mod env;
 #[cfg(feature = "http")]
 mod http;

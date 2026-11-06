@@ -19,6 +19,17 @@ pub(crate) struct UriComponentWriter<'a> {
 
 impl UriComponentWriter<'_> {
     /// Creates a writer for one bounded URI component.
+    ///
+    /// # Parameters
+    ///
+    /// - `rendered`: Destination exclusively borrowed for the adapter's
+    ///   lifetime.
+    ///
+    /// # Returns
+    ///
+    /// An adapter that URI-encodes fragments into the borrowed destination.
+    #[must_use]
+    #[inline]
     pub(crate) fn new(rendered: &mut BoundedUriWriter) -> UriComponentWriter<'_> {
         UriComponentWriter { rendered }
     }
@@ -27,8 +38,19 @@ impl UriComponentWriter<'_> {
 impl fmt::Write for UriComponentWriter<'_> {
     /// URI-encodes `value` into the bounded destination.
     ///
-    /// Returns success after writing the fragment, or `fmt::Error` when the
-    /// destination truncates it. The destination retains the truncation state.
+    /// # Parameters
+    ///
+    /// - `value`: Fragment whose UTF-8 bytes are encoded and appended.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after writing the complete fragment.
+    ///
+    /// # Errors
+    ///
+    /// Returns `fmt::Error` when the destination truncates the fragment. The
+    /// destination retains the truncation state.
+    #[inline]
     fn write_str(&mut self, value: &str) -> fmt::Result {
         if write_uri_component(value, self.rendered) {
             Ok(())
@@ -40,7 +62,15 @@ impl fmt::Write for UriComponentWriter<'_> {
 
 /// Writes a replacement while retaining URI-safe delimiters.
 ///
-/// Returns `true` when the entire replacement is written, or `false` when the
+/// # Parameters
+///
+/// - `value`: Replacement whose UTF-8 bytes are encoded, preserving URI-safe
+///   delimiters.
+/// - `rendered`: Bounded destination updated until completion or rejection.
+///
+/// # Returns
+///
+/// `true` when the entire replacement is written, or `false` when the
 /// bounded destination rejects a byte and stops writing.
 #[must_use]
 fn write_uri_component(value: &str, rendered: &mut BoundedUriWriter) -> bool {

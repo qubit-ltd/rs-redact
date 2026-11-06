@@ -81,10 +81,7 @@ fn main() {
     let display_only = DisplayOnly {
         secret: "raw-secret".to_owned(),
     };
-    assert_eq!(
-        format!("{display_only}"),
-        r#"DisplayOnly { secret: "<redacted>" }"#,
-    );
+    assert_eq!(format!("{display_only}"), r#"DisplayOnly { secret: "<redacted>" }"#,);
 
     let policy = RedactionPolicy::builder()
         .limits(|limits| {

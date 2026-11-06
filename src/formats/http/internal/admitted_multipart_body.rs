@@ -19,5 +19,8 @@ pub(in crate::formats::http) enum AdmittedMultipartBody {
         Value,
     ),
     /// NDJSON records preserving source line positions.
-    Ndjson(AdmittedNdjson),
+    Ndjson(
+        /// Parsed records and source line metadata reused by rendering.
+        AdmittedNdjson,
+    ),
 }

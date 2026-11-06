@@ -12,8 +12,10 @@ mod externally_tagged;
 pub(in crate::serde) mod field_events;
 pub(in crate::serde) mod field_plan;
 mod internally_tagged;
+pub(in crate::serde) mod recursive_shape;
 pub(in crate::serde) mod serialized_field_plan;
 mod source_self_rebinder;
+pub(in crate::serde) mod source_type_context;
 mod untagged;
 mod variant_fields;
 

@@ -16,6 +16,8 @@ use syn::Type;
 use syn::TypePath;
 use syn::parse_quote;
 use syn::visit_mut::VisitMut;
+use syn::visit_mut::visit_expr_path_mut;
+use syn::visit_mut::visit_type_path_mut;
 
 /// Rewrites `Self` roots in a cloned set of source generic constraints.
 struct SourceSelfRebinder {
@@ -26,6 +28,11 @@ struct SourceSelfRebinder {
 impl SourceSelfRebinder {
     /// Rewrites an unqualified source `Self` type path while preserving qself
     /// paths.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - Type path to rewrite in place when it has a lexical `Self`
+    ///   root.
     fn replace_type_path(&self, path: &mut TypePath) {
         if path.qself.is_some() || !starts_with_self(&path.path) {
             return;
@@ -36,8 +43,13 @@ impl SourceSelfRebinder {
         *path = replacement;
     }
 
-    /// Rewrites an expression path rooted at source `Self` when it has an
-    /// opaque supported suffix.
+    /// Rewrites an expression path rooted at source `Self` when it has a
+    /// supported associated-item suffix.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - Expression path to rewrite in place; qualified roots are
+    ///   preserved.
     fn replace_expr_path(&self, path: &mut ExprPath) {
         if path.qself.is_some() || !starts_with_self(&path.path) {
             return;
@@ -56,18 +68,43 @@ impl SourceSelfRebinder {
 }
 
 impl VisitMut for SourceSelfRebinder {
+    /// Visits nested paths before rebinding this path to the concrete source
+    /// type.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - Mutable syntax node whose nested and lexical `Self` roots are
+    ///   visited.
     fn visit_type_path_mut(&mut self, path: &mut TypePath) {
-        syn::visit_mut::visit_type_path_mut(self, path);
+        visit_type_path_mut(self, path);
         self.replace_type_path(path);
     }
 
+    /// Visits nested paths before rebinding this path to the concrete source
+    /// type.
+    ///
+    /// # Parameters
+    ///
+    /// * `path` - Mutable syntax node whose nested and lexical `Self` roots are
+    ///   visited.
     fn visit_expr_path_mut(&mut self, path: &mut ExprPath) {
-        syn::visit_mut::visit_expr_path_mut(self, path);
+        visit_expr_path_mut(self, path);
         self.replace_expr_path(path);
     }
 }
 
 /// Rebinds source `Self` references in a cloned set of generic constraints.
+///
+/// # Parameters
+///
+/// * `source` - Identifier of the derived source type.
+/// * `generics` - Source parameters and constraints to clone and rewrite.
+///
+/// # Returns
+///
+/// Cloned generics with supported `Self` roots replaced by the full source
+/// type.
+#[must_use]
 pub(in crate::serde) fn rebind_source_generics(source: &Ident, generics: &Generics) -> Generics {
     let (_, arguments, _) = generics.split_for_impl();
     let source_type = parse_quote!(#source #arguments);
@@ -92,6 +129,7 @@ pub(in crate::serde) fn rebind_source_generics(source: &Ident, generics: &Generi
 /// # Returns
 ///
 /// A cloned type with supported source `Self` roots rebound to the source type.
+#[must_use]
 pub(in crate::serde) fn rebind_source_type(source: &Ident, generics: &Generics, ty: &Type) -> Type {
     let (_, arguments, _) = generics.split_for_impl();
     let source_type = parse_quote!(#source #arguments);
@@ -101,11 +139,30 @@ pub(in crate::serde) fn rebind_source_type(source: &Ident, generics: &Generics, 
 }
 
 /// Returns whether the first path segment denotes lexical `Self`.
+///
+/// # Parameters
+///
+/// * `path` - Path whose first segment is inspected without mutation.
+///
+/// # Returns
+///
+/// Whether a first segment exists and is named `Self`.
+#[must_use]
+#[inline]
 fn starts_with_self(path: &Path) -> bool {
     path.segments.first().is_some_and(|segment| segment.ident == "Self")
 }
 
 /// Copies all path segments after the lexical `Self` root.
+///
+/// # Parameters
+///
+/// * `path` - Path whose first segment is omitted from the copy.
+///
+/// # Returns
+///
+/// An owned suffix without a leading colon, empty when no later segments exist.
+#[must_use]
 fn path_suffix(path: &Path) -> Path {
     Path {
         leading_colon: None,
@@ -114,6 +171,17 @@ fn path_suffix(path: &Path) -> Path {
 }
 
 /// Combines a concrete source type with a supported associated-item suffix.
+///
+/// # Parameters
+///
+/// * `source_type` - Concrete type substituted for the lexical `Self` root.
+/// * `path` - Source path whose first segment is replaced.
+///
+/// # Returns
+///
+/// `Some` containing the source type path or its qualified associated-item
+/// path. This implementation never returns `None`.
+#[must_use]
 fn rebound_type_path(source_type: &Type, path: &Path) -> Option<TypePath> {
     let suffix = path_suffix(path);
     if suffix.segments.is_empty() {
@@ -132,19 +200,21 @@ mod tests {
     use syn::Ident;
     use syn::Type;
     use syn::parse_quote;
+    use syn::parse2;
 
     use super::rebind_source_generics;
     use super::rebind_source_type;
 
     fn parse_generics(tokens: TokenStream) -> Generics {
-        let input: DeriveInput = syn::parse2(quote!(struct Test #tokens;)).expect("valid source generics");
+        let input: DeriveInput = parse2(quote!(struct Test #tokens;)).expect("valid source generics");
         input.generics
     }
 
     fn assert_rebound(actual: Generics, expected: Generics) {
         assert_eq!(
             actual.into_token_stream().to_string(),
-            expected.into_token_stream().to_string()
+            expected.into_token_stream().to_string(),
+            "rebound generics must match the expected token structure"
         );
     }
 
@@ -234,7 +304,8 @@ mod tests {
                 rebind_source_type(&source, &generics, &ty)
                     .into_token_stream()
                     .to_string(),
-                expected.into_token_stream().to_string()
+                expected.into_token_stream().to_string(),
+                "field type must preserve its shape while rebinding Self"
             );
         }
     }

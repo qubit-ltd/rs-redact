@@ -44,12 +44,27 @@ impl BoundedDisplayWriter {
     }
 
     /// Returns the number of UTF-8 bytes accepted so far.
+    ///
+    /// # Returns
+    ///
+    /// The captured text length in bytes, without allocating or formatting.
     #[must_use]
     #[inline(always)]
     pub(super) fn accepted_bytes(&self) -> usize {
         self.output.len()
     }
 
+    /// Reports whether any fragment exceeded the available byte allowance.
+    ///
+    /// Once set, this flag remains true and prevents successful finalization,
+    /// even if later fragments would fit. This query does not allocate.
+    ///
+    /// # Returns
+    ///
+    /// `true` after any rejected fragment; `false` while every fragment has
+    /// fit.
+    #[must_use]
+    #[inline]
     pub(super) fn rejected(&self) -> bool {
         self.rejected
     }
@@ -63,7 +78,9 @@ impl BoundedDisplayWriter {
     ///
     /// `Some(text)` if every submitted fragment fit; `None` after any
     /// rejection. The caller must also check the formatter result before
-    /// using the text.
+    /// using the text. Consumes the writer and moves its buffer into `Some`
+    /// without copying; a rejected capture is discarded.
+    #[must_use]
     #[inline(always)]
     pub(super) fn finish(self) -> Option<String> {
         (!self.rejected).then_some(self.output)

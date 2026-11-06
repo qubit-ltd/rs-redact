@@ -9,22 +9,33 @@
 
 use std::fmt;
 
-#[derive(Default)]
-struct ByteCounter {
-    bytes: usize,
-}
+use self::byte_counter::ByteCounter;
 
-impl fmt::Write for ByteCounter {
-    fn write_str(&mut self, text: &str) -> fmt::Result {
-        self.bytes = self.bytes.checked_add(text.len()).ok_or(fmt::Error)?;
-        Ok(())
-    }
-}
+// Implements the allocation-free formatting sink used by the length
+// calculation.
+mod byte_counter;
 
 /// Returns the UTF-8 byte length produced by a value's `Display` formatter.
 ///
 /// Formatting errors, including a counter overflow, are returned as
 /// `fmt::Error`. The writer stores only a byte count and does not allocate.
+///
+/// # Type Parameters
+///
+/// - `T`: A value whose `Display` implementation supplies the text to count.
+///
+/// # Parameters
+///
+/// - `value`: The value consumed by this call and borrowed while formatting.
+///
+/// # Returns
+///
+/// The number of UTF-8 bytes emitted by the formatter on success.
+///
+/// # Errors
+///
+/// Returns `fmt::Error` if formatting fails or the byte count exceeds
+/// `usize::MAX`.
 pub(super) fn scalar_payload_len<T: fmt::Display>(value: T) -> Result<usize, fmt::Error> {
     let mut counter = ByteCounter::default();
     fmt::write(&mut counter, format_args!("{value}"))?;

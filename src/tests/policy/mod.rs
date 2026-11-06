@@ -7,6 +7,7 @@
 // =============================================================================
 //! Internal policy contracts unavailable through published field metadata.
 
+mod field;
 mod masking;
 mod redaction_limits_builder_tests;
 mod redaction_policy_tests;

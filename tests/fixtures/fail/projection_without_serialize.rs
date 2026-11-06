@@ -24,6 +24,8 @@ struct Parent {
 struct NotSerializable;
 
 fn main() {
-    let parent = Parent { child: Child { value: NotSerializable } };
+    let parent = Parent {
+        child: Child { value: NotSerializable },
+    };
     let _ = Redactor::standard().to_json(&parent);
 }

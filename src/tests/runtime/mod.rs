@@ -8,6 +8,8 @@
 //! Unpublished runtime contracts observed through existing crate capabilities.
 
 mod batch_publication_tests;
+#[cfg(feature = "json")]
+mod json_structure_preflight_tests;
 #[cfg(feature = "http")]
 mod operation_sink_tests;
 mod redaction_handle_error_tests;

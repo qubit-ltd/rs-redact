@@ -32,6 +32,16 @@ const INVALID_URI: &str = "<invalid URI>";
 /// This function owns neither a policy snapshot nor a budget. It returns the
 /// unpublished renderer carrier, so URI rendering cannot publish a second
 /// result model or make an independent completion decision.
+///
+/// # Parameters
+///
+/// - `policy`: Policy used to resolve URI fields and masking.
+/// - `input`: URI text to parse, or copy when the policy is disabled.
+/// - `max_output_bytes`: Ceiling for retained output bytes.
+///
+/// # Returns
+///
+/// Unpublished bounded text and completion provenance.
 pub(crate) fn redact_uri_with_limit(
     policy: &RedactionPolicy,
     input: &str,
@@ -98,11 +108,28 @@ pub(crate) fn redact_uri_with_limit(
 }
 
 /// Converts bounded URI bytes to the runtime's single output carrier.
+///
+/// # Parameters
+///
+/// - `rendered`: Bounded writer consumed to finalize its output.
+///
+/// # Returns
+///
+/// The unpublished text and output-limit provenance.
+#[inline]
 fn finish_uri_rendering(rendered: BoundedUriWriter) -> RenderedOperation {
     rendered.finish()
 }
 
 /// Emits a bounded marker for invalid URI input without retaining input bytes.
+///
+/// # Parameters
+///
+/// - `max_output_bytes`: Maximum bytes available for the invalid-input marker.
+///
+/// # Returns
+///
+/// The invalid-input marker, or empty truncated output when it cannot fit.
 fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
     if INVALID_URI.len() <= max_output_bytes {
         return OperationSink::complete_with_reason(safe_text(INVALID_URI.to_owned()), RedactionReason::InvalidUri)
@@ -118,6 +145,21 @@ fn invalid_output(max_output_bytes: usize) -> RenderedOperation {
 /// `rendered` retains bounded output and truncation state. Returns success
 /// after writing or reaching its limit; malformed percent escapes or decoded
 /// non-UTF-8 userinfo return value-free `Err(())`, so the caller must discard
+/// partial output.
+///
+/// # Parameters
+///
+/// - `authority`: Raw authority, including optional userinfo.
+/// - `policy`: Field and masking policy for userinfo.
+/// - `rendered`: Destination retaining bounded output and truncation state.
+///
+/// # Returns
+///
+/// `Ok(())` after writing or reaching the output limit.
+///
+/// # Errors
+///
+/// Returns `Err(())` for malformed escapes or non-UTF-8 userinfo; discard
 /// partial output.
 fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     let Some((userinfo, host)) = authority.rsplit_once('@') else {
@@ -152,6 +194,21 @@ fn redact_authority(authority: &str, policy: &RedactionPolicy, rendered: &mut Bo
 /// `rendered` retains output and truncation state. Returns success after
 /// writing, or value-free `Err(())` for malformed percent escapes or decoded
 /// non-UTF-8 bytes.
+///
+/// # Parameters
+///
+/// - `raw`: Percent-encoded userinfo value.
+/// - `field`: Policy field name, such as username or password.
+/// - `policy`: Policy resolving the field and its mask.
+/// - `rendered`: Destination retaining bounded output and truncation state.
+///
+/// # Returns
+///
+/// `Ok(())` after writing the bounded representation.
+///
+/// # Errors
+///
+/// Returns `Err(())` for malformed escapes or decoded non-UTF-8 bytes.
 fn redact_userinfo_value(
     raw: &str,
     field: &str,
@@ -176,6 +233,21 @@ fn redact_userinfo_value(
 /// after traversal or output closure. Malformed percent escapes or decoded
 /// non-UTF-8 bytes return value-free `Err(())`; the caller must discard partial
 /// output.
+///
+/// # Parameters
+///
+/// - `query`: Raw query without the leading question mark.
+/// - `policy`: Policy resolving decoded keys and value masks.
+/// - `rendered`: Destination retaining bounded output and truncation state.
+///
+/// # Returns
+///
+/// `Ok(())` after traversal or output closure.
+///
+/// # Errors
+///
+/// Returns `Err(())` for malformed escapes or decoded non-UTF-8 bytes; discard
+/// partial output.
 fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUriWriter) -> Result<(), ()> {
     for (index, pair) in query.split('&').enumerate() {
         if rendered.is_full() {
@@ -210,6 +282,20 @@ fn redact_query(query: &str, policy: &RedactionPolicy, rendered: &mut BoundedUri
 /// Borrows input without percent escapes and allocates at most its byte length
 /// otherwise. Returns value-free `Err(())` for malformed escapes or decoded
 /// non-UTF-8 bytes.
+///
+/// # Parameters
+///
+/// - `raw`: URI component whose percent escapes are decoded strictly.
+///
+/// # Returns
+///
+/// `Ok(Cow::Borrowed(_))` for unescaped input, or `Ok(Cow::Owned(_))` for
+/// decoded text.
+///
+/// # Errors
+///
+/// Returns `Err(())` for incomplete or non-hexadecimal escapes or decoded
+/// non-UTF-8 bytes.
 pub(super) fn decode_uri_component(raw: &str) -> Result<Cow<'_, str>, ()> {
     if !raw.as_bytes().contains(&b'%') {
         return Ok(Cow::Borrowed(raw));
@@ -235,6 +321,14 @@ pub(super) fn decode_uri_component(raw: &str) -> Result<Cow<'_, str>, ()> {
 }
 
 /// Streams one sensitive value through URI encoding and the bounded writer.
+///
+/// # Parameters
+///
+/// - `policy`: Policy supplying the sensitivity-specific mask.
+/// - `sensitivity`: Masking level for this value.
+/// - `value`: Decoded text to mask and URI-encode.
+/// - `rendered`: Bounded destination; empty values or closed output produce no
+///   writes.
 fn write_sensitive_value(
     policy: &RedactionPolicy,
     sensitivity: Sensitivity,
@@ -249,6 +343,12 @@ fn write_sensitive_value(
 }
 
 /// Writes an opaque replacement without allocating beyond the output budget.
+///
+/// # Parameters
+///
+/// - `policy`: Policy supplying the opaque replacement.
+/// - `sensitivity`: Masking level selecting the replacement.
+/// - `rendered`: Bounded destination; closed output produces no writes.
 fn write_opaque_mask(policy: &RedactionPolicy, sensitivity: Sensitivity, rendered: &mut BoundedUriWriter) {
     if rendered.is_full() {
         return;
@@ -258,6 +358,16 @@ fn write_opaque_mask(policy: &RedactionPolicy, sensitivity: Sensitivity, rendere
 }
 
 /// Returns `Some(0..=15)` for a hexadecimal ASCII `byte`, or `None` otherwise.
+///
+/// # Parameters
+///
+/// - `byte`: ASCII byte to interpret as a hexadecimal digit.
+///
+/// # Returns
+///
+/// `Some(0..=15)` for a hexadecimal digit; `None` for any other byte.
+#[must_use]
+#[inline]
 const fn hex_value(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -268,6 +378,14 @@ const fn hex_value(byte: u8) -> Option<u8> {
 }
 
 /// Escapes log-control characters in an owned output string.
+///
+/// # Parameters
+///
+/// - `value`: Owned output text consumed for log-safe escaping.
+///
+/// # Returns
+///
+/// Owned text with log-control characters escaped.
 #[must_use]
 fn safe_text(value: String) -> String {
     escape_log_control_characters(Cow::Owned(value)).into_owned()
@@ -275,27 +393,44 @@ fn safe_text(value: String) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
+    use super::decode_uri_component;
+
     /// Verifies unescaped URI components are borrowed without changing text.
     #[test]
     fn test_decode_uri_component_borrows_unescaped_text() {
         for raw in ["", "plain", "a+b"] {
-            assert!(matches!(
-                super::decode_uri_component(raw),
-                Ok(std::borrow::Cow::Borrowed(value)) if value == raw
-            ));
+            assert!(
+                matches!(
+                    decode_uri_component(raw),
+                    Ok(Cow::Borrowed(value)) if value == raw
+                ),
+                "unescaped component must remain borrowed: {raw:?}"
+            );
         }
     }
 
     /// Verifies percent decoding remains strict and preserves UTF-8 behavior.
     #[test]
     fn test_decode_uri_component_preserves_strict_percent_decoding() {
-        assert!(matches!(
-            super::decode_uri_component("hello%20world"),
-            Ok(std::borrow::Cow::Owned(value)) if value == "hello world"
-        ));
-        assert_eq!(super::decode_uri_component("%C3%A9").unwrap().as_ref(), "é");
+        assert!(
+            matches!(
+                decode_uri_component("hello%20world"),
+                Ok(Cow::Owned(value)) if value == "hello world"
+            ),
+            "percent escapes must produce owned decoded text"
+        );
+        assert_eq!(
+            decode_uri_component("%C3%A9").expect("valid UTF-8 escapes").as_ref(),
+            "é",
+            "UTF-8 escapes must decode to text"
+        );
         for raw in ["%", "%0", "%GG", "%FF", "%C3%28"] {
-            assert!(super::decode_uri_component(raw).is_err());
+            assert!(
+                decode_uri_component(raw).is_err(),
+                "invalid component must be rejected: {raw:?}"
+            );
         }
     }
 }

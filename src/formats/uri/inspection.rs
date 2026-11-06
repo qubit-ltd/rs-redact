@@ -24,6 +24,12 @@ use crate::runtime::runtime_session::RuntimeSession;
 /// Query keys and values are percent-decoded once for classification. Only the
 /// decoded outer query key selects a field rule; values remain opaque and are
 /// not recursively parsed as URLs.
+///
+/// # Parameters
+///
+/// - `session`: Mutable inspection state providing policy and resource limits;
+///   receives sensitivity observations or a failure reason.
+/// - `input`: Borrowed URI text to validate and classify without rendering.
 pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
     if !session.admit_input(input.len()) || !admit_uri_structure(session, input) {
         return;
@@ -58,9 +64,19 @@ pub(crate) fn inspect_uri(session: &mut InspectionSession, input: &str) {
 
 /// Classifies `authority` userinfo and records sensitivity in `session`.
 ///
-/// Returns success when no userinfo exists or all components decode. Returns
-/// value-free `Err(())` for malformed percent escapes or decoded non-UTF-8
-/// bytes.
+/// # Parameters
+///
+/// - `session`: Mutable inspection state receiving userinfo sensitivity.
+/// - `authority`: Borrowed authority text whose userinfo is inspected.
+///
+/// # Returns
+///
+/// `Ok(())` when no userinfo exists or all userinfo components decode.
+///
+/// # Errors
+///
+/// Returns value-free `Err(())` for malformed percent escapes or decoded
+/// non-UTF-8 bytes. Earlier sensitivity observations remain.
 fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result<(), ()> {
     let Some((userinfo, _)) = authority.rsplit_once('@') else {
         return Ok(());
@@ -78,9 +94,20 @@ fn inspect_authority(session: &mut InspectionSession, authority: &str) -> Result
 /// Decodes `query` keys and values and records classified sensitivity in
 /// `session`.
 ///
-/// Returns success after traversal, or value-free `Err(())` for malformed
-/// percent escapes or decoded non-UTF-8 bytes. Earlier sensitivity observations
-/// remain.
+/// # Parameters
+///
+/// - `session`: Mutable inspection state providing field policy and receiving
+///   sensitivity observations.
+/// - `query`: Borrowed query text without the leading `?` delimiter.
+///
+/// # Returns
+///
+/// `Ok(())` after all query pairs have been validated and classified.
+///
+/// # Errors
+///
+/// Returns value-free `Err(())` for malformed percent escapes or decoded
+/// non-UTF-8 bytes. Earlier sensitivity observations remain.
 fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()> {
     for pair in query.split('&') {
         let Some((raw_key, raw_value)) = pair.split_once('=') else {
@@ -98,8 +125,21 @@ fn inspect_query(session: &mut InspectionSession, query: &str) -> Result<(), ()>
 
 /// Validates `raw` and records the policy decision for `field` in `session`.
 ///
-/// Returns success after observation, or value-free `Err(())` for malformed
-/// percent escapes or decoded non-UTF-8 bytes before observing the field.
+/// # Parameters
+///
+/// - `session`: Mutable inspection state providing field policy and receiving
+///   the sensitivity observation.
+/// - `field`: Policy field name used to classify the component.
+/// - `raw`: Borrowed percent-encoded component to validate.
+///
+/// # Returns
+///
+/// `Ok(())` after validation and any applicable sensitivity observation.
+///
+/// # Errors
+///
+/// Returns value-free `Err(())` for malformed percent escapes or decoded
+/// non-UTF-8 bytes before observing the field.
 fn inspect_named_component(session: &mut InspectionSession, field: &str, raw: &str) -> Result<(), ()> {
     let _ = decode_uri_component(raw)?;
     if let ResolvedField::Sensitive { sensitivity } = session.policy().resolve_field(field) {

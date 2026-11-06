@@ -5,28 +5,28 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
-//! Immutable limits owned by one active redaction transaction.
+//! Mutable resource accounting owned by one active redaction transaction.
 
 #[cfg(feature = "json")]
 use qubit_budget::json::JsonValueBudget;
 #[cfg(feature = "json")]
-use qubit_json::value::traverse::JsonTreeContext;
-#[cfg(feature = "json")]
-use qubit_json::value::traverse::JsonTreeLocation;
+use qubit_json::value::traverse::JsonTreeProcessError;
 #[cfg(feature = "json")]
 use qubit_json::value::traverse::JsonTreeReader;
 #[cfg(feature = "json")]
-use qubit_json::value::traverse::JsonTreeVisitor;
-#[cfg(feature = "json")]
 use serde_json::Value;
 
-use super::StructuralBudget;
 #[cfg(feature = "json")]
-use super::structural_entry::StructuralEntry;
+use self::internal::JsonUsageVisitor;
+use super::StructuralBudget;
 use crate::RedactionLimits;
 #[cfg(feature = "json")]
 use crate::RedactionReason;
 use crate::RedactionUsage;
+
+// Houses JSON-specific accounting callbacks.
+#[cfg(feature = "json")]
+mod internal;
 
 /// The single mutable budget ledger for an active transaction.
 pub(super) struct RedactionBudget {
@@ -102,6 +102,11 @@ impl RedactionBudget {
     }
 
     /// Returns the current domain depth used as the base for nested formats.
+    ///
+    /// # Returns
+    ///
+    /// The active domain depth added to JSON-relative traversal depths.
+    #[must_use]
     #[cfg(feature = "json")]
     #[inline(always)]
     pub(super) const fn current_domain_depth(&self) -> usize {
@@ -252,8 +257,14 @@ impl RedactionBudget {
     ///
     /// # Returns
     ///
-    /// Whether complete tree accounting and its budget transaction both
-    /// succeeded.
+    /// `Ok(())` when complete tree accounting and its budget commit succeed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DepthLimitReached` for structural depth rejection and
+    /// `TraversalLimitReached` for JSON budget, commit, node, or item
+    /// rejection. Structural usage from completed visits is retained on
+    /// failure.
     #[cfg(feature = "json")]
     #[inline]
     pub(super) fn admit_json_value(&mut self, root: &Value) -> Result<(), RedactionReason> {
@@ -276,69 +287,8 @@ impl RedactionBudget {
         let committed = transaction.commit().is_ok();
         match admitted {
             Ok(()) if committed => Ok(()),
-            Ok(()) | Err(qubit_json::value::traverse::JsonTreeProcessError::Budget(_)) => {
-                Err(RedactionReason::TraversalLimitReached)
-            }
-            Err(qubit_json::value::traverse::JsonTreeProcessError::Visitor(reason)) => Err(reason),
+            Ok(()) | Err(JsonTreeProcessError::Budget(_)) => Err(RedactionReason::TraversalLimitReached),
+            Err(JsonTreeProcessError::Visitor(reason)) => Err(reason),
         }
-    }
-}
-
-#[cfg(feature = "json")]
-/// Admits parsed JSON values into the transaction's shared structural ledger.
-///
-/// The visitor mutably borrows the transaction's structural budget, cumulative
-/// usage, and optional per-operation usage as disjoint fields. `base_depth`
-/// offsets each JSON-relative context depth by the domain depth active when
-/// admission began. The root contributes a structural node only; every
-/// non-root value contributes a collection item before its node is admitted.
-/// Consequently, a node rejection can leave an already-counted collection
-/// item, and counts from earlier successful visits, in the usage ledgers.
-struct JsonUsageVisitor<'a> {
-    /// Shared domain and format traversal limits.
-    structural: &'a mut StructuralBudget,
-    /// Cumulative resource use for the entire transaction.
-    usage: &'a mut RedactionUsage,
-    /// Resource use for the active independently published item, if any.
-    active_operation_usage: &'a mut Option<RedactionUsage>,
-    /// Domain depth at which this JSON tree was admitted.
-    base_depth: usize,
-}
-
-#[cfg(feature = "json")]
-impl JsonTreeVisitor for JsonUsageVisitor<'_> {
-    type Error = RedactionReason;
-
-    /// Accounts a collection item (except for the root) before admitting its
-    /// root-inclusive absolute depth as a structural node.
-    ///
-    /// Returns `DepthLimitReached` when the depth limit rejects the node and
-    /// `TraversalLimitReached` when its collection-item or node limit rejects
-    /// it. The first reached rejection is returned and stops this traversal.
-    /// The visitor does not roll back an item already counted before a later
-    /// depth/node rejection, or visits completed before an error.
-    fn enter(&mut self, _value: &Value, context: JsonTreeContext<'_>) -> Result<(), Self::Error> {
-        if !matches!(context.location, JsonTreeLocation::Root) {
-            if !self.structural.admit_collection_item() {
-                return Err(RedactionReason::TraversalLimitReached);
-            }
-            *self.usage = self.usage.with_collection_item();
-            if let Some(usage) = self.active_operation_usage.as_mut() {
-                *usage = usage.with_collection_item();
-            }
-        }
-        let depth = self.base_depth.saturating_add(context.depth);
-        match self.structural.admit_format_node(depth) {
-            StructuralEntry::Entered => {}
-            StructuralEntry::DepthLimitReached => return Err(RedactionReason::DepthLimitReached),
-            StructuralEntry::TraversalLimitReached => {
-                return Err(RedactionReason::TraversalLimitReached);
-            }
-        }
-        *self.usage = self.usage.with_domain_node(depth);
-        if let Some(usage) = self.active_operation_usage.as_mut() {
-            *usage = usage.with_domain_node(depth);
-        }
-        Ok(())
     }
 }

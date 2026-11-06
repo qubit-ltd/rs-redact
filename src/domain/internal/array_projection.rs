@@ -27,10 +27,25 @@ use crate::Sensitivity;
 /// The projection borrows the array and does not retain a policy. Serialization
 /// obtains the active policy and shared budgets from the current redaction
 /// scope.
-pub struct ArrayProjection<'value, T, const N: usize>(&'value [T; N]);
+///
+/// # Type Parameters
+///
+/// * `'value` - Lifetime of the borrowed source array.
+/// * `T` - Element type; serialization requires redaction projections that
+///   implement `Serialize` for the source borrow.
+/// * `N` - Fixed number of elements, preserved as the admitted tuple length.
+#[must_use]
+pub struct ArrayProjection<'value, T, const N: usize>(
+    /// Source array borrowed without cloning or eagerly visiting its elements.
+    &'value [T; N],
+);
 
 impl<T, const N: usize> RedactSerializeSource for [T; N] {
     /// A borrowed projection that serializes the array under the active scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the array borrow retained by the projection.
     type RedactedFields<'a>
         = ArrayProjection<'a, T, N>
     where
@@ -41,6 +56,20 @@ impl<T, const N: usize> RedactSerializeSource for [T; N] {
     /// The caller must establish an active redaction scope before
     /// serialization; serialization obtains its policy and shared budgets
     /// from that scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the array borrow retained by the projection.
+    ///
+    /// # Parameters
+    ///
+    /// * `_policy` - Unused policy; the active scope supplies the policy when
+    ///   the returned projection is serialized.
+    ///
+    /// # Returns
+    ///
+    /// A lazy projection borrowing this array without visiting its elements.
+    #[inline]
     fn redacted_fields<'a>(&'a self, _policy: &RedactionPolicy) -> Self::RedactedFields<'a> {
         ArrayProjection(self)
     }
@@ -52,6 +81,10 @@ where
     T::RedactedFields<'value>: Serialize,
 {
     /// Serializes admitted elements as a fixed-length tuple of redacted values.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S` - Serializer receiving the redacted tuple or scalar replacement.
     ///
     /// # Parameters
     ///

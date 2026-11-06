@@ -14,6 +14,13 @@ use super::redact_serialize::RedactSerialize;
 use super::redact_serialize_scope::RedactSerializeScope;
 
 /// Borrowed serializer adapter that carries one immutable redaction policy.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed source value.
+/// - `'policy`: Lifetime of the borrowed immutable redaction policy.
+/// - `T`: Possibly unsized source type; serialization requires `T:
+///   RedactSerialize`.
 #[doc(hidden)]
 pub struct RedactedSerializeRef<'value, 'policy, T: ?Sized> {
     /// Borrowed source value.

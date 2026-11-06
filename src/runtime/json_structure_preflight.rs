@@ -12,6 +12,8 @@ use qubit_budget::json::JsonResource;
 use qubit_budget::json::JsonValueLimits;
 use qubit_json::decode::JsonDecoder;
 
+pub(crate) use super::internal::json_structure_preflight_error::JsonStructurePreflightError;
+
 /// Snapshot of shared structural capacity for one JSON text value.
 ///
 /// `remaining_nodes` is the maximum number of value nodes available to this
@@ -31,18 +33,6 @@ pub(crate) struct JsonStructurePreflight {
     pub(crate) traversal_closed: bool,
 }
 
-/// Value-free failure from shared JSON structural validation.
-///
-/// `Invalid` represents malformed JSON, `DepthLimit` represents relative
-/// depth rejection, and `TraversalLimit` represents a closed traversal or a
-/// node/item budget rejection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum JsonStructurePreflightError {
-    Invalid,
-    DepthLimit,
-    TraversalLimit,
-}
-
 impl JsonStructurePreflight {
     /// Preflights JSON text against configured shared structural budgets.
     ///
@@ -60,7 +50,11 @@ impl JsonStructurePreflight {
     /// # Returns
     ///
     /// `Ok(())` when preflight is skipped or completed within the configured
-    /// budgets. Returns `Invalid` for malformed text, `DepthLimit` when the
+    /// budgets.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Invalid` for malformed text, `DepthLimit` when the
     /// relative depth ceiling is exceeded, and `TraversalLimit` when traversal
     /// is closed or node/item capacity is exceeded.
     pub(crate) fn validate(&self, text: &str) -> Result<(), JsonStructurePreflightError> {
@@ -94,6 +88,17 @@ impl JsonStructurePreflight {
 }
 
 /// Returns the tighter ceiling, treating an absent value as unlimited.
+///
+/// # Parameters
+///
+/// - `a`: First ceiling, or `None` for unlimited capacity.
+/// - `b`: Second ceiling, or `None` for unlimited capacity.
+///
+/// # Returns
+///
+/// `Some` with the tighter configured ceiling, or `None` if both are unlimited.
+#[must_use]
+#[inline]
 fn min_optional(a: Option<usize>, b: Option<usize>) -> Option<usize> {
     match (a, b) {
         (Some(a), Some(b)) => Some(a.min(b)),
@@ -103,6 +108,19 @@ fn min_optional(a: Option<usize>, b: Option<usize>) -> Option<usize> {
 }
 
 /// Combines optional ceilings, where `None` means no limit.
+///
+/// # Parameters
+///
+/// - `nodes`: Available value nodes, or `None` for unlimited capacity.
+/// - `items`: Available collection items, or `None` for unlimited capacity.
+///
+/// # Returns
+///
+/// `Some` with the tighter node ceiling after allowing for the root node, or
+/// `None` if neither input imposes a representable bound. An overflowing
+/// item-derived bound imposes no additional limit.
+#[must_use]
+#[inline]
 fn node_cap(nodes: Option<usize>, items: Option<usize>) -> Option<usize> {
     // The root value is not a sequence item or map entry. Overflow means the
     // item-derived ceiling cannot add a tighter representable bound.
@@ -111,8 +129,6 @@ fn node_cap(nodes: Option<usize>, items: Option<usize>) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::JsonStructurePreflight;
-    use super::JsonStructurePreflightError;
     use super::min_optional;
     use super::node_cap;
 
@@ -124,46 +140,5 @@ mod tests {
         assert_eq!(node_cap(None, Some(0)), Some(1));
         assert_eq!(node_cap(Some(9), Some(3)), Some(4));
         assert_eq!(node_cap(Some(usize::MAX), Some(usize::MAX)), Some(usize::MAX));
-    }
-
-    #[test]
-    fn test_snapshot_validates_root_and_relative_depth_limits() {
-        let snapshot = JsonStructurePreflight {
-            remaining_nodes: Some(1),
-            remaining_items: Some(0),
-            max_relative_depth: None,
-            traversal_closed: false,
-        };
-        assert!(snapshot.validate("0").is_ok());
-        assert!(snapshot.validate("[]").is_ok());
-        assert_eq!(
-            snapshot.validate("[0]"),
-            Err(JsonStructurePreflightError::TraversalLimit)
-        );
-
-        let depth_limited = JsonStructurePreflight {
-            remaining_nodes: None,
-            remaining_items: None,
-            max_relative_depth: Some(1),
-            traversal_closed: false,
-        };
-        assert_eq!(
-            depth_limited.validate("[[]]"),
-            Err(JsonStructurePreflightError::DepthLimit)
-        );
-    }
-
-    #[test]
-    fn test_closed_traversal_rejects_before_validation() {
-        let snapshot = JsonStructurePreflight {
-            remaining_nodes: None,
-            remaining_items: None,
-            max_relative_depth: None,
-            traversal_closed: true,
-        };
-        assert_eq!(
-            snapshot.validate("not json"),
-            Err(JsonStructurePreflightError::TraversalLimit)
-        );
     }
 }

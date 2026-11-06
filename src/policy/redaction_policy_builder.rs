@@ -84,6 +84,10 @@ pub struct RedactionPolicyBuilder {
 
 impl RedactionPolicyBuilder {
     /// Creates an empty application-rule builder with the standard floor.
+    ///
+    /// # Returns
+    ///
+    /// A builder with empty application rules and default masking and limits.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -102,6 +106,14 @@ impl RedactionPolicyBuilder {
     }
 
     /// Copies the immutable policy into mutable builder state.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the immutable policy whose configuration is copied.
+    ///
+    /// # Returns
+    ///
+    /// An independently configurable builder initialized from `policy`.
     #[must_use]
     pub(super) fn from_policy(policy: &RedactionPolicy) -> Self {
         Self {
@@ -133,6 +145,10 @@ impl RedactionPolicyBuilder {
     /// # Parameters
     ///
     /// * `configure` — the closure that adds rules to the temporary draft.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder when the field rules configuration succeeds.
     ///
     /// # Errors
     ///
@@ -171,6 +187,10 @@ impl RedactionPolicyBuilder {
     ///
     /// * `configure` — the closure that configures the HTTP policy view.
     ///
+    /// # Returns
+    ///
+    /// The updated builder when the HTTP policy configuration succeeds.
+    ///
     /// # Errors
     ///
     /// Returns [`PolicyError`] when the HTTP view records an invalid field
@@ -206,6 +226,10 @@ impl RedactionPolicyBuilder {
     ///
     /// * `configure` — the closure that configures the URI policy view.
     ///
+    /// # Returns
+    ///
+    /// The updated builder when the URI policy configuration succeeds.
+    ///
     /// # Errors
     ///
     /// This operation is currently infallible. The result preserves the
@@ -237,6 +261,10 @@ impl RedactionPolicyBuilder {
     ///
     /// * `configure` — the closure that sets values on the temporary builder.
     ///
+    /// # Returns
+    ///
+    /// The updated builder when the transaction limits configuration succeeds.
+    ///
     /// # Errors
     ///
     /// Returns [`PolicyError`] when the completed limit set violates a
@@ -258,6 +286,14 @@ impl RedactionPolicyBuilder {
     ///
     /// This setter remains on the root builder because the JSON feature does
     /// not expose a separate grouped builder.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — the handling policy for JSON scalars without a field key.
+    ///
+    /// # Returns
+    ///
+    /// The builder with the selected JSON scalar policy.
     #[cfg(feature = "json")]
     #[must_use]
     #[inline(always)]
@@ -267,6 +303,14 @@ impl RedactionPolicyBuilder {
     }
 
     /// Validates that `field` has a non-empty canonical application-rule name.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — the application-rule field name to validate.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` when canonicalization leaves a non-empty field name.
     ///
     /// # Errors
     ///
@@ -278,6 +322,10 @@ impl RedactionPolicyBuilder {
     }
 
     /// Validates and returns the immutable policy snapshot.
+    ///
+    /// # Returns
+    ///
+    /// The immutable policy assembled from this builder after validation.
     ///
     /// # Errors
     ///
@@ -314,6 +362,10 @@ pub use uri_policy_builder_view::UriPolicyBuilderView;
 
 impl Default for RedactionPolicyBuilder {
     /// Creates a builder with the standard floor and default limits.
+    ///
+    /// # Returns
+    ///
+    /// A builder initialized with the same configuration as [`Self::new`].
     #[inline(always)]
     fn default() -> Self {
         Self::new()

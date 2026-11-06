@@ -8,12 +8,20 @@
 //! Lazily admitted process environment-pair iteration.
 
 use std::ffi::OsStr;
+use std::marker::PhantomData;
 
 use crate::formats::env::admission::admit_environment_name;
 use crate::runtime::BatchSession;
 use crate::runtime::runtime_session::RuntimeSession;
 
 /// Admits environment pairs before the renderer can inspect them.
+///
+/// # Type Parameters
+///
+/// * `'session` - Exclusive borrow of the batch transaction used for admission.
+/// * `'variables` - Lifetime of the borrowed environment names and values.
+/// * `I` - Lazily consumed source iterator; iteration requires items of type
+///   `(&'variables OsStr, &'variables OsStr)`.
 pub(super) struct AdmittedEnvironmentPairs<'session, 'variables, I> {
     /// Batch transaction charged before each pair is yielded.
     pub(super) session: &'session mut BatchSession,
@@ -22,7 +30,7 @@ pub(super) struct AdmittedEnvironmentPairs<'session, 'variables, I> {
     /// Whether admission stopped the iterator before source exhaustion.
     pub(super) failed: bool,
     /// Borrow lifetime retained independently of the iterator's concrete type.
-    pub(super) marker: std::marker::PhantomData<&'variables ()>,
+    pub(super) marker: PhantomData<&'variables ()>,
 }
 
 impl<'variables, I> Iterator for AdmittedEnvironmentPairs<'_, 'variables, I>
@@ -33,6 +41,13 @@ where
     type Item = (&'variables OsStr, &'variables OsStr);
 
     /// Admits and returns the next pair without observing later input.
+    ///
+    /// # Returns
+    ///
+    /// `Some((name, value))` after all admission checks succeed; `None` when
+    /// the source is exhausted or admission fails. Admission failure also
+    /// sets `failed` and may consume the current pair, but never later
+    /// pairs.
     fn next(&mut self) -> Option<Self::Item> {
         if self.variables.size_hint().1 == Some(0) {
             return None;

@@ -23,6 +23,18 @@ use crate::runtime::RenderedOperation;
 ///
 /// The shared-session façade uses this helper so it never constructs a second
 /// core redactor or a separate output budget.
+///
+/// # Parameters
+///
+/// - `policy`: Borrowed masking and field-resolution policy.
+/// - `name`: UTF-8 environment-variable name.
+/// - `value`: UTF-8 environment-variable value.
+/// - `max_output_bytes`: Maximum retained bytes for the escaped assignment.
+///
+/// # Returns
+///
+/// Unpublished assignment text and completion provenance, or an output-limit
+/// fallback when the complete assignment cannot fit.
 #[inline]
 pub(super) fn redact_pair_with_policy(
     policy: &RedactionPolicy,
@@ -37,6 +49,23 @@ pub(super) fn redact_pair_with_policy(
 ///
 /// The aggregate session supplies the parent policy through this helper and
 /// applies its one global output budget when it commits the returned text.
+///
+/// # Type Parameters
+///
+/// - `'a`: Lifetime of the borrowed names and values.
+/// - `I`: Iterable of borrowed operating-system name/value pairs.
+///
+/// # Parameters
+///
+/// - `policy`: Borrowed masking and field-resolution policy.
+/// - `pairs`: Pairs consumed in iteration order without taking string
+///   ownership.
+/// - `max_output_bytes`: Maximum retained bytes for the complete list.
+///
+/// # Returns
+///
+/// Unpublished bracketed, debug-quoted assignments and completion provenance,
+/// or an output-limit fallback if any assignment or the list cannot fit.
 pub(crate) fn redact_os_pairs_with_policy<'a, I>(
     policy: &RedactionPolicy,
     pairs: I,
@@ -74,6 +103,18 @@ where
 
 /// Renders one unpublished environment assignment without materializing a
 /// separately publishable pair result.
+///
+/// # Parameters
+///
+/// - `policy`: Borrowed masking and field-resolution policy.
+/// - `name`: Borrowed operating-system environment-variable name.
+/// - `value`: Borrowed operating-system environment-variable value.
+/// - `max_output_bytes`: Maximum retained bytes for the escaped assignment.
+///
+/// # Returns
+///
+/// Unpublished assignment text and completion provenance, or an output-limit
+/// fallback when rendering cannot retain the complete assignment.
 fn render_pair_output(
     policy: &RedactionPolicy,
     name: &OsStr,
@@ -92,6 +133,22 @@ fn render_pair_output(
 }
 
 /// Renders one environment pair while bounding its materialized mask.
+///
+/// Enabled policies mask non-UTF-8 values as opaque secrets; disabled policies
+/// retain a bounded display representation. All retained text is log-safe.
+///
+/// # Parameters
+///
+/// - `policy`: Borrowed masking and field-resolution policy.
+/// - `name`: Borrowed operating-system environment-variable name.
+/// - `value`: Borrowed operating-system environment-variable value.
+/// - `max_mask_bytes`: Maximum retained bytes for the mask and assignment.
+///
+/// # Returns
+///
+/// An owned escaped assignment and a flag that is `true` if masking, OS-string
+/// capture, or assignment assembly was truncated. Partial text must not be
+/// published as a complete assignment when the flag is `true`.
 #[must_use]
 pub(super) fn redact_os_pair_bounded_with_policy(
     policy: &RedactionPolicy,
@@ -154,6 +211,18 @@ pub(super) fn redact_os_pair_bounded_with_policy(
 }
 
 /// Appends log-safe text without retaining bytes beyond the operation limit.
+///
+/// # Parameters
+///
+/// - `value`: Text whose characters are escaped individually.
+/// - `output`: Destination extended in place; accepted prefixes remain on
+///   failure.
+/// - `maximum`: Maximum total byte length allowed in the destination.
+///
+/// # Returns
+///
+/// `true` if every escaped character was appended; `false` if encoding fails or
+/// the next complete escaped character would exceed the limit.
 fn append_log_safe_bounded(value: &str, output: &mut String, maximum: usize) -> bool {
     let mut encoded = [0_u8; 12];
     for character in value.chars() {
@@ -187,13 +256,13 @@ mod tests {
 
         let (enabled, enabled_truncated) =
             redact_os_pair_bounded_with_policy(&RedactionPolicy::standard(), &name, &value, usize::MAX);
-        assert!(!enabled_truncated);
-        assert!(enabled.contains("redacted"));
+        assert!(!enabled_truncated, "enabled rendering must fit an unlimited budget");
+        assert!(enabled.contains("redacted"), "enabled policy must mask opaque values");
 
         let (disabled, disabled_truncated) =
             redact_os_pair_bounded_with_policy(&RedactionPolicy::disabled(), &name, &value, usize::MAX);
-        assert!(!disabled_truncated);
-        assert!(disabled.contains('N'));
-        assert!(disabled.contains('V'));
+        assert!(!disabled_truncated, "disabled rendering must fit an unlimited budget");
+        assert!(disabled.contains('N'), "disabled policy must retain the name");
+        assert!(disabled.contains('V'), "disabled policy must retain the value");
     }
 }

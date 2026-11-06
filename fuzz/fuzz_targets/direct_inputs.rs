@@ -5,10 +5,18 @@
 //
 //    Licensed under the Apache License, Version 2.0.
 // =============================================================================
+//! Exercises bounded direct URL/URI redaction and inspection with independent
+//! output oracles. Generated cases carry known-secret and visibility
+//! expectations; arbitrary input is checked for determinism, resource bounds,
+//! and log safety.
+
 #![cfg_attr(not(test), no_main)]
 
-#[path = "support/log_safety.rs"]
+#[path = "../tests/log_safety_tests/support/log_safety.rs"]
 mod log_safety;
+
+use std::fmt::Write;
+use std::iter::repeat_n;
 
 #[cfg(not(test))]
 use libfuzzer_sys::fuzz_target;
@@ -19,43 +27,91 @@ use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionTextOutput;
 use qubit_redact::Redactor;
 use qubit_redact::formats::uri::UriRedactionBoundary;
+use url::form_urlencoded::byte_serialize;
 
+/// Known secret embedded in generated cases and forbidden in their published
+/// output.
 const FUZZ_SECRET: &str = "qubit-fuzz-secret-7f54a19c";
+/// Public marker expected to survive complete redaction of eligible generated
+/// cases.
 const VISIBLE_SENTINEL: &str = "rr001-visible";
+/// Output byte limits covering empty, truncating, and sufficient output
+/// budgets.
 const OUTPUT_BUDGETS: &[usize] = &[0, 1, 4, 8, 9, 10, 16, 32, 128, 4096];
 
+/// Selects the HTTP URL, generic URI, or both direct entry points for a case.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Entry {
+    /// Exercises only the HTTP URL entry point.
     Http,
+    /// Exercises only the generic URI entry point.
     Uri,
+    /// Expands to one HTTP URL check and one generic URI check.
     Both,
 }
 
+/// Carries generated text together with its entry points and independent
+/// expectations.
 #[derive(Debug)]
 struct GeneratedCase {
+    /// Text supplied unchanged to each selected entry point.
     input: String,
+    /// Direct entry points that support this generated syntax.
     entry: Entry,
+    /// Whether the output must exclude the embedded known secret.
     contains_known_secret: bool,
+    /// Whether sufficient output space must preserve the public marker.
     preserves_visible_sentinel: bool,
+    /// Expected inspection classification when the input is accepted.
     expectation: InspectionExpectation,
 }
 
+/// Describes the independent classification oracle for generated inspection
+/// input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InspectionExpectation {
+    /// Accepted inspections must report sensitive content.
     Sensitive,
+    /// Accepted inspections must report no sensitive content.
     Ordinary,
+    /// Generic URI inspection must reject malformed syntax or encoding.
     Malformed,
 }
 
+/// Selects one inspection limit to override while retaining all other policy
+/// defaults.
 #[derive(Clone, Copy, Debug)]
 enum InspectionBudget {
-    Input(usize),
-    Nodes(usize),
-    Depth(usize),
-    Collection(usize),
-    Key(usize),
+    /// Limits inspected input bytes.
+    Input(
+        /// Maximum input bytes; usize::MAX selects a length-relative bound.
+        usize,
+    ),
+    /// Limits visited inspection nodes.
+    Nodes(
+        /// Maximum number of visited nodes.
+        usize,
+    ),
+    /// Limits nested inspection depth.
+    Depth(
+        /// Maximum nesting depth.
+        usize,
+    ),
+    /// Limits inspected collection items.
+    Collection(
+        /// Maximum number of collection items.
+        usize,
+    ),
+    /// Limits inspected key bytes.
+    Key(
+        /// Maximum number of bytes in a key.
+        usize,
+    ),
 }
 
+/// Selects one of twenty boundary budgets using the input length and standard
+/// limits.
+#[must_use]
 fn selected_inspection_budget(index: usize, input_len: usize) -> InspectionBudget {
     let policy = RedactionPolicy::standard();
     let limits = policy.limits();
@@ -83,6 +139,8 @@ fn selected_inspection_budget(index: usize, input_len: usize) -> InspectionBudge
     }
 }
 
+/// Builds a redactor overriding only the selected inspection resource limit.
+#[must_use]
 fn inspection_limited_redactor(budget: InspectionBudget, input_len: usize) -> Redactor {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -104,6 +162,8 @@ fn inspection_limited_redactor(budget: InspectionBudget, input_len: usize) -> Re
     Redactor::new(policy)
 }
 
+/// Checks inspection accounting for either a successful inspection or an error.
+#[inline]
 fn assert_usage(result: &Result<RedactionInspection, RedactionInspectionError>, max_input: usize) {
     let usage = match result {
         Ok(value) => value.usage(),
@@ -112,11 +172,14 @@ fn assert_usage(result: &Result<RedactionInspection, RedactionInspectionError>, 
     assert_inspection_counts(usage.inspected_input_bytes(), usage.output_bytes(), max_input);
 }
 
+/// Rejects inspection input-budget overruns and any recorded output bytes.
+#[inline]
 fn assert_inspection_counts(input: usize, output: usize, maximum: usize) {
     assert!(input <= maximum, "inspection exceeded input budget");
     assert_eq!(output, 0, "inspection must not produce output");
 }
 
+/// Checks deterministic inspection and bounded accounting for arbitrary text.
 fn check_arbitrary_inspections(raw: &str, selector: usize) {
     let standard = Redactor::standard();
     let limited = inspection_limited_redactor(selected_inspection_budget(selector, raw.len()), raw.len());
@@ -134,25 +197,37 @@ fn check_arbitrary_inspections(raw: &str, selector: usize) {
     }
 }
 
+/// Allows rejection but requires every accepted inspection to identify
+/// sensitive content.
+#[inline]
 fn assert_sensitive_or_error(result: Result<RedactionInspection, RedactionInspectionError>) {
     if let Ok(inspection) = result {
         assert!(inspection.contains_sensitive(), "known secret classified as public");
     }
 }
 
+/// Checks the output byte budget and independent log-safety oracle.
+#[inline]
 fn assert_output_invariants(output: &RedactionTextOutput, max_output_bytes: usize) {
     assert_text_invariants(output.text().as_str(), max_output_bytes);
 }
 
+/// Rejects output exceeding its byte budget or containing log-unsafe
+/// characters.
+#[inline]
 fn assert_text_invariants(text: &str, max_output_bytes: usize) {
     assert!(text.len() <= max_output_bytes, "output exceeded byte budget");
     log_safety::assert_log_safe(text);
 }
 
+/// Rejects published text that still contains the known generated secret.
+#[inline]
 fn assert_secret_redacted(text: &str) {
     assert!(!text.contains(FUZZ_SECRET), "known secret was published");
 }
 
+/// Builds a standard policy with the requested output byte budget.
+#[must_use]
 fn output_limited_redactor(max_output_bytes: usize) -> Redactor {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -164,23 +239,29 @@ fn output_limited_redactor(max_output_bytes: usize) -> Redactor {
     Redactor::new(policy)
 }
 
+/// Encodes at most 128 input bytes as hexadecimal noise for generated cases.
+#[must_use]
 fn bounded_noise(input: &[u8]) -> String {
     let mut result = String::with_capacity(input.len().min(128) * 2);
     for byte in input.iter().take(128) {
-        use std::fmt::Write;
         let _ = write!(&mut result, "{byte:02x}");
     }
     result
 }
 
+/// Applies the requested number of form-URL percent-encoding layers.
+#[must_use]
 fn encode_layers(value: &str, depth: usize) -> String {
     let mut encoded = value.to_owned();
     for _ in 0..depth {
-        encoded = url::form_urlencoded::byte_serialize(encoded.as_bytes()).collect();
+        encoded = byte_serialize(encoded.as_bytes()).collect();
     }
     encoded
 }
 
+/// Generates one of seven syntax cases with independently recorded output
+/// expectations.
+#[must_use]
 fn generated_case(case: usize, budget_index: usize, depth: usize, noise: &str) -> GeneratedCase {
     let password_key = ["password", "pass%77ord", "%70assword"][budget_index % 3];
     let visible = format!("{VISIBLE_SENTINEL}{noise}");
@@ -200,7 +281,7 @@ fn generated_case(case: usize, budget_index: usize, depth: usize, noise: &str) -
             let mut fields = vec![format!("visible={visible}"), format!("ordinary={noise}")];
             fields.splice(
                 budget_index % (fields.len() + 1)..budget_index % (fields.len() + 1),
-                std::iter::repeat_n(format!("password={FUZZ_SECRET}"), repeated_passwords),
+                repeat_n(format!("password={FUZZ_SECRET}"), repeated_passwords),
             );
             (format!("https://fuzz.example/?{}", fields.join("&")), Entry::Both, true)
         }
@@ -240,11 +321,16 @@ fn generated_case(case: usize, budget_index: usize, depth: usize, noise: &str) -
     }
 }
 
+/// Constructs the ordinary, secret-free control case for regression checks.
 #[cfg(test)]
+#[must_use]
+#[inline]
 fn ordinary_case() -> GeneratedCase {
     generated_case(6, 0, 1, "")
 }
 
+/// Checks generated classifications, deterministic inspection, and URI boundary
+/// behavior.
 fn inspect_case(redactor: &Redactor, boundary: &UriRedactionBoundary, generated: &GeneratedCase) {
     let standard_boundary = UriRedactionBoundary::new(&RedactionPolicy::standard());
     for entry in match generated.entry {
@@ -302,6 +388,8 @@ fn inspect_case(redactor: &Redactor, boundary: &UriRedactionBoundary, generated:
     }
 }
 
+/// Checks generated classifications under one independently overridden
+/// inspection limit.
 fn inspect_with_budget(generated: &GeneratedCase, budget: InspectionBudget) {
     let limited = inspection_limited_redactor(budget, generated.input.len());
     let boundary = UriRedactionBoundary::new(limited.policy());
@@ -335,6 +423,9 @@ fn inspect_with_budget(generated: &GeneratedCase, budget: InspectionBudget) {
     }
 }
 
+/// Checks bounded log-safe output and, when applicable, removal of the known
+/// secret.
+#[inline]
 fn check_direct_output(redactor: &Redactor, output: &RedactionTextOutput, contains_secret: bool) {
     assert_output_invariants(output, redactor.policy().limits().max_output_bytes());
     if contains_secret {
@@ -342,6 +433,8 @@ fn check_direct_output(redactor: &Redactor, output: &RedactionTextOutput, contai
     }
 }
 
+/// Clamps fuzz bytes before allocation, then exercises arbitrary and generated
+/// direct inputs.
 fn exercise(input: &[u8]) {
     // Clamp before UTF-8 conversion or any input-sized allocation.
     let input = &input[..input.len().min(4_096)];
@@ -407,6 +500,8 @@ fuzz_target!(|input: &[u8]| exercise(input));
 
 #[cfg(test)]
 mod tests {
+    use std::panic::catch_unwind;
+
     use qubit_redact::RedactionPolicy;
     use qubit_redact::Redactor;
     use qubit_redact::formats::uri::UriRedactionBoundary;
@@ -492,13 +587,13 @@ mod tests {
 
     #[test]
     fn test_assertions_reject_oversized_unsafe_and_unredacted_text() {
-        assert!(std::panic::catch_unwind(|| assert_text_invariants("12345", 4)).is_err());
-        assert!(std::panic::catch_unwind(|| log_safety::assert_log_safe("line\nnext")).is_err());
-        assert!(std::panic::catch_unwind(|| assert_secret_redacted(FUZZ_SECRET)).is_err());
+        assert!(catch_unwind(|| assert_text_invariants("12345", 4)).is_err());
+        assert!(catch_unwind(|| log_safety::assert_log_safe("line\nnext")).is_err());
+        assert!(catch_unwind(|| assert_secret_redacted(FUZZ_SECRET)).is_err());
     }
 
     #[test]
-    fn arbitrary_inspections_cover_syntax_and_all_budget_selectors() {
+    fn test_arbitrary_inspections_cover_syntax_and_all_budget_selectors() {
         let samples = [
             "",
             "https://example.test/?name=ada",
@@ -521,10 +616,10 @@ mod tests {
     }
 
     #[test]
-    fn inspection_count_oracle_rejects_each_violation() {
+    fn test_inspection_count_oracle_rejects_each_violation() {
         assert_inspection_counts(1, 0, 1);
-        assert!(std::panic::catch_unwind(|| assert_inspection_counts(2, 0, 1)).is_err());
-        assert!(std::panic::catch_unwind(|| assert_inspection_counts(0, 1, 1)).is_err());
+        assert!(catch_unwind(|| assert_inspection_counts(2, 0, 1)).is_err());
+        assert!(catch_unwind(|| assert_inspection_counts(0, 1, 1)).is_err());
     }
 
     #[test]
@@ -573,7 +668,7 @@ mod tests {
         assert!(Redactor::new(zero_nodes).inspect_uri(uri).is_err());
 
         let ordinary = redactor.inspect_uri("https://fuzz.example/?name=ada").unwrap();
-        assert!(std::panic::catch_unwind(|| assert_sensitive_or_error(Ok(ordinary))).is_err());
+        assert!(catch_unwind(|| assert_sensitive_or_error(Ok(ordinary))).is_err());
         assert!(
             redactor.inspect_uri(uri).unwrap().contains_sensitive(),
             "strong success control"

@@ -31,7 +31,5 @@ fn main() {
         name: String::new(),
         next: None,
     };
-    let _ = PlainField {
-        value: String::new(),
-    };
+    let _ = PlainField { value: String::new() };
 }

@@ -12,7 +12,8 @@ pub use serde_impl::Serialize;
 pub use serde_impl::Serializer;
 pub use serde_impl::ser;
 
-/// Serde traits re-exported at the crate root remain reachable by generated code.
+/// Serde traits re-exported at the crate root remain reachable by generated
+/// code.
 #[derive(Redact)]
 #[redact(serde)]
 struct Record(String);

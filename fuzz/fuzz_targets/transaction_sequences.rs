@@ -8,6 +8,7 @@
 #![no_main]
 
 use std::ffi::OsStr;
+use std::str::from_utf8;
 
 use http::HeaderValue;
 use libfuzzer_sys::fuzz_target;
@@ -24,6 +25,14 @@ use qubit_redact::formats::http::BodyCapture;
 const FUZZ_SECRET: &str = "transaction-secret";
 
 /// Checks invariants shared by every item published from one completed batch.
+///
+/// # Parameters
+///
+/// - `diagnostics`: The completed batch whose usage and published text are
+///   checked.
+/// - `handles`: Handles returned by the operations in that same batch.
+/// - `input_limit`: The maximum permitted number of inspected input bytes.
+/// - `output_limit`: The maximum permitted number of published output bytes.
 fn check_output(
     diagnostics: &DiagnosticRedactionOutput,
     handles: &[DiagnosticRedactionHandle],
@@ -42,7 +51,7 @@ fn check_output(
     }
     for handle in handles {
         let text = diagnostics.text(*handle).as_str();
-        assert!(std::str::from_utf8(text.as_bytes()).is_ok());
+        assert!(from_utf8(text.as_bytes()).is_ok());
         assert!(!text.contains(FUZZ_SECRET));
     }
 }

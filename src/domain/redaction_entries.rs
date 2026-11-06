@@ -15,6 +15,13 @@ use crate::domain::RedactionWriter;
 
 /// Provides bounded redaction operations for map-like domain values.
 ///
+/// The scope is supplied by [`RedactionWriter::map`] and borrows its writer.
+///
+/// # Type Parameters
+///
+/// - `'writer`: Exclusive borrow of the writer for this map scope.
+/// - `'session`: Transaction lifetime carried by the borrowed writer.
+///
 /// # Examples
 ///
 /// ```
@@ -227,6 +234,21 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
 
     /// Writes a map value with an explicit sensitivity while preserving its
     /// recursive level-capable shape.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `K`: Possibly unsized key formatted with `Debug`.
+    /// - `T`: Possibly unsized value supporting recursive level redaction.
+    ///
+    /// # Parameters
+    ///
+    /// - `key`: Key written without level redaction.
+    /// - `value`: Value written through the supplied sensitivity level.
+    /// - `level`: Sensitivity applied to the value.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
     pub(crate) fn level_value_entry<K, T>(&mut self, key: &K, value: &T, level: Sensitivity) -> &mut Self
     where
         K: Debug + ?Sized,
@@ -246,6 +268,23 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     /// Writes a level-redacted key and an optionally level-redacted value.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `K`: Possibly unsized key supporting recursive level redaction.
+    /// - `V`: Possibly unsized value supporting level redaction and `Debug`.
+    ///
+    /// # Parameters
+    ///
+    /// - `key`: Key redacted at `key_level`.
+    /// - `value`: Value rendered after the key.
+    /// - `key_level`: Sensitivity applied to the key.
+    /// - `value_level`: `Some(level)` redacts the value at that level; `None`
+    ///   writes the value directly with `Debug`.
+    ///
+    /// # Returns
+    ///
+    /// This scope for subsequent map-entry operations.
     pub(crate) fn key_level_entry<K, V>(
         &mut self,
         key: &K,
@@ -276,6 +315,14 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     /// Admits one entry against the active collection limit.
+    ///
+    /// Consumes an iterator reservation when available; otherwise charges the
+    /// session collection budget.
+    ///
+    /// # Returns
+    ///
+    /// `true` if output remains writable and the entry is admitted; `false`
+    /// when output or collection capacity prevents writing it.
     fn admit_entry(&mut self) -> bool {
         if !self.writer.can_write() {
             return false;
@@ -284,6 +331,10 @@ impl<'writer, 'session> RedactionEntries<'writer, 'session> {
     }
 
     /// Writes a map key and separator.
+    ///
+    /// # Parameters
+    ///
+    /// - `name`: Trusted structural key text written before `": "`.
     fn write_prefix(&mut self, name: &str) {
         self.writer.write_fragment(name);
         self.writer.write_fragment(": ");

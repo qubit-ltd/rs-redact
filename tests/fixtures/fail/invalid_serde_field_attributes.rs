@@ -51,10 +51,7 @@ struct DuplicateSkip {
 #[redact(serde)]
 struct DuplicatePredicate {
     /// Repeated predicate.
-    #[serde(
-        skip_serializing_if = "String::is_empty",
-        skip_serializing_if = "String::is_empty"
-    )]
+    #[serde(skip_serializing_if = "String::is_empty", skip_serializing_if = "String::is_empty")]
     value: String,
 }
 

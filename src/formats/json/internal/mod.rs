@@ -7,6 +7,7 @@
 // =============================================================================
 //! Private shared implementation for JSON redaction.
 
+mod bounded_json_redaction;
 #[cfg(any(feature = "http", test))]
 mod json_redaction_outcome;
 mod json_redaction_state;
@@ -17,6 +18,7 @@ mod masked_json_text;
 mod redacted_value;
 mod value_context;
 
+pub(super) use bounded_json_redaction::BoundedJsonRedaction;
 #[cfg(any(feature = "http", test))]
 pub(crate) use json_redaction_outcome::JsonRedactionOutcome;
 pub(crate) use json_redaction_state::JsonRedactionState;

@@ -40,6 +40,10 @@ pub struct RedactionFloorBuilder {
 
 impl RedactionFloorBuilder {
     /// Creates an empty builder for the floor construction context.
+    ///
+    /// # Returns
+    ///
+    /// An editable first layer with no retained floor layers.
     #[must_use]
     #[inline(always)]
     pub(super) fn empty() -> Self {
@@ -49,7 +53,20 @@ impl RedactionFloorBuilder {
         }
     }
 
-    /// Copies every field rule from `floor`.
+    /// Copies the first layer of `floor` and shares its retained immutable
+    /// layers.
+    ///
+    /// # Parameters
+    ///
+    /// * `floor` - Floor whose rules and layer order are preserved.
+    ///
+    /// # Returns
+    ///
+    /// A builder with an editable copy of the first layer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `floor` has no layers, violating the built-floor invariant.
     #[must_use]
     #[inline(always)]
     pub(super) fn from_floor(floor: &RedactionFloor) -> Self {
@@ -65,6 +82,14 @@ impl RedactionFloorBuilder {
     ///
     /// When this builder came from a composed floor, retained layers keep
     /// their original matching behavior.
+    ///
+    /// # Parameters
+    ///
+    /// * `matching` - Field-name matching mode for the editable first layer.
+    ///
+    /// # Returns
+    ///
+    /// This builder with the updated matching mode.
     #[must_use]
     #[inline(always)]
     pub fn matching(mut self, matching: FieldNameMatching) -> Self {
@@ -74,6 +99,15 @@ impl RedactionFloorBuilder {
 
     /// Sets the fallback for fields without an explicit rule in the editable
     /// first layer. Retained layers keep their own fallback behavior.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` - Fallback used by the editable first layer for unknown
+    ///   fields.
+    ///
+    /// # Returns
+    ///
+    /// This builder with the updated fallback policy.
     #[must_use]
     #[inline(always)]
     pub fn unknown_field_policy(mut self, policy: UnknownFieldPolicy) -> Self {
@@ -81,7 +115,20 @@ impl RedactionFloorBuilder {
         self
     }
 
-    /// Adds every sensitive field in one preset.
+    /// Adds every sensitive field in one preset to the editable first layer,
+    /// preserving any stronger classification already configured there.
+    ///
+    /// # Parameters
+    ///
+    /// * `preset` - Built-in sensitive-field rules to add.
+    ///
+    /// # Returns
+    ///
+    /// This builder with the preset rules applied.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a built-in preset contains an invalid field name.
     #[must_use]
     #[inline(always)]
     pub fn include_preset(mut self, preset: SensitiveFieldPreset) -> Self {
@@ -89,18 +136,34 @@ impl RedactionFloorBuilder {
         self
     }
 
-    /// Raises `field` to at least `level`.
+    /// Raises `field` to at least `level` in the editable first layer.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` - Field name to canonicalize and update.
+    /// * `level` - Minimum sensitivity to apply without lowering an existing
+    ///   rule.
+    ///
+    /// # Returns
+    ///
+    /// This builder with the field rule updated on success.
     ///
     /// # Errors
     ///
     /// Returns [`PolicyError::EmptyFieldName`] when `field` has no canonical
     /// floor-rule name.
+    #[inline]
     pub fn raise(mut self, field: &str, level: Sensitivity) -> Result<Self, PolicyError> {
         self.rules.raise(field, level)?;
         Ok(self)
     }
 
-    /// Validates and constructs the immutable floor.
+    /// Consumes this builder and constructs the immutable floor.
+    ///
+    /// # Returns
+    ///
+    /// A floor containing the edited first layer followed by the retained
+    /// layers.
     ///
     /// # Errors
     ///

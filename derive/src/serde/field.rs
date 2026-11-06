@@ -43,6 +43,17 @@ pub(super) fn field_is_skipped(serde_attributes: &SerdeAttributes) -> bool {
 ///
 /// This only selects notification eligibility; it does not evaluate the
 /// `skip_serializing_if` predicate itself.
+///
+/// # Parameters
+///
+/// * `serde_attributes` - Validated Serde omission and predicate controls.
+/// * `mode` - Redaction mode determining whether notification requires disabled
+///   policy.
+///
+/// # Returns
+///
+/// `None` for unconditional Serde omission or a missing predicate. Otherwise,
+/// `Some` contains the policy condition allowing an omitted-field notification.
 #[must_use]
 pub(super) fn conditional_skip_event_allowed(
     serde_attributes: &SerdeAttributes,
@@ -62,6 +73,8 @@ pub(super) fn conditional_skip_event_allowed(
 ///
 /// # Parameters
 ///
+/// * `source_context` - Source type context used to resolve custom adapter
+///   predicate paths.
 /// * `serde_attributes` - Validated Serde field controls.
 /// * `mode` - Redaction mode whose skip rule applies only under enabled policy.
 /// * `raw` - Expression accessing the unredacted field value.
@@ -104,6 +117,20 @@ pub(super) fn serialization_condition(
 }
 
 /// Selects the borrowed value from a predicate-bearing projection member.
+///
+/// # Parameters
+///
+/// * `raw` - Expression accessing the projected field member.
+/// * `serde_attributes` - Validated Serde controls determining the projection
+///   shape.
+/// * `legacy_nested` - Whether fields use the source serialization bridge.
+///
+/// # Returns
+///
+/// The tuple's value-member expression for a borrowed predicate projection,
+/// or the original expression for legacy, skipped, adapter, or predicate-free
+/// fields.
+#[must_use]
 pub(super) fn projected_raw(raw: TokenStream, serde_attributes: &SerdeAttributes, legacy_nested: bool) -> TokenStream {
     if !legacy_nested
         && !serde_attributes.skip()
@@ -117,6 +144,20 @@ pub(super) fn projected_raw(raw: TokenStream, serde_attributes: &SerdeAttributes
 }
 
 /// Selects the saved predicate function from a predicate-bearing projection.
+///
+/// # Parameters
+///
+/// * `raw` - Expression accessing the projected field member.
+/// * `serde_attributes` - Validated Serde controls determining the projection
+///   shape.
+/// * `legacy_nested` - Whether fields use the source serialization bridge.
+///
+/// # Returns
+///
+/// `Some` contains the tuple's saved predicate-member expression for a borrowed
+/// predicate projection. `None` denotes a legacy, skipped, adapter, or
+/// predicate-free field.
+#[must_use]
 pub(super) fn projected_predicate(
     raw: TokenStream,
     serde_attributes: &SerdeAttributes,
@@ -260,6 +301,7 @@ pub(super) fn serialized_carrier(
 /// # Panics
 ///
 /// Panics if `context` contains characters invalid in a Rust identifier.
+#[must_use]
 #[inline]
 pub(super) fn adapter_helper_name(type_name: &Ident, field: &Field, context: &str) -> Ident {
     let type_fragment = type_name.to_string().replace("r#", "");

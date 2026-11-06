@@ -12,20 +12,23 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use self::internal::sealed as private;
+use super::RedactLevelValue;
 use super::redaction_fields::RedactionFields;
 
-/// Seals the supported capability set against downstream implementations.
-mod private {
-    /// Restricts map mode to supported string-keyed representations.
-    pub trait Sealed {
-        // empty
-    }
-}
+// Owns the private sealing boundary for supported map representations.
+mod internal;
 
 /// Marker capability implemented only for supported string-keyed maps.
 #[doc(hidden)]
 pub trait RedactMapValue: private::Sealed {
     /// Writes this supported map through the named field scope.
+    ///
+    /// # Parameters
+    ///
+    /// - `fields`: Active record scope receiving the map without taking
+    ///   ownership.
+    /// - `name`: Field label used for admission before classifying map keys.
     #[doc(hidden)]
     fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str);
 }
@@ -33,26 +36,41 @@ pub trait RedactMapValue: private::Sealed {
 /// Implements map mode for owned key representations and optional maps.
 macro_rules! owned_map_key {
     ($key:ty) => {
-        impl<V: super::RedactLevelValue + Debug> private::Sealed for HashMap<$key, V> {}
-        impl<V: super::RedactLevelValue + Debug> RedactMapValue for HashMap<$key, V> {
+        impl<V: RedactLevelValue + Debug> RedactMapValue for HashMap<$key, V> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<V: super::RedactLevelValue + Debug> private::Sealed for BTreeMap<$key, V> {}
-        impl<V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+        impl<V: RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<V: super::RedactLevelValue + Debug> private::Sealed for Option<HashMap<$key, V>> {}
-        impl<V: super::RedactLevelValue + Debug> RedactMapValue for Option<HashMap<$key, V>> {
+        impl<V: RedactLevelValue + Debug> RedactMapValue for Option<HashMap<$key, V>> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -62,10 +80,15 @@ macro_rules! owned_map_key {
                 };
             }
         }
-        impl<V: super::RedactLevelValue + Debug> private::Sealed for Option<BTreeMap<$key, V>> {}
-        impl<V: super::RedactLevelValue + Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
+        impl<V: RedactLevelValue + Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -81,26 +104,41 @@ macro_rules! owned_map_key {
 /// Implements map mode while preserving the borrowed key lifetime.
 macro_rules! borrowed_map_key {
     ($key:ty) => {
-        impl<'a, V: super::RedactLevelValue + Debug> private::Sealed for HashMap<$key, V> {}
-        impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for HashMap<$key, V> {
+        impl<'a, V: RedactLevelValue + Debug> RedactMapValue for HashMap<$key, V> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<'a, V: super::RedactLevelValue + Debug> private::Sealed for BTreeMap<$key, V> {}
-        impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
+        impl<'a, V: RedactLevelValue + Debug> RedactMapValue for BTreeMap<$key, V> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 fields.map_entries(name, self.iter());
             }
         }
-        impl<'a, V: super::RedactLevelValue + Debug> private::Sealed for Option<HashMap<$key, V>> {}
-        impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for Option<HashMap<$key, V>> {
+        impl<'a, V: RedactLevelValue + Debug> RedactMapValue for Option<HashMap<$key, V>> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),
@@ -110,10 +148,15 @@ macro_rules! borrowed_map_key {
                 };
             }
         }
-        impl<'a, V: super::RedactLevelValue + Debug> private::Sealed for Option<BTreeMap<$key, V>> {}
-        impl<'a, V: super::RedactLevelValue + Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
+        impl<'a, V: RedactLevelValue + Debug> RedactMapValue for Option<BTreeMap<$key, V>> {
             /// Traverses an available map through named-field admission and key
-            /// classification.
+            /// classification; absent optional maps use ordinary unmarked output.
+            ///
+            /// # Parameters
+            ///
+            /// - `fields`: Active record scope receiving this borrowed map.
+            /// - `name`: Field label used for admission and output.
+            #[inline]
             fn write_redacted_map(&self, fields: &mut RedactionFields<'_, '_>, name: &str) {
                 match self {
                     Some(value) => value.write_redacted_map(fields, name),

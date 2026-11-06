@@ -28,6 +28,7 @@ use crate::model::VariantData;
 ///
 /// # Parameters
 ///
+/// * `input` - Original derive input used to recognize recursive field types.
 /// * `model` - Validated struct or enum fields.
 /// * `parameters` - One generated type parameter per source field in traversal
 ///   order.
@@ -94,6 +95,7 @@ pub(super) fn projection_bounds(
 ///
 /// # Parameters
 ///
+/// * `input` - Original derive input used to recognize recursive field types.
 /// * `fields` - Validated named, tuple, or unit fields.
 /// * `parameters` - Generated parameters for every model field.
 /// * `offset` - Index of this group, advanced past its fields.
@@ -217,6 +219,18 @@ fn projection_group_bounds(
 /// Collects the concrete source-field capabilities required by the generated
 /// source implementation. Unlike the borrowed projection path, these bounds
 /// do not quantify over an arbitrary source lifetime.
+///
+/// # Parameters
+///
+/// * `model` - Validated struct or enum fields; skipped variants are omitted.
+/// * `runtime` - Resolved runtime crate path used in capability predicates.
+/// * `serde` - Resolved Serde path used in serialization predicates.
+///
+/// # Returns
+///
+/// Concrete source-field predicates in field traversal order, excluding skipped
+/// variants and fields.
+#[must_use]
 pub(super) fn source_bounds(model: &ContainerData<'_>, runtime: &Path, serde: &Path) -> Vec<TokenStream> {
     let mut result = Vec::new();
     let mut groups = Vec::new();
@@ -236,6 +250,14 @@ pub(super) fn source_bounds(model: &ContainerData<'_>, runtime: &Path, serde: &P
 }
 
 /// Appends concrete capability bounds for one source field group.
+///
+/// # Parameters
+///
+/// * `fields` - Validated named, tuple, or unit fields.
+/// * `runtime` - Resolved runtime crate path used in capability predicates.
+/// * `serde` - Resolved Serde path used in serialization predicates.
+/// * `result` - Destination extended with named-key bounds first, followed by
+///   each field's capability bounds; unit fields leave it unchanged.
 fn source_group_bounds(fields: &FieldsData<'_>, runtime: &Path, serde: &Path, result: &mut Vec<TokenStream>) {
     match fields {
         FieldsData::Named(fields) => {
@@ -276,6 +298,19 @@ fn source_group_bounds(fields: &FieldsData<'_>, runtime: &Path, serde: &Path, re
 }
 
 /// Appends capability bounds for one concrete field.
+///
+/// # Parameters
+///
+/// * `field` - Source field whose concrete type is used in the predicate.
+/// * `mode` - Validated redaction policy selecting the required capability.
+/// * `serde_attributes` - Serialization policy; skipped fields add no bounds,
+///   and custom serializers suppress ordinary `Serialize` bounds.
+/// * `runtime` - Resolved runtime crate path used in capability predicates.
+/// * `serde` - Resolved Serde path used in serialization predicates.
+/// * `result` - Destination extended with this field's capability predicates.
+///
+/// Ordinary serialization bounds strip reference layers to constrain the
+/// underlying type rather than introduce a source borrow lifetime.
 fn source_field_bound(
     field: &Field,
     mode: &FieldMode,

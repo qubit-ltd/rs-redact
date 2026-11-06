@@ -15,6 +15,17 @@ use crate::runtime::runtime_session::RuntimeSession;
 ///
 /// Non-Unicode names retain the renderer's existing conservative secret
 /// handling because they have no UTF-8 key representation to measure.
+///
+/// # Parameters
+///
+/// - `session`: Shared transaction that checks the classification-key limit.
+/// - `name`: Borrowed environment name to check without normalization.
+///
+/// # Returns
+///
+/// `true` for non-Unicode names or Unicode names admitted by the transaction;
+/// `false` when the transaction rejects a Unicode classification key.
+#[inline]
 pub(in crate::formats) fn admit_environment_name(session: &mut dyn RuntimeSession, name: &OsStr) -> bool {
     match name.to_str() {
         Some(name) => session.admit_domain_key(name),
@@ -24,6 +35,12 @@ pub(in crate::formats) fn admit_environment_name(session: &mut dyn RuntimeSessio
 
 /// Collects environment pairs incrementally, stopping before reading past a
 /// rejected classification name.
+///
+/// # Type Parameters
+///
+/// - `'items`: Lifetime of the borrowed names and values retained in the
+///   result.
+/// - `I`: Source convertible into an iterator of borrowed environment pairs.
 ///
 /// # Parameters
 ///

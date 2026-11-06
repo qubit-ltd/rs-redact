@@ -18,6 +18,12 @@ use crate::runtime::JsonStructureAdmission;
 
 /// Charges one JSON value while the unique decoder reconstructs its output
 /// tree.
+///
+/// # Type Parameters
+///
+/// - `'admission`: Exclusive borrow of the structural ledger for this value.
+/// - `'runtime`: Lifetime of the runtime state borrowed by the ledger.
+/// - `'rejected`: Exclusive borrow of the shared structural rejection flag.
 pub(crate) struct JsonStructureSeed<'admission, 'runtime, 'rejected> {
     /// Shared structural ledger charged as a node is reconstructed.
     pub(crate) admission: &'admission mut JsonStructureAdmission<'runtime>,
@@ -37,12 +43,31 @@ impl<'de> DeserializeSeed<'de> for JsonStructureSeed<'_, '_, '_> {
     /// Admits the pending node, then reconstructs one value from
     /// `deserializer`.
     ///
-    /// `D` supplies events from the owned tree produced by the unique decoder.
-    /// Returns the reconstructed value or propagates its decoding error. A
-    /// rejected item or node sets the shared rejection flag and returns a
-    /// custom `D::Error` before decoding. This seed is the formal
-    /// accounting pass after the read-only shared preflight; admitted nodes
-    /// consume the transaction's structural allowance exactly once.
+    /// This seed is the formal accounting pass after the read-only shared
+    /// preflight; admitted nodes consume the transaction's structural allowance
+    /// exactly once.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `D`: Deserializer supplying events from the owned tree produced by the
+    ///   unique decoder, with input lifetime `'de`.
+    ///
+    /// # Parameters
+    ///
+    /// - `self`: Consumed seed carrying the shared ledger, node depth,
+    ///   collection membership, and rejection flag.
+    /// - `deserializer`: Event source consumed to reconstruct the pending
+    ///   value.
+    ///
+    /// # Returns
+    ///
+    /// The reconstructed JSON value after charging structural admission.
+    ///
+    /// # Errors
+    ///
+    /// Propagates decoding errors from `D`. A rejected item or node sets the
+    /// shared rejection flag and returns a custom `D::Error` before decoding.
+    #[inline]
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: Deserializer<'de>,

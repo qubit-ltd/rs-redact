@@ -7,6 +7,13 @@
 // =============================================================================
 //! Public transactional API surface checks.
 
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use std::ffi::OsStr;
+
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use http::HeaderMap;
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use http::HeaderValue;
 use qubit_redact::DiagnosticRedactionBatch;
 use qubit_redact::DiagnosticRedactionHandle;
 use qubit_redact::DiagnosticRedactionOutput;
@@ -23,6 +30,12 @@ use qubit_redact::Redactor;
 use qubit_redact::domain::RedactionEntries;
 use qubit_redact::domain::RedactionFields;
 use qubit_redact::domain::RedactionItems;
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use qubit_redact::formats::argv::ArgvItem;
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use qubit_redact::formats::http::BodyCapture;
+#[cfg(all(feature = "http", feature = "uri", feature = "json"))]
+use serde_json::json;
 
 /// Proves the target public types are available through the crate root.
 #[test]
@@ -46,44 +59,55 @@ fn test_target_transactional_types_are_public() {
 }
 
 #[test]
-fn batch_resolves_independent_items_without_aggregate_text() {
+fn test_batch_resolves_independent_items_without_aggregate_text() {
     let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_field("password", "raw-secret");
     let output = batch.finish_with_marker("<redaction incomplete>");
 
-    assert_eq!(output.text(handle).as_str(), "<redacted>");
-    assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
+    assert_eq!(
+        output.text(handle).as_str(),
+        "<redacted>",
+        "the password item must be redacted"
+    );
+    assert_eq!(
+        output.summary().completion(),
+        RedactionCompletion::Complete,
+        "the batch must complete"
+    );
 }
 
 #[test]
-fn batch_redacts_one_domain_value() {
+fn test_batch_redacts_one_domain_value() {
     let mut batch = Redactor::strict().diagnostic_batch();
     let handle = batch.redact_value(&PublicApiValue);
     let output = batch.finish_with_marker("<redaction incomplete>");
 
-    assert_eq!(output.text(handle).as_str(), "PublicApiValue");
+    assert_eq!(
+        output.text(handle).as_str(),
+        "PublicApiValue",
+        "the batch must use the public Redact implementation"
+    );
 }
 
 #[test]
-fn text_composer_builds_one_ordered_text() {
+fn test_text_composer_builds_one_ordered_text() {
     let output = Redactor::strict()
         .text_composer()
         .literal("password=")
         .field("password", "raw-secret")
         .finish();
 
-    assert_eq!(output.text().as_str(), "password=<redacted>");
+    assert_eq!(
+        output.text().as_str(),
+        "password=<redacted>",
+        "the composer must preserve literal and field order"
+    );
 }
 
 /// Exercises each all-format batch entry point in one shared transaction.
 #[cfg(all(feature = "http", feature = "uri", feature = "json"))]
 #[test]
-fn batch_redacts_each_supported_format_as_an_independent_item() {
-    use std::ffi::OsStr;
-
-    use qubit_redact::formats::argv::ArgvItem;
-    use qubit_redact::formats::http::BodyCapture;
-
+fn test_batch_redacts_each_supported_format_as_an_independent_item() {
     let mut batch = Redactor::strict().diagnostic_batch();
     let mut handles = vec![batch.redact_env("TOKEN", "raw-env-token")];
     handles.push(batch.redact_env_pairs([(OsStr::new("TOKEN"), OsStr::new("raw-pair-token"))]));
@@ -95,30 +119,38 @@ fn batch_redacts_each_supported_format_as_an_independent_item() {
         [(OsStr::new("TOKEN"), OsStr::new("raw-process-token"))],
     ));
     handles.push(batch.redact_json(r#"{"password":"raw-json"}"#));
-    handles.push(batch.redact_json_value(&serde_json::json!({"password": "raw-value"})));
+    handles.push(batch.redact_json_value(&json!({"password": "raw-value"})));
     handles.push(batch.redact_uri("https://example.test/?token=raw-uri"));
     handles.push(batch.redact_http_url("https://example.test/?token=raw-url"));
 
-    let mut headers = http::HeaderMap::new();
-    headers.insert("authorization", http::HeaderValue::from_static("Bearer raw-header"));
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", HeaderValue::from_static("Bearer raw-header"));
     handles.push(batch.redact_http_headers(&headers));
-    let content_type = http::HeaderValue::from_static("text/plain");
+    let content_type = HeaderValue::from_static("text/plain");
     handles.push(batch.redact_http_body(BodyCapture::complete(b"raw body"), Some(&content_type)));
     handles.push(
         batch.redact_http_body_with_content_type_text(BodyCapture::complete(b"raw body text"), Some("text/plain")),
     );
 
-    assert!(!batch.is_output_exhausted());
+    assert!(
+        !batch.is_output_exhausted(),
+        "the format batch must remain within its output budget"
+    );
     let output = batch.finish_with_marker("<incomplete>");
     for handle in handles {
-        assert_ne!(output.text(handle).as_str(), "<incomplete>");
+        assert_ne!(
+            output.text(handle).as_str(),
+            "<incomplete>",
+            "each format item must finish without the fallback marker"
+        );
     }
     let mut default_finish_batch = Redactor::strict().diagnostic_batch();
     let default_finish_handle = default_finish_batch.redact_env("TOKEN", "raw-default-finish");
     let default_finish_output = default_finish_batch.finish();
     assert_ne!(
         default_finish_output.text(default_finish_handle).as_str(),
-        "<redaction incomplete>"
+        "<redaction incomplete>",
+        "the default finish path must complete the environment item"
     );
 }
 

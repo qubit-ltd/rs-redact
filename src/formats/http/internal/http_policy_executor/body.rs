@@ -236,6 +236,17 @@ impl HttpPolicyExecutor<'_> {
 /// character. The extra marker space preserves the publisher's existing
 /// trailing-marker handling. Scanning may still visit the full admitted input
 /// when it contains a long valid prefix.
+///
+/// # Parameters
+///
+/// - `bytes`: Admitted body bytes to decode with replacement for invalid UTF-8.
+/// - `output_limit`: Publisher byte ceiling used to bound the retained prefix.
+///
+/// # Returns
+///
+/// Lossily decoded text, retaining whole characters up to the publisher limit
+/// plus marker space and truncation evidence, or the complete decoded input
+/// when it is shorter.
 #[must_use]
 fn bounded_lossy_body_text(bytes: &[u8], output_limit: usize) -> String {
     let threshold = output_limit.saturating_add(markers::TRUNCATED.len()).saturating_add(1);

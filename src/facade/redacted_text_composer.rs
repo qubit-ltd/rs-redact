@@ -96,10 +96,26 @@ impl RedactedTextComposer {
     /// disabled policies return the original value subject to resource limits.
     /// High and Secret values are not formatted.
     ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Possibly unsized scalar implementing `Display`.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Minimum sensitivity applied when redaction is enabled.
+    /// - `field`: Raw scalar key used for admission and policy classification.
+    /// - `value`: Borrowed scalar formatted only when the selected policy and
+    ///   resource limits require it.
+    ///
+    /// # Returns
+    ///
+    /// This composer after recording the scalar result and accounting.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use qubit_redact::{Redactor, Sensitivity};
+    /// use qubit_redact::Redactor;
+    /// use qubit_redact::Sensitivity;
     /// let output = Redactor::standard().text_composer()
     ///     .field_at_least(Sensitivity::Secret, "detail", "private text")
     ///     .finish();

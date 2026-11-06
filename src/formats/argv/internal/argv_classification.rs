@@ -16,7 +16,10 @@ use crate::Sensitivity;
 /// Classification of one argv item without rendering or copying its value.
 pub(in crate::formats::argv) enum ArgvClassification<'a> {
     /// Preserve the original operating-system string.
-    PassThrough(&'a OsStr),
+    PassThrough(
+        /// Original argument borrowed unchanged for rendering without masking.
+        &'a OsStr,
+    ),
     /// Mask the complete argument at the supplied sensitivity.
     WholeValue {
         /// Original operating-system value.

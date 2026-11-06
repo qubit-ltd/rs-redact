@@ -25,6 +25,10 @@ use crate::policy::UnknownFieldPolicy;
 /// returned by that outer call after its closure finishes, so configuration
 /// methods can be chained without returning individual `Result` values.
 ///
+/// # Type Parameters
+///
+/// * `'a` — lifetime of the exclusive borrow of the temporary policy draft.
+///
 /// # Examples
 ///
 /// ```
@@ -46,36 +50,85 @@ pub struct FieldsBuilder<'a> {
 
 impl FieldsBuilder<'_> {
     /// Marks `field` as low sensitivity in the draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose minimum sensitivity is raised to low.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn low_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Low)
     }
 
     /// Marks `field` as medium sensitivity in the draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose minimum sensitivity is raised to medium.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn medium_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Medium)
     }
 
     /// Marks `field` as high sensitivity in the draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose minimum sensitivity is raised to high.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn high_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::High)
     }
 
     /// Marks `field` as secret sensitivity in the draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose minimum sensitivity is raised to secret.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn secret_sensitive(&mut self, field: &str) -> &mut Self {
         self.set_sensitive(field, Sensitivity::Secret)
     }
 
     /// Raises `field`'s minimum sensitivity to `level` in the draft.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` — Minimum sensitivity to apply.
+    /// * `field` — Field name to classify.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn sensitive(&mut self, level: Sensitivity, field: &str) -> &mut Self {
         self.set_sensitive(field, level)
     }
 
     /// Sets how field names are matched by the base policy.
+    ///
+    /// # Parameters
+    ///
+    /// * `matching` — Matching mode used to resolve field names.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn matching(&mut self, matching: FieldNameMatching) -> &mut Self {
         self.builder.rules.matching(matching);
@@ -83,6 +136,14 @@ impl FieldsBuilder<'_> {
     }
 
     /// Sets the base policy applied to fields without an explicit rule.
+    ///
+    /// # Parameters
+    ///
+    /// * `policy` — Fallback behavior for fields without explicit rules.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn unknown_field_policy(&mut self, policy: UnknownFieldPolicy) -> &mut Self {
         self.builder.rules.unknown_field_policy(policy);
@@ -90,6 +151,14 @@ impl FieldsBuilder<'_> {
     }
 
     /// Adds every field in `preset` to the base sensitivity rules.
+    ///
+    /// # Parameters
+    ///
+    /// * `preset` — Built-in collection of field sensitivity rules to include.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn include_preset(&mut self, preset: SensitiveFieldPreset) -> &mut Self {
         self.builder.rules.include_preset(preset);
@@ -100,6 +169,15 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name to classify.
+    /// * `level` — Minimum sensitivity to apply.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn raise(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.raise(field, level)
@@ -113,6 +191,15 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose explicit rule is replaced.
+    /// * `level` — Replacement sensitivity; protection floors still apply.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn override_level(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.override_level(field, level)
@@ -126,6 +213,14 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name to allow by canonical exact matching.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn allow_exact(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.allow_canonical_exact(field)
@@ -146,6 +241,14 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name to allow as an exact or token-suffix candidate.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn allow_suffix(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.allow_suffix(field)
@@ -159,6 +262,14 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose canonical exact exception is removed.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn remove_allow_exact(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.remove_allow_canonical_exact(field)
@@ -172,6 +283,14 @@ impl FieldsBuilder<'_> {
     ///
     /// An invalid field name is recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name whose suffix exception is removed.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn remove_allow_suffix(&mut self, field: &str) -> &mut Self {
         if self.error.is_none()
             && let Err(error) = self.builder.rules.remove_allow_suffix(field)
@@ -182,6 +301,10 @@ impl FieldsBuilder<'_> {
     }
 
     /// Removes every exact-name and suffix exception from the base rules.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn clear_allow_rules(&mut self) -> &mut Self {
         self.builder.rules.clear_allow_rules();
@@ -189,6 +312,14 @@ impl FieldsBuilder<'_> {
     }
 
     /// Sets the minimum-protection floor applied to the base field rules.
+    ///
+    /// # Parameters
+    ///
+    /// * `floor` — Minimum-protection rules moved into the draft.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn floor(&mut self, floor: RedactionFloor) -> &mut Self {
         self.builder.floor = Some(floor);
@@ -196,6 +327,10 @@ impl FieldsBuilder<'_> {
     }
 
     /// Removes the minimum-protection floor from the base field rules.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     pub fn disable_floor(&mut self) -> &mut Self {
         self.builder.floor = None;
@@ -207,6 +342,15 @@ impl FieldsBuilder<'_> {
     /// If the resulting masking configuration is invalid, the error is
     /// recorded and returned by the enclosing
     /// [`RedactionPolicyBuilder::fields`] call after configuration completes.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` — Sensitivity whose masking strategy is replaced.
+    /// * `policy` — Replacement masking strategy moved into the configuration.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     pub fn mask(&mut self, level: Sensitivity, policy: MaskPolicy) -> &mut Self {
         let mut masking = MaskingPolicy::builder_from(&self.builder.masking);
         masking.policy(level, policy);
@@ -222,6 +366,15 @@ impl FieldsBuilder<'_> {
 
     /// Raises `field`'s minimum sensitivity in the draft, recording any
     /// validation error for the enclosing `fields` call.
+    ///
+    /// # Parameters
+    ///
+    /// * `field` — Field name to classify.
+    /// * `level` — Minimum sensitivity to apply.
+    ///
+    /// # Returns
+    ///
+    /// This mutable view for chaining further draft changes.
     #[inline(always)]
     fn set_sensitive(&mut self, field: &str, level: Sensitivity) -> &mut Self {
         if self.error.is_none()

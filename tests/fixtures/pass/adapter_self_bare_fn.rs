@@ -19,10 +19,7 @@ impl Marker for fn(SerdeRecord) {}
 impl Marker for fn() -> SerdeRecord {}
 impl<T> Marker for Option<fn(Generic<T>)> {}
 
-fn encode<C: Marker, S: serde::Serializer>(
-    value: &String,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+fn encode<C: Marker, S: serde::Serializer>(value: &String, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(value)
 }
 
@@ -67,10 +64,7 @@ fn main() {
     assert_eq!(serde_json::to_value(&serde_record).unwrap(), expected);
 
     let redactor = qubit_redact::Redactor::standard();
-    assert_eq!(
-        serde_json::to_value(redactor.redact_view(&record)).unwrap(),
-        expected
-    );
+    assert_eq!(serde_json::to_value(redactor.redact_view(&record)).unwrap(), expected);
     #[cfg(feature = "json")]
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&redactor.to_json(&record).unwrap()).unwrap(),
@@ -83,8 +77,5 @@ fn main() {
     };
     let expected = serde_json::json!({"value": "three"});
     assert_eq!(serde_json::to_value(&generic).unwrap(), expected);
-    assert_eq!(
-        serde_json::to_value(redactor.redact_view(&generic)).unwrap(),
-        expected
-    );
+    assert_eq!(serde_json::to_value(redactor.redact_view(&generic)).unwrap(), expected);
 }

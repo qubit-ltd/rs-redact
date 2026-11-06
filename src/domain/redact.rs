@@ -54,5 +54,11 @@ use crate::domain::RedactionWriter;
 /// ```
 pub trait Redact {
     /// Writes this value through the invariant-preserving structured writer.
+    ///
+    /// # Parameters
+    ///
+    /// - `writer`: Writer supplied by the current redaction operation. Use its
+    ///   structured scopes to classify fields while borrowing `self` without
+    ///   modifying the original value.
     fn write_redacted(&self, writer: &mut RedactionWriter<'_>);
 }

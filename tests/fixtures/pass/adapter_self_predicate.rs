@@ -28,10 +28,7 @@ impl<T> Source<T> {
 
 #[derive(Serialize)]
 struct Native<T> {
-    #[serde(
-        serialize_with = "encode::<T, _>",
-        skip_serializing_if = "Native::empty"
-    )]
+    #[serde(serialize_with = "encode::<T, _>", skip_serializing_if = "Native::empty")]
     value: Option<T>,
 }
 

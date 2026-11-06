@@ -239,6 +239,22 @@ impl MaskPolicy {
 
     /// Masks a value and reports whether the retained UTF-8 byte ceiling cut
     /// the mask.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a` - Lifetime of the input and any borrowed result.
+    ///
+    /// # Parameters
+    ///
+    /// * `value` - Value to mask; empty input remains borrowed and empty.
+    /// * `max_bytes` - Maximum retained UTF-8 bytes in the masked result.
+    ///
+    /// # Returns
+    ///
+    /// The masked value and whether any masked bytes were omitted by the
+    /// byte ceiling. Empty input returns the borrowed input and `false`;
+    /// non-empty input returns an owned result. The ceiling bounds retained
+    /// bytes, not string capacity or allocator overhead.
     #[must_use]
     pub(crate) fn mask_bounded_with_truncation<'a>(&self, value: &'a str, max_bytes: usize) -> (Cow<'a, str>, bool) {
         if value.is_empty() {
@@ -397,6 +413,7 @@ fn mask_preserving_suffix(
 ///
 /// `Some((prefix_end, suffix_start))` when the value exceeds both full-mask
 /// limits, or `None` when it must be masked completely.
+#[must_use]
 fn preserved_edge_bounds(
     value: &str,
     prefix_chars: usize,
@@ -424,6 +441,7 @@ fn preserved_edge_bounds(
 ///
 /// `Some(suffix_start)` when the value exceeds both full-mask limits, or
 /// `None` when it must be masked completely.
+#[must_use]
 fn preserved_suffix_start(value: &str, suffix_chars: usize, full_mask_below_or_equal: usize) -> Option<usize> {
     let required_chars = full_mask_below_or_equal.max(suffix_chars);
     value.chars().nth(required_chars)?;
@@ -441,6 +459,7 @@ fn preserved_suffix_start(value: &str, suffix_chars: usize, full_mask_below_or_e
 ///
 /// `Some(index)` at a UTF-8 character boundary, or `None` when the value is
 /// shorter than the requested suffix.
+#[must_use]
 fn suffix_start(value: &str, suffix_chars: usize) -> Option<usize> {
     if suffix_chars == 0 {
         return Some(value.len());

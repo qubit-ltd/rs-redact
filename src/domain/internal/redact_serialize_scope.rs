@@ -31,6 +31,13 @@ use crate::RedactionReasons;
 #[cfg(feature = "json")]
 use crate::runtime::JsonStructurePreflight;
 
+// Owns report observer state and unregisters it on drop.
+#[cfg(feature = "json")]
+mod serde_report_guard;
+
+#[cfg(feature = "json")]
+pub(crate) use serde_report_guard::SerdeReportGuard;
+
 thread_local! {
     /// Nested transaction ledgers, shared while ordinary serializers remain active.
     static STRUCTURED_SERDE_BUDGETS: RefCell<Vec<StructuredSerdeBudget>> = const { RefCell::new(Vec::new()) };
@@ -50,6 +57,20 @@ thread_local! {
 ///
 /// - `'policy`: Borrow that keeps the source policy alive until this guard
 ///   drops.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::domain::internal::RedactSerializeScope;
+/// use qubit_redact::domain::internal::current_policy;
+///
+/// let policy = RedactionPolicy::standard();
+/// let scope = RedactSerializeScope::new(&policy);
+/// assert_eq!(current_policy().as_deref(), Some(&policy));
+/// drop(scope);
+/// assert!(current_policy().is_none());
+/// ```
 #[doc(hidden)]
 pub struct RedactSerializeScope<'policy> {
     /// Keeps the guard tied to the caller's policy lifetime.
@@ -128,54 +149,6 @@ impl<'policy> RedactSerializeScope<'policy> {
     }
 }
 
-/// RAII observer for reasons recorded by the budget active at registration.
-///
-/// A guard registered without an active budget owns an empty sink that receives
-/// no reasons. With an active budget, the sink observes later reason events on
-/// that budget; nested independent budgets do not broadcast to it. Each active
-/// observer on a budget receives the same later events. Its reasons accumulate
-/// as a deduplicated set, and events before registration are not included.
-///
-/// Dropping the guard unregisters its sink. Normal return and unwinding run
-/// this cleanup; `mem::forget` and process abort do not guarantee it.
-#[cfg(feature = "json")]
-pub(crate) struct SerdeReportGuard {
-    /// Per-call reason sink shared with the active ledger, if any.
-    sink: Rc<Cell<StructuredSerdeReport>>,
-}
-
-#[cfg(feature = "json")]
-impl SerdeReportGuard {
-    /// Returns the cumulative distinct reasons observed since registration.
-    ///
-    /// A guard created outside an active structured budget always returns an
-    /// empty set because its sink is not registered with a ledger.
-    ///
-    /// # Returns
-    ///
-    /// The reasons recorded after this guard was registered, with duplicates
-    /// collapsed.
-    pub(crate) fn reasons(&self) -> RedactionReasons {
-        self.sink.borrow().reasons
-    }
-}
-
-#[cfg(feature = "json")]
-impl Drop for SerdeReportGuard {
-    /// Removes this sink from every currently stored budget ledger.
-    ///
-    /// Cleanup runs on ordinary drop and Rust unwinding. Forgetting the guard
-    /// or aborting the process does not run this cleanup.
-    fn drop(&mut self) {
-        STRUCTURED_SERDE_BUDGETS.with(|slot| {
-            for budget in slot.borrow_mut().iter_mut() {
-                budget.reports.retain(|report| !Rc::ptr_eq(report, &self.sink));
-            }
-        });
-    }
-}
-
-#[cfg(feature = "json")]
 /// Registers a fresh reason observer with the currently active budget.
 ///
 /// If there is no active budget, the returned guard has an unregistered empty
@@ -186,6 +159,7 @@ impl Drop for SerdeReportGuard {
 /// # Returns
 ///
 /// A guard whose sink contains only reasons recorded after registration.
+#[cfg(feature = "json")]
 pub(crate) fn register_report() -> SerdeReportGuard {
     let sink = Rc::new(Cell::new(StructuredSerdeReport::default()));
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -216,7 +190,6 @@ pub(super) fn record_reason(reason: RedactionReason) {
     let _ = reason;
 }
 
-#[cfg(feature = "json")]
 /// Records each supported reason bit on the active budget.
 ///
 /// This forwards only `InputLimitReached`, `OutputLimitReached`,
@@ -227,6 +200,7 @@ pub(super) fn record_reason(reason: RedactionReason) {
 /// # Parameters
 ///
 /// - `reasons`: Set whose supported reasons are forwarded individually.
+#[cfg(feature = "json")]
 pub(super) fn record_reasons(reasons: RedactionReasons) {
     for reason in [
         RedactionReason::InputLimitReached,
@@ -265,13 +239,19 @@ impl Drop for RedactSerializeScope<'_> {
 /// Some owned snapshot for the innermost active scope; None outside scoped
 /// structured serialization. The snapshot remains valid after the guard drops.
 #[doc(hidden)]
+#[must_use]
 #[inline(always)]
 pub fn current_policy() -> Option<Arc<crate::RedactionPolicy>> {
     STRUCTURED_SERDE_POLICIES.with(|slot| slot.borrow().last().map(|frame| Arc::clone(&frame.snapshot)))
 }
 
 /// Copies remaining shared structural capacity for one JSON text field.
+///
+/// # Returns
+///
+/// `Some` remaining capacity for the active budget, or `None` outside a scope.
 #[cfg(feature = "json")]
+#[must_use]
 pub(super) fn json_preflight() -> Option<JsonStructurePreflight> {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let budgets = slot.borrow();
@@ -325,6 +305,7 @@ pub(super) fn admit_node() -> bool {
 
 /// Leaves the most recently admitted structured node.
 #[allow(dead_code)]
+#[inline]
 pub(super) fn leave_node() {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         if let Some(state) = slot.borrow_mut().last_mut() {
@@ -508,7 +489,17 @@ pub(super) fn admit_payload(bytes: usize) -> bool {
 }
 
 /// Admits a scalar unless it is already being forwarded by its payload owner.
+///
+/// # Parameters
+///
+/// - `bytes`: Logical scalar bytes to charge when no owner is forwarding.
+///
+/// # Returns
+///
+/// True for an already charged forwarded payload or successful admission;
+/// false when ordinary admission rejects the payload.
 #[must_use]
+#[inline]
 pub(super) fn admit_payload_or_forwarded(bytes: usize) -> bool {
     if STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().last().is_some_and(|state| state.payload_forwarding > 0)) {
         true
@@ -518,6 +509,11 @@ pub(super) fn admit_payload_or_forwarded(bytes: usize) -> bool {
 }
 
 /// Opens a forwarding interval for a payload already charged by its owner.
+///
+/// # Returns
+///
+/// True after opening an interval; false when no budget is active.
+#[inline]
 pub(super) fn begin_payload_forwarding() -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let mut budgets = slot.borrow_mut();
@@ -530,6 +526,11 @@ pub(super) fn begin_payload_forwarding() -> bool {
 }
 
 /// Closes one payload-forwarding interval.
+///
+/// # Panics
+///
+/// In debug builds, panics if an active budget has no matching interval.
+#[inline]
 pub(super) fn end_payload_forwarding() {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         if let Some(state) = slot.borrow_mut().last_mut() {
@@ -539,6 +540,11 @@ pub(super) fn end_payload_forwarding() {
 }
 
 /// Suspends active forwarding while a new user Serialize value is invoked.
+///
+/// # Returns
+///
+/// `Some` previous forwarding depth to restore, or `None` without a budget.
+#[inline]
 pub(super) fn suspend_payload_forwarding() -> Option<usize> {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let mut budgets = slot.borrow_mut();
@@ -550,6 +556,11 @@ pub(super) fn suspend_payload_forwarding() -> Option<usize> {
 }
 
 /// Restores forwarding after the nested Serialize value returns or unwinds.
+///
+/// # Parameters
+///
+/// - `previous`: Saved forwarding depth; `None` leaves the budget unchanged.
+#[inline]
 pub(super) fn restore_payload_forwarding(previous: Option<usize>) {
     if let Some(previous) = previous {
         STRUCTURED_SERDE_BUDGETS.with(|slot| {
@@ -612,6 +623,7 @@ pub(super) fn remaining_payload_bytes() -> usize {
 ///
 /// True after pinning the current budget; false when no budget is active.
 /// Each successful entry requires exactly one matching leave.
+#[inline]
 pub(super) fn enter_raw_serializer() -> bool {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         let mut budgets = slot.borrow_mut();
@@ -629,6 +641,7 @@ pub(super) fn enter_raw_serializer() -> bool {
 ///
 /// In debug builds, panics if called with an active budget but without a
 /// matching successful raw-serializer entry.
+#[inline]
 pub(super) fn leave_raw_serializer() {
     STRUCTURED_SERDE_BUDGETS.with(|slot| {
         if let Some(state) = slot.borrow_mut().last_mut() {
@@ -646,7 +659,7 @@ mod report_tests {
     use crate::RedactionReason;
 
     #[test]
-    fn nested_report_excludes_events_before_its_registration() {
+    fn test_nested_report_excludes_events_before_its_registration() {
         let policy = RedactionPolicy::standard();
         let _scope = RedactSerializeScope::new(&policy);
         let parent = register_report();
@@ -654,10 +667,22 @@ mod report_tests {
         {
             let child = register_report();
             record_reason(RedactionReason::TraversalLimitReached);
-            assert!(child.reasons().contains(RedactionReason::TraversalLimitReached));
-            assert!(!child.reasons().contains(RedactionReason::InputLimitReached));
+            assert!(
+                child.reasons().contains(RedactionReason::TraversalLimitReached),
+                "child receives events after registration"
+            );
+            assert!(
+                !child.reasons().contains(RedactionReason::InputLimitReached),
+                "child excludes earlier parent events"
+            );
         }
-        assert!(parent.reasons().contains(RedactionReason::InputLimitReached));
-        assert!(parent.reasons().contains(RedactionReason::TraversalLimitReached));
+        assert!(
+            parent.reasons().contains(RedactionReason::InputLimitReached),
+            "parent retains its earlier event"
+        );
+        assert!(
+            parent.reasons().contains(RedactionReason::TraversalLimitReached),
+            "parent receives events while child is active"
+        );
     }
 }

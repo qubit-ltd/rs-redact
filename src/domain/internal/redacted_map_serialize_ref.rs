@@ -14,6 +14,15 @@ use super::redact_map_serialize::RedactMapSerialize;
 use super::redact_serialize_scope::serialize_structured;
 
 /// Borrowed serializer adapter for one policy-classified map.
+///
+/// The adapter retains shared borrows without cloning the map or policy.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed map.
+/// - `'policy`: Lifetime of the borrowed classification policy.
+/// - `T`: Possibly unsized map type; serialization requires
+///   `RedactMapSerialize`.
 #[doc(hidden)]
 pub struct RedactedMapSerializeRef<'value, 'policy, T: ?Sized> {
     /// Borrowed map value.
@@ -43,9 +52,22 @@ impl<'value, 'policy, T: ?Sized> RedactedMapSerializeRef<'value, 'policy, T> {
 impl<T: ?Sized + RedactMapSerialize> Serialize for RedactedMapSerializeRef<'_, '_, T> {
     /// Runs this borrowed adapter under the shared policy and resource scope.
     ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination consumed to serialize the borrowed map.
+    ///
+    /// # Returns
+    ///
+    /// The downstream success value after policy-classified serialization.
+    ///
     /// # Errors
     ///
     /// Propagates admission failures and errors from the downstream serializer.
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

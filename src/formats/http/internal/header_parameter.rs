@@ -9,6 +9,11 @@
 
 use std::collections::BTreeSet;
 
+use self::segment_cursor::SegmentCursor;
+
+// Implements borrowed traversal with quote and escape tracking.
+mod segment_cursor;
+
 /// Parses several named parameters in one strict pass.
 ///
 /// # Type Parameters
@@ -22,7 +27,9 @@ use std::collections::BTreeSet;
 ///
 /// # Returns
 ///
-/// One optional value per name, or `None` for malformed or duplicate input.
+/// `Some` contains one slot per requested name: `Some(value)` for a matched
+/// parameter and `None` for an absent name. The outer `None` indicates
+/// malformed syntax or a duplicate parameter name.
 #[must_use]
 pub(super) fn parse_parameters<const N: usize>(value: &str, names: [&str; N]) -> Option<[Option<String>; N]> {
     if value.bytes().any(is_forbidden_header_byte) {
@@ -92,72 +99,6 @@ pub(super) fn leading_value(value: &str) -> Option<&str> {
     let leading = segments.next_segment().ok()??;
     while segments.next_segment().ok()?.is_some() {}
     Some(leading)
-}
-
-/// Borrows semicolon-delimited segments while validating quote balance.
-struct SegmentCursor<'a> {
-    value: &'a str,
-    start: usize,
-    position: usize,
-    quoted: bool,
-    escaped: bool,
-    finished: bool,
-}
-
-impl<'a> SegmentCursor<'a> {
-    /// Creates a cursor over the complete header value.
-    ///
-    /// # Parameters
-    ///
-    /// * `value` - Header text whose segments will be borrowed.
-    ///
-    /// # Returns
-    ///
-    /// A cursor positioned before the leading segment.
-    fn new(value: &'a str) -> Self {
-        Self {
-            value,
-            start: 0,
-            position: 0,
-            quoted: false,
-            escaped: false,
-            finished: false,
-        }
-    }
-
-    /// Returns the next borrowed segment or a quoting error.
-    ///
-    /// # Returns
-    ///
-    /// The next OWS-trimmed segment, normal end of input, or an error for an
-    /// unterminated quoted string or trailing quoted-pair escape.
-    fn next_segment(&mut self) -> Result<Option<&'a str>, ()> {
-        if self.finished {
-            return Ok(None);
-        }
-        let bytes = self.value.as_bytes();
-        while self.position < bytes.len() {
-            let index = self.position;
-            let byte = bytes[index];
-            self.position += 1;
-            if self.escaped {
-                self.escaped = false;
-            } else if self.quoted && byte == b'\\' {
-                self.escaped = true;
-            } else if byte == b'"' {
-                self.quoted = !self.quoted;
-            } else if byte == b';' && !self.quoted {
-                let start = self.start;
-                self.start = self.position;
-                return Ok(Some(trim_ows(&self.value[start..index])));
-            }
-        }
-        self.finished = true;
-        if self.quoted || self.escaped {
-            return Err(());
-        }
-        Ok(Some(trim_ows(&self.value[self.start..])))
-    }
 }
 
 /// Validates a parameter value and optionally decodes it into an output sink.

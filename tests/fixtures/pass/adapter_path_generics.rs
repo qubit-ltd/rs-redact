@@ -11,10 +11,7 @@ use std::marker::PhantomData;
 use qubit_redact::Redact;
 use qubit_redact::Redactor;
 
-fn encode<T: Debug, const N: usize, S: serde::Serializer>(
-    value: &u32,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+fn encode<T: Debug, const N: usize, S: serde::Serializer>(value: &u32, serializer: S) -> Result<S::Ok, S::Error> {
     let _ = PhantomData::<T>;
     serializer.serialize_u32(*value + N as u32)
 }

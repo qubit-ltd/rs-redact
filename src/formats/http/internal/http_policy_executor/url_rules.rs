@@ -18,6 +18,18 @@ pub(in crate::formats::http) const MAX_NESTED_URL_DEPTH: usize = 8;
 ///
 /// Opaque URLs have no hierarchical root path, so any non-empty opaque path
 /// is redactable. Hierarchical URLs preserve their root `/` path.
+///
+/// # Parameters
+///
+/// - `url`: Parsed URL whose path is inspected without modification.
+/// - `policy`: Configured choice to preserve or redact URL paths.
+///
+/// # Returns
+///
+/// `true` when the policy requests redaction and the path is not a hierarchical
+/// root or an empty opaque path; `false` otherwise.
+#[must_use]
+#[inline]
 pub(in crate::formats::http) fn should_redact_path(url: &Url, policy: UrlPathPolicy) -> bool {
     policy == UrlPathPolicy::Redact
         && if url.cannot_be_a_base() {

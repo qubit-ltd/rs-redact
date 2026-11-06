@@ -16,18 +16,21 @@ use super::RedactLevelValue;
 use super::RedactionFields;
 use crate::Sensitivity;
 
-/// Seals the supported capability set against downstream implementations.
-mod private {
-    /// Restricts this capability to the supported representations.
-    pub trait Sealed {
-        // empty
-    }
-}
+// Owns the private implementation boundary for supported map representations.
+mod internal;
 
 /// Capability implemented for supported maps with level-capable keys.
 #[doc(hidden)]
-pub trait RedactMapKeyValue: private::Sealed {
+pub trait RedactMapKeyValue: internal::Sealed {
     /// Writes map keys and optional values through their selected levels.
+    ///
+    /// # Parameters
+    ///
+    /// - `fields`: borrowed output scope receiving the named map field.
+    /// - `name`: field name emitted in the enclosing record.
+    /// - `key_level`: sensitivity applied to every key.
+    /// - `value_level`: `Some(level)` applies that sensitivity to every value;
+    ///   `None` leaves values unmarked.
     #[doc(hidden)]
     fn write_redacted_map_levels(
         &self,
@@ -38,12 +41,6 @@ pub trait RedactMapKeyValue: private::Sealed {
     );
 }
 
-impl<K, V> private::Sealed for HashMap<K, V>
-where
-    K: RedactLevelValue + Debug + Eq + Hash,
-    V: RedactLevelValue + Debug,
-{
-}
 impl<K, V> RedactMapKeyValue for HashMap<K, V>
 where
     K: RedactLevelValue + Debug + Eq + Hash,
@@ -51,6 +48,15 @@ where
 {
     /// Writes map entries using the explicitly selected key and optional value
     /// levels.
+    ///
+    /// # Parameters
+    ///
+    /// - `fields`: borrowed output scope receiving the named map field.
+    /// - `name`: field name emitted in the enclosing record.
+    /// - `key_level`: sensitivity applied to every key.
+    /// - `value_level`: `Some(level)` applies that sensitivity to every value;
+    ///   `None` leaves values unmarked.
+    #[inline]
     fn write_redacted_map_levels(
         &self,
         fields: &mut RedactionFields<'_, '_>,
@@ -61,12 +67,6 @@ where
         fields.map_key_level_entries(name, self.iter(), key_level, value_level);
     }
 }
-impl<K, V> private::Sealed for BTreeMap<K, V>
-where
-    K: RedactLevelValue + Debug + Ord,
-    V: RedactLevelValue + Debug,
-{
-}
 impl<K, V> RedactMapKeyValue for BTreeMap<K, V>
 where
     K: RedactLevelValue + Debug + Ord,
@@ -74,6 +74,15 @@ where
 {
     /// Writes map entries using the explicitly selected key and optional value
     /// levels.
+    ///
+    /// # Parameters
+    ///
+    /// - `fields`: borrowed output scope receiving the named map field.
+    /// - `name`: field name emitted in the enclosing record.
+    /// - `key_level`: sensitivity applied to every key.
+    /// - `value_level`: `Some(level)` applies that sensitivity to every value;
+    ///   `None` leaves values unmarked.
+    #[inline]
     fn write_redacted_map_levels(
         &self,
         fields: &mut RedactionFields<'_, '_>,

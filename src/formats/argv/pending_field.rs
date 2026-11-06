@@ -12,7 +12,10 @@ use crate::Sensitivity;
 /// Option classification waiting for its separate argv value.
 pub(super) enum PendingField {
     /// Classified option sensitivity, cached to avoid retaining its name.
-    Classified(Sensitivity),
+    Classified(
+        /// Sensitivity inherited by the following separate argv value.
+        Sensitivity,
+    ),
     /// Non-Unicode argument requiring an opaque secret replacement.
     OpaqueSecret,
 }

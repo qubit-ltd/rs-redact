@@ -21,6 +21,14 @@ use crate::formats::json::internal::JsonRedactionState;
 use crate::formats::json::internal::JsonUnkeyedValuePolicy;
 
 /// Reports whether an NDJSON line contains only Unicode whitespace.
+///
+/// # Parameters
+///
+/// * `line` - Borrowed source line to inspect without allocating.
+///
+/// # Returns
+///
+/// `true` for empty or entirely Unicode-whitespace lines; `false` otherwise.
 #[must_use]
 #[inline]
 pub(in crate::formats::http) fn is_blank_ndjson_line(line: &str) -> bool {
@@ -29,9 +37,19 @@ pub(in crate::formats::http) fn is_blank_ndjson_line(line: &str) -> bool {
 
 /// Redacts one admitted JSON value directly into a bounded writer.
 ///
+/// # Parameters
+///
+/// * `redactor` - Field rules and masking policy borrowed for this rendering.
+/// * `value` - Admitted JSON tree to serialize without modifying it.
+/// * `unkeyed` - Policy for scalars without an object-key context.
+/// * `max_output_bytes` - Maximum number of output bytes retained.
+///
 /// # Returns
 ///
-/// The borrowed output's pass-through and truncation status.
+/// `Some((text, passed_unkeyed, truncated))` containing the retained output,
+/// whether an unkeyed scalar passed through, and whether serialization failed
+/// to finish. Returns `None` if flushing fails or retained bytes are not UTF-8.
+#[must_use]
 pub(in crate::formats::http) fn redact_and_serialize_bounded(
     redactor: &FieldRedactor<'_>,
     value: &Value,
@@ -48,10 +66,22 @@ pub(in crate::formats::http) fn redact_and_serialize_bounded(
 
 /// Redacts already admitted NDJSON values without parsing their source again.
 ///
+/// Preserves blank-line positions and the source trailing-newline state.
+/// Records are borrowed mutably through the admission API but are not modified.
+///
+/// # Parameters
+///
+/// * `redactor` - Field rules and masking policy borrowed for this rendering.
+/// * `lines` - Admitted records and their original source-line positions.
+/// * `unkeyed` - Policy for scalars without an object-key context.
+/// * `max_output_bytes` - Maximum number of output bytes retained.
+///
 /// # Returns
 ///
-/// Redacted NDJSON, a pass-through flag, and a rendering-truncation flag, or
-/// `None` if the bounded writer cannot produce UTF-8 text.
+/// `Some((text, passed_unkeyed, truncated))` containing retained NDJSON,
+/// whether an unkeyed scalar passed through, and whether rendering failed to
+/// finish. Returns `None` if the bounded writer cannot produce UTF-8 text.
+#[must_use]
 pub(in crate::formats::http) fn redact_ndjson_values(
     redactor: &FieldRedactor<'_>,
     lines: &mut AdmittedNdjson,
@@ -92,6 +122,18 @@ pub(in crate::formats::http) fn redact_ndjson_values(
     Some((output.into_string()?, passed_any, false))
 }
 
+/// Borrows HTTP field policies into fresh per-document traversal state.
+///
+/// # Parameters
+///
+/// * `redactor` - Rules and masking borrowed for the returned state's lifetime.
+/// * `unkeyed` - Policy mapped to the shared static HTTP JSON marker.
+///
+/// # Returns
+///
+/// Enabled traversal state with no pass-through observation yet recorded.
+#[must_use]
+#[inline]
 fn state<'a>(redactor: &'a FieldRedactor<'_>, unkeyed: UnkeyedJsonValuePolicy) -> JsonRedactionState<'a, 'static> {
     let unkeyed = match unkeyed {
         UnkeyedJsonValuePolicy::PassThrough => JsonUnkeyedValuePolicy::PassThrough,
@@ -106,6 +148,17 @@ fn state<'a>(redactor: &'a FieldRedactor<'_>, unkeyed: UnkeyedJsonValuePolicy) -
     )
 }
 
+/// Reads whether the latest traversal exposed an unkeyed scalar.
+///
+/// # Parameters
+///
+/// * `state` - Traversal state whose observation is read without resetting it.
+///
+/// # Returns
+///
+/// `true` if an unkeyed scalar passed through; `false` otherwise.
+#[must_use]
+#[inline]
 fn passed(state: &JsonRedactionState<'_, '_>) -> bool {
     match state.outcome() {
         crate::formats::json::internal::JsonRedactionOutcome::Complete { passed_unkeyed } => passed_unkeyed,

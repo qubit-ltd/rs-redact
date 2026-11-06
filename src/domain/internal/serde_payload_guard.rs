@@ -7,66 +7,11 @@
 // =============================================================================
 //! Scoped ownership markers for logical Serde scalar payloads.
 
-use super::redact_serialize_scope::begin_payload_forwarding;
-use super::redact_serialize_scope::end_payload_forwarding;
-use super::redact_serialize_scope::restore_payload_forwarding;
-use super::redact_serialize_scope::suspend_payload_forwarding;
+mod serde_payload_event_guard;
+mod serde_payload_forward_guard;
 
-/// Marks the synchronous downstream forwarding of one already charged string.
-pub(super) struct SerdePayloadForwardGuard {
-    /// Whether construction entered a forwarding scope that must be left.
-    active: bool,
-}
-
-impl SerdePayloadForwardGuard {
-    /// Starts forwarding within the active structured budget, if present.
-    #[must_use]
-    pub(super) fn new() -> Self {
-        Self {
-            active: begin_payload_forwarding(),
-        }
-    }
-}
-
-impl Drop for SerdePayloadForwardGuard {
-    /// Leaves the forwarding scope only when this guard entered one.
-    ///
-    /// This runs on normal return and panic unwinding, but not on abort or if
-    /// the guard is leaked.
-    fn drop(&mut self) {
-        if self.active {
-            end_payload_forwarding();
-        }
-    }
-}
-
-/// Suspends a forwarding credential while a new user `Serialize` value runs.
-pub(super) struct SerdePayloadEventGuard {
-    /// Forwarding depth saved before the child event, or `None` without an
-    /// active budget. `Some(0)` still represents an active budget whose
-    /// forwarding depth must be restored.
-    previous: Option<usize>,
-}
-
-impl SerdePayloadEventGuard {
-    /// Opens a child event boundary in the current structured budget.
-    #[must_use]
-    pub(super) fn new() -> Self {
-        Self {
-            previous: suspend_payload_forwarding(),
-        }
-    }
-}
-
-impl Drop for SerdePayloadEventGuard {
-    /// Restores the forwarding state saved before the child event.
-    ///
-    /// This runs on normal return and panic unwinding, but not on abort or if
-    /// the guard is leaked.
-    fn drop(&mut self) {
-        restore_payload_forwarding(self.previous);
-    }
-}
+pub(super) use serde_payload_event_guard::SerdePayloadEventGuard;
+pub(super) use serde_payload_forward_guard::SerdePayloadForwardGuard;
 
 #[cfg(test)]
 mod tests {
@@ -77,6 +22,7 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use serde::Serialize;
+    use serde_json::Serializer as JsonSerializer;
     use serde_json::ser::Formatter;
 
     use super::super::budget_serializer::BudgetSerializer;
@@ -98,7 +44,7 @@ mod tests {
             if !self.did_reenter {
                 self.did_reenter = true;
                 let mut nested_output = Vec::new();
-                let mut nested_serializer = serde_json::Serializer::new(&mut nested_output);
+                let mut nested_serializer = JsonSerializer::new(&mut nested_output);
                 let nested_result = BudgetSerialize::new("x").serialize(&mut nested_serializer);
                 self.nested_rejected.store(nested_result.is_err(), Ordering::SeqCst);
             }
@@ -122,12 +68,15 @@ mod tests {
             nested_rejected: Arc::clone(&nested_rejected),
         };
         let mut output = Vec::new();
-        let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
+        let mut serializer = JsonSerializer::with_formatter(&mut output, formatter);
 
         serialize_payload(BudgetSerializer { inner: &mut serializer }, "abc")
             .expect("the already admitted outer payload should serialize");
 
-        assert!(nested_rejected.load(Ordering::SeqCst));
+        assert!(
+            nested_rejected.load(Ordering::SeqCst),
+            "a reentrant payload must consume its own budget allowance"
+        );
         assert_eq!(output, br#""abc""#);
     }
 }

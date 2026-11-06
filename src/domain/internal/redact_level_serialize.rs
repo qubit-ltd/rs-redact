@@ -35,12 +35,38 @@ use super::budget_serialize::BudgetSerialize;
 use super::redact_serialize_scope::admit_collection_items;
 use super::redact_serialize_scope::admit_input;
 use super::redact_serialize_scope::admit_payload;
+use super::redact_serialize_scope::record_reason;
 use super::redact_serialize_scope::remaining_input_bytes;
+use super::redact_serialize_scope::remaining_payload_bytes;
+use super::redact_serialize_scope::serialize_payload;
 use super::redacted_level_serialize_ref::RedactedLevelSerializeRef;
 use crate::RedactionPolicy;
+use crate::RedactionReason;
 use crate::Sensitivity;
 
 /// Internal structured serialization capability for scalar level fields.
+///
+/// Implementations apply an explicit sensitivity to scalar leaves while
+/// retaining collection shape and sharing the active resource allowance.
+///
+/// # Examples
+///
+/// ```
+/// use qubit_redact::domain::internal::RedactLevelSerialize;
+/// use qubit_redact::domain::internal::RedactSerializeScope;
+/// use qubit_redact::RedactionPolicy;
+/// use qubit_redact::Sensitivity;
+/// use serde_json::value::Serializer;
+///
+/// let policy = RedactionPolicy::standard();
+/// let _scope = RedactSerializeScope::new(&policy);
+/// let value = "private".serialize_redacted_level(
+///     Serializer,
+///     &policy,
+///     Sensitivity::Secret,
+/// ).expect("the opaque mask serializes");
+/// assert_eq!(value, "<redacted>");
+/// ```
 #[doc(hidden)]
 pub trait RedactLevelSerialize {
     /// Serializes this value at the explicitly declared sensitivity.
@@ -96,6 +122,7 @@ macro_rules! scalar_level_serialize {
             /// # Returns
             ///
             /// The destination result after all emitted data passes shared admission.
+            #[inline]
             fn serialize_redacted_level<S>(
                 &self,
                 serializer: S,
@@ -148,23 +175,18 @@ where
     T: Display + ?Sized,
 {
     if matches!(level, Sensitivity::High | Sensitivity::Secret) {
-        return super::redact_serialize_scope::serialize_payload(serializer, policy.masking().mask_opaque(level));
+        return serialize_payload(serializer, policy.masking().mask_opaque(level));
     }
     let Some(raw) = format_admitted_display(value) else {
-        return super::redact_serialize_scope::serialize_payload(
-            serializer,
-            policy.masking().mask_opaque(Sensitivity::Secret),
-        );
+        return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
     };
-    let (masked, truncated) = policy.masking().mask_bounded_with_truncation(
-        level,
-        &raw,
-        super::redact_serialize_scope::remaining_payload_bytes(),
-    );
+    let (masked, truncated) = policy
+        .masking()
+        .mask_bounded_with_truncation(level, &raw, remaining_payload_bytes());
     if truncated {
         return Err(SerdeError::custom("redaction scalar payload budget exceeded"));
     }
-    super::redact_serialize_scope::serialize_payload(serializer, masked.as_ref())
+    serialize_payload(serializer, masked.as_ref())
 }
 
 /// Serializes a raw disabled-mode scalar only after bounded input admission.
@@ -199,10 +221,7 @@ where
     T: Display + Serialize + ?Sized,
 {
     let Some(raw) = format_admitted_display(value) else {
-        return super::redact_serialize_scope::serialize_payload(
-            serializer,
-            policy.masking().mask_opaque(Sensitivity::Secret),
-        );
+        return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
     };
     if !admit_payload(raw.len()) {
         return Err(SerdeError::custom("redaction scalar payload budget exceeded"));
@@ -239,14 +258,14 @@ where
     let writer_rejected = writer.rejected();
     let admitted = admit_input(accepted);
     if !admitted {
-        super::redact_serialize_scope::record_reason(crate::RedactionReason::InputLimitReached);
+        record_reason(RedactionReason::InputLimitReached);
         return None;
     }
     if result.is_err() {
-        super::redact_serialize_scope::record_reason(if writer_rejected {
-            crate::RedactionReason::InputLimitReached
+        record_reason(if writer_rejected {
+            RedactionReason::InputLimitReached
         } else {
-            crate::RedactionReason::FormattingFailed
+            RedactionReason::FormattingFailed
         });
         return None;
     }
@@ -279,6 +298,7 @@ impl RedactLevelSerialize for BigDecimal {
     /// # Returns
     ///
     /// The destination result after all emitted data passes shared admission.
+    #[inline]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -317,6 +337,7 @@ impl<'a> RedactLevelSerialize for Cow<'a, str> {
     /// # Returns
     ///
     /// The destination result after all emitted data passes shared admission.
+    #[inline]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -390,6 +411,7 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Option<T> {
     /// # Returns
     ///
     /// The destination result after all emitted data passes shared admission.
+    #[inline]
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -437,10 +459,7 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for Vec<T> {
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return super::redact_serialize_scope::serialize_payload(
-                serializer,
-                policy.masking().mask_opaque(Sensitivity::Secret),
-            );
+            return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
         }
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -457,6 +476,20 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for [T] {
     /// # Errors
     ///
     /// Propagates collection admission or downstream serialization failures.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `S`: Downstream serializer defining the success and error types.
+    ///
+    /// # Parameters
+    ///
+    /// - `serializer`: Destination receiving the admitted sequence.
+    /// - `policy`: Immutable policy controlling redaction and resource limits.
+    /// - `level`: Explicit sensitivity applied to each scalar leaf.
+    ///
+    /// # Returns
+    ///
+    /// The destination result after collection and element admission.
     fn serialize_redacted_level<S>(
         &self,
         serializer: S,
@@ -467,10 +500,7 @@ impl<T: RedactLevelSerialize> RedactLevelSerialize for [T] {
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return super::redact_serialize_scope::serialize_payload(
-                serializer,
-                policy.masking().mask_opaque(Sensitivity::Secret),
-            );
+            return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
         }
         let mut sequence = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -506,7 +536,7 @@ macro_rules! sequence_level_serialize {
             fn serialize_redacted_level<S>(&self, serializer: S, policy: &RedactionPolicy, level: Sensitivity) -> Result<S::Ok, S::Error>
             where S: Serializer {
                 if !admit_collection_items(self.len()) {
-                    return super::redact_serialize_scope::serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
+                    return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret).as_ref());
                 }
                 let mut sequence = serializer.serialize_seq(Some(self.len()))?;
                 for value in self {
@@ -654,10 +684,7 @@ impl<K: Serialize + Eq + Hash, V: RedactLevelSerialize> RedactLevelSerialize for
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return super::redact_serialize_scope::serialize_payload(
-                serializer,
-                policy.masking().mask_opaque(Sensitivity::Secret),
-            );
+            return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
@@ -700,10 +727,7 @@ impl<K: Serialize + Ord, V: RedactLevelSerialize> RedactLevelSerialize for BTree
         S: Serializer,
     {
         if !admit_collection_items(self.len()) {
-            return super::redact_serialize_scope::serialize_payload(
-                serializer,
-                policy.masking().mask_opaque(Sensitivity::Secret),
-            );
+            return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
         }
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
@@ -747,10 +771,7 @@ impl<T: RedactLevelSerialize, const N: usize> RedactLevelSerialize for [T; N] {
         S: Serializer,
     {
         if !admit_collection_items(N) {
-            return super::redact_serialize_scope::serialize_payload(
-                serializer,
-                policy.masking().mask_opaque(Sensitivity::Secret),
-            );
+            return serialize_payload(serializer, policy.masking().mask_opaque(Sensitivity::Secret));
         }
         let mut tuple = serializer.serialize_tuple(N)?;
         for value in self {
@@ -788,7 +809,7 @@ macro_rules! tuple_level_serialize {
                 S: Serializer,
             {
                 if !admit_collection_items($count) {
-                    return super::redact_serialize_scope::serialize_payload(serializer,
+                    return serialize_payload(serializer,
                         policy
                             .masking()
                             .mask_opaque(Sensitivity::Secret)
@@ -854,104 +875,5 @@ where
     let text = raw
         .as_deref()
         .unwrap_or_else(|| policy.masking().mask_opaque(Sensitivity::Secret));
-    super::redact_serialize_scope::serialize_payload(serializer, text)
-}
-
-#[cfg(all(test, feature = "json"))]
-mod status_tests {
-    use std::cell::Cell;
-    use std::fmt;
-
-    use super::serialize_display_text;
-    use crate::RedactionPolicy;
-    use crate::RedactionReason;
-    use crate::Sensitivity;
-    use crate::domain::internal::RedactSerializeScope;
-    use crate::domain::internal::register_report;
-
-    struct Refuses;
-
-    impl fmt::Display for Refuses {
-        fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-            Err(fmt::Error)
-        }
-    }
-
-    struct Counted<'a>(&'a Cell<usize>);
-
-    impl fmt::Display for Counted<'_> {
-        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            self.0.set(self.0.get() + 1);
-            formatter.write_str("counted")
-        }
-    }
-
-    #[test]
-    fn display_error_and_input_rejection_are_reported() {
-        let policy = RedactionPolicy::standard();
-        let _scope = RedactSerializeScope::new(&policy);
-        let report = register_report();
-        let value = serialize_display_text(&Refuses, serde_json::value::Serializer, &policy, Sensitivity::Low)
-            .expect("formatter failure uses safe replacement");
-        assert_eq!(value, "<redacted>");
-        assert!(report.reasons().contains(RedactionReason::FormattingFailed));
-
-        drop(report);
-        drop(_scope);
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                limits.max_input_bytes(0);
-            })
-            .unwrap()
-            .build()
-            .unwrap();
-        let _scope = RedactSerializeScope::new(&policy);
-        let report = register_report();
-        let value = serialize_display_text("too-long", serde_json::value::Serializer, &policy, Sensitivity::Low)
-            .expect("input rejection uses safe replacement");
-        assert_eq!(value, "<redacted>");
-        assert!(report.reasons().contains(RedactionReason::InputLimitReached));
-    }
-
-    #[test]
-    fn high_sensitivity_does_not_call_display_and_exact_input_budget_is_complete() {
-        let calls = Cell::new(0);
-        let policy = RedactionPolicy::standard();
-        let _scope = RedactSerializeScope::new(&policy);
-        let report = register_report();
-        let value = serialize_display_text(
-            &Counted(&calls),
-            serde_json::value::Serializer,
-            &policy,
-            Sensitivity::Secret,
-        )
-        .expect("secret mask serializes");
-        assert_eq!(value, "<redacted>");
-        assert_eq!(calls.get(), 0);
-        let high = serialize_display_text(
-            &Counted(&calls),
-            serde_json::value::Serializer,
-            &policy,
-            Sensitivity::High,
-        )
-        .expect("high sensitivity mask serializes");
-        assert!(high.is_string());
-        assert_eq!(calls.get(), 0);
-        assert_eq!(report.reasons(), crate::RedactionReasons::empty());
-
-        drop(report);
-        drop(_scope);
-        let policy = RedactionPolicy::builder()
-            .limits(|limits| {
-                limits.max_input_bytes(6);
-            })
-            .unwrap()
-            .build()
-            .unwrap();
-        let _scope = RedactSerializeScope::new(&policy);
-        let report = register_report();
-        let _ = serialize_display_text("sixsix", serde_json::value::Serializer, &policy, Sensitivity::Low)
-            .expect("exact input boundary serializes");
-        assert_eq!(report.reasons(), crate::RedactionReasons::empty());
-    }
+    serialize_payload(serializer, text)
 }

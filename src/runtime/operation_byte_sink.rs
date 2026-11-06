@@ -44,6 +44,7 @@ impl OperationByteSink {
     ///
     /// `Some(text)` contains valid UTF-8; `None` means retained bytes were
     /// not a complete UTF-8 string.
+    #[must_use]
     #[inline(always)]
     pub(crate) fn into_string(self) -> Option<String> {
         String::from_utf8(self.output).ok()
@@ -74,6 +75,10 @@ impl Write for OperationByteSink {
     }
 
     /// Returns success without external I/O; in-memory flushing cannot fail.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Ok(())` because there is no external buffer to flush.
     #[inline(always)]
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
@@ -83,6 +88,20 @@ impl Write for OperationByteSink {
 impl fmt::Write for OperationByteSink {
     /// Retains one complete UTF-8 fragment or rejects it when the limit is
     /// exceeded.
+    ///
+    /// # Parameters
+    ///
+    /// - `text`: UTF-8 fragment accepted or rejected as a whole.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` after retaining the complete fragment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`fmt::Error`] without retaining the fragment if it exceeds
+    /// the remaining byte allowance.
+    #[inline]
     fn write_str(&mut self, text: &str) -> fmt::Result {
         self.write(text.as_bytes()).map_err(|_| fmt::Error)?;
         Ok(())

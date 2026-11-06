@@ -9,6 +9,8 @@
 
 use std::cell::Cell;
 
+use serde_json::Value;
+
 #[cfg(any(feature = "http", test))]
 use super::JsonRedactionOutcome;
 use super::JsonUnkeyedValuePolicy;
@@ -18,6 +20,11 @@ use crate::RedactionPolicy;
 use crate::RedactionRules;
 
 /// Rules and observation state shared by one borrowed JSON serialization.
+///
+/// Policy references remain borrowed for `'policy`, while an unkeyed marker may
+/// have the independent lifetime `'marker`. Observation uses interior mutation;
+/// this state is not shared across threads and starting a new traversal resets
+/// it.
 pub(crate) struct JsonRedactionState<'policy, 'marker> {
     /// Immutable base field rules.
     pub(crate) base_rules: &'policy RedactionRules,
@@ -35,6 +42,16 @@ pub(crate) struct JsonRedactionState<'policy, 'marker> {
 
 impl<'policy> JsonRedactionState<'policy, 'policy> {
     /// Creates traversal state from the policy used by ordinary JSON paths.
+    ///
+    /// # Parameters
+    ///
+    /// - `policy`: Borrowed rules, masks, and unkeyed-value handling. Base and
+    ///   context rules both use this policy's rules.
+    ///
+    /// # Returns
+    ///
+    /// State borrowing `policy`, with no unkeyed pass-through observed yet.
+    #[must_use]
     #[inline]
     pub(crate) fn from_policy(policy: &'policy RedactionPolicy) -> Self {
         let unkeyed = match policy.unkeyed_json_value_policy() {
@@ -55,6 +72,21 @@ impl<'policy> JsonRedactionState<'policy, 'policy> {
 
 impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     /// Creates traversal state for one already-admitted JSON document.
+    ///
+    /// # Parameters
+    ///
+    /// - `base_rules`: Shared field rules borrowed for `'policy`.
+    /// - `context_rules`: Context-specific enhancements borrowed for `'policy`.
+    /// - `masking`: Mask table borrowed for `'policy`.
+    /// - `unkeyed`: Scalar handling, including any marker borrowed for
+    ///   `'marker`.
+    /// - `enabled`: Whether serialization applies the field rules.
+    ///
+    /// # Returns
+    ///
+    /// State holding the supplied policy components without cloning them, with
+    /// no unkeyed pass-through observed yet.
+    #[must_use]
     #[inline]
     pub(crate) const fn new(
         base_rules: &'policy RedactionRules,
@@ -74,15 +106,34 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     }
 
     /// Creates a borrowed serializer and resets the pass-through observation.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`: JSON tree borrowed for `'value`; it is not cloned or
+    ///   modified.
+    ///
+    /// # Returns
+    ///
+    /// A serializer borrowing both `value` and this state. Traversing it
+    /// records any unkeyed pass-through in this state; creating it alone
+    /// does not traverse.
+    #[inline]
     pub(crate) fn redact<'value, 'state>(
         &'state self,
-        value: &'value serde_json::Value,
+        value: &'value Value,
     ) -> RedactedValue<'value, 'policy, 'marker, 'state> {
         self.passed_unkeyed.set(false);
         RedactedValue::with_state(value, self)
     }
 
     /// Returns whether serialization passed through an unkeyed scalar.
+    ///
+    /// # Returns
+    ///
+    /// A snapshot of the observation since the last `redact` call, or since
+    /// construction if no traversal has started. Reading it does not reset it.
+    #[must_use]
+    #[inline]
     #[cfg(any(feature = "http", test))]
     pub(crate) fn outcome(&self) -> JsonRedactionOutcome {
         JsonRedactionOutcome::Complete {
@@ -91,6 +142,7 @@ impl<'policy, 'marker> JsonRedactionState<'policy, 'marker> {
     }
 
     /// Records an unkeyed scalar that policy allowed to remain visible.
+    #[inline]
     pub(crate) fn observe_unkeyed_passthrough(&self) {
         self.passed_unkeyed.set(true);
     }

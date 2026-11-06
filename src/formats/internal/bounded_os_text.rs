@@ -13,12 +13,26 @@ use std::fmt::Write as _;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 
+#[cfg(not(any(unix, windows)))]
+use self::bounded::Bounded;
+
+// Implements the bounded formatting sink for other operating systems.
+#[cfg(not(any(unix, windows)))]
+mod bounded;
+
 /// Converts an OS string lossily without retaining more than `maximum` bytes.
 ///
-/// The returned boolean is true when the complete lossy representation does not
-/// fit. The byte limit bounds retained output, not the amount of source
-/// examined. On Unix, UTF-8 validation may scan the remaining input before an
-/// output-limit rejection is detected.
+/// # Parameters
+///
+/// - `value`: The operating-system string to convert.
+/// - `maximum`: The maximum number of UTF-8 bytes to retain.
+///
+/// # Returns
+///
+/// The retained text and a boolean that is true when the complete lossy
+/// representation does not fit. The byte limit bounds retained output, not the
+/// amount of source examined. On Unix, UTF-8 validation may scan the remaining
+/// input before an output-limit rejection is detected.
 #[must_use]
 pub(crate) fn capture(value: &OsStr, maximum: usize) -> (String, bool) {
     let mut output = String::with_capacity(maximum.min(1024));
@@ -32,13 +46,21 @@ pub(crate) fn capture(value: &OsStr, maximum: usize) -> (String, bool) {
     (output, !complete)
 }
 
-#[cfg(unix)]
 /// Converts UTF-8 bytes lossily while retaining only complete chunks within the
 /// byte limit.
+///
+/// # Parameters
+///
+/// - `bytes`: Source bytes, which may contain invalid UTF-8.
+/// - `maximum`: The total byte limit for the destination string.
+/// - `output`: The destination to append complete UTF-8 chunks to.
+///
+/// # Returns
 ///
 /// Returns `true` when all source content was appended. A failed valid chunk is
 /// rejected whole; inspecting the remaining input may scan beyond the output
 /// limit.
+#[cfg(unix)]
 fn capture_utf8_lossy(bytes: &[u8], maximum: usize, output: &mut String) -> bool {
     let mut offset = 0;
     while offset < bytes.len() {
@@ -66,12 +88,20 @@ fn capture_utf8_lossy(bytes: &[u8], maximum: usize, output: &mut String) -> bool
     true
 }
 
-#[cfg(windows)]
 /// Decodes UTF-16 one scalar at a time, replacing isolated surrogates with
 /// U+FFFD.
 ///
+/// # Parameters
+///
+/// - `value`: Source UTF-16 code units, which may contain isolated surrogates.
+/// - `maximum`: The total byte limit for the destination string.
+/// - `output`: The destination to append complete UTF-8 chunks to.
+///
+/// # Returns
+///
 /// Returns `false` as soon as a decoded character cannot be appended within
 /// the byte limit; otherwise returns `true` after consuming the iterator.
+#[cfg(windows)]
 fn capture_utf16_lossy(value: impl Iterator<Item = u16>, maximum: usize, output: &mut String) -> bool {
     for decoded in char::decode_utf16(value) {
         let character = decoded.unwrap_or(char::REPLACEMENT_CHARACTER);
@@ -83,26 +113,20 @@ fn capture_utf16_lossy(value: impl Iterator<Item = u16>, maximum: usize, output:
     true
 }
 
-#[cfg(not(any(unix, windows)))]
 /// Formats an OS string through a writer bounded by the output byte limit.
+///
+/// # Parameters
+///
+/// - `value`: The operating-system string to format.
+/// - `maximum`: The total byte limit for the destination string.
+/// - `output`: The destination to append complete UTF-8 chunks to.
+///
+/// # Returns
 ///
 /// Returns `false` only when capacity rejects a write. This does not provide
 /// an independent classification for formatting errors.
+#[cfg(not(any(unix, windows)))]
 fn write_display(value: &OsStr, maximum: usize, output: &mut String) -> bool {
-    struct Bounded<'a> {
-        output: &'a mut String,
-        maximum: usize,
-        exceeded: bool,
-    }
-    impl std::fmt::Write for Bounded<'_> {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            if !append_bounded(self.output, text, self.maximum) {
-                self.exceeded = true;
-                return Err(std::fmt::Error);
-            }
-            Ok(())
-        }
-    }
     let mut writer = Bounded {
         output,
         maximum,
@@ -114,8 +138,17 @@ fn write_display(value: &OsStr, maximum: usize, output: &mut String) -> bool {
 
 /// Appends a whole string slice if its byte length fits the remaining capacity.
 ///
+/// # Parameters
+///
+/// - `output`: The destination string to append to.
+/// - `text`: The complete slice to append or reject.
+/// - `maximum`: The total byte limit for the destination string.
+///
+/// # Returns
+///
 /// Returns `true` when the slice was accepted and appended; otherwise leaves
 /// the output unchanged. Capacity arithmetic saturates on overflow.
+#[inline]
 fn append_bounded(output: &mut String, text: &str, maximum: usize) -> bool {
     if output.len().saturating_add(text.len()) > maximum {
         return false;

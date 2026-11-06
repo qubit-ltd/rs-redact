@@ -131,6 +131,22 @@ impl Redactor {
     /// original value, subject to the same input and output limits.
     /// Values classified as High or Secret are not formatted.
     ///
+    /// # Type Parameters
+    ///
+    /// - `T`: Scalar formatter evaluated only when admission and masking
+    ///   require it; unsized values are supported.
+    ///
+    /// # Parameters
+    ///
+    /// - `level`: Minimum sensitivity applied when redaction is enabled.
+    /// - `field`: Raw field key used for admission and policy classification.
+    /// - `value`: Borrowed scalar whose formatting is deferred until required.
+    ///
+    /// # Returns
+    ///
+    /// Final redacted text and its execution summary, including any truncation
+    /// or admission failure recorded while processing the field.
+    ///
     /// # Examples
     ///
     /// ```

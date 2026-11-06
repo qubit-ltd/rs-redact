@@ -15,6 +15,9 @@ use libfuzzer_sys::fuzz_target;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::Sensitivity;
 use qubit_redact::domain::internal::RedactedMapKeySerializeRef;
+use serde_json::Value;
+use serde_json::json;
+use serde_json::to_value;
 
 const FUZZ_SECRET: &str = "structured-serde-secret-6cb79f12";
 
@@ -28,6 +31,8 @@ fn encoded_key(input: &[u8], index: usize) -> String {
     key
 }
 
+/// Exercises bounded map serialization for determinism, secret masking, and
+/// preservation of public values, panicking when an oracle is violated.
 fn exercise(input: &[u8]) {
     let input = &input[..input.len().min(1_024)];
     let requested_limit = usize::from(input.first().copied().unwrap_or_default() % 17);
@@ -46,14 +51,14 @@ fn exercise(input: &[u8]) {
         .collect::<BTreeMap<_, _>>();
     values.insert(String::from("fixed-sensitive-key"), String::from(FUZZ_SECRET));
 
-    let first = serde_json::to_value(RedactedMapKeySerializeRef::new(
+    let first = to_value(RedactedMapKeySerializeRef::new(
         &values,
         &policy,
         Sensitivity::Secret,
         Some(Sensitivity::Secret),
     ))
     .map_err(|error| error.to_string());
-    let second = serde_json::to_value(RedactedMapKeySerializeRef::new(
+    let second = to_value(RedactedMapKeySerializeRef::new(
         &values,
         &policy,
         Sensitivity::Secret,
@@ -76,7 +81,7 @@ fn exercise(input: &[u8]) {
     // mandatory success oracle tests successful serialization independently.
     let standard_values = BTreeMap::from([(String::from("fixed-sensitive-key"), String::from(FUZZ_SECRET))]);
     let serialize_standard = || {
-        serde_json::to_value(RedactedMapKeySerializeRef::new(
+        to_value(RedactedMapKeySerializeRef::new(
             &standard_values,
             &standard,
             Sensitivity::Secret,
@@ -90,7 +95,7 @@ fn exercise(input: &[u8]) {
     assert_masked_success(standard_first);
 
     let public_values = BTreeMap::from([(String::from("fixed-sensitive-key"), String::from("rra001-visible"))]);
-    let public_result = serde_json::to_value(RedactedMapKeySerializeRef::new(
+    let public_result = to_value(RedactedMapKeySerializeRef::new(
         &public_values,
         &standard,
         Sensitivity::Secret,
@@ -100,7 +105,9 @@ fn exercise(input: &[u8]) {
     assert_visible_success(public_result);
 }
 
-fn assert_masked_success(result: Result<serde_json::Value, String>) {
+/// Requires successful, nonempty object serialization without the known secret
+/// key or value; errors and leaked sentinels panic.
+fn assert_masked_success(result: Result<Value, String>) {
     let output = result.expect("standard-budget serialization must succeed");
     let object = output
         .as_object()
@@ -111,14 +118,16 @@ fn assert_masked_success(result: Result<serde_json::Value, String>) {
     assert!(!rendered.contains(FUZZ_SECRET));
 }
 
-fn assert_visible_success(result: Result<serde_json::Value, String>) {
+/// Requires one masked key with its public sentinel value preserved; errors,
+/// leaked keys, and altered values panic.
+fn assert_visible_success(result: Result<Value, String>) {
     let output = result.expect("single-entry public serialization must succeed");
     let object = output
         .as_object()
         .expect("single-entry public output must be a JSON object");
     assert_eq!(object.len(), 1);
     assert!(!object.contains_key("fixed-sensitive-key"));
-    assert_eq!(object.values().next(), Some(&serde_json::json!("rra001-visible")));
+    assert_eq!(object.values().next(), Some(&json!("rra001-visible")));
 }
 
 #[cfg(not(test))]
@@ -129,16 +138,23 @@ mod tests {
     use std::panic::AssertUnwindSafe;
     use std::panic::catch_unwind;
 
+    use serde_json::json;
+
+    use super::FUZZ_SECRET;
     use super::assert_masked_success;
     use super::assert_visible_success;
     use super::exercise;
 
+    /// Confirms that an invalid serialization result makes its oracle panic.
     fn assert_rejected(assertion: impl FnOnce()) {
-        assert!(catch_unwind(AssertUnwindSafe(assertion)).is_err());
+        assert!(
+            catch_unwind(AssertUnwindSafe(assertion)).is_err(),
+            "the serialization oracle must reject the invalid result"
+        );
     }
 
     #[test]
-    fn exercise_accepts_empty_maximum_and_all_selectors() {
+    fn test_exercise_accepts_empty_maximum_and_all_selectors() {
         exercise(&[]);
         exercise(&vec![0; 1_024]);
         exercise(&vec![u8::MAX; 1_024]);
@@ -150,27 +166,27 @@ mod tests {
     }
 
     #[test]
-    fn masked_success_oracle_rejects_failures_and_leaks() {
+    fn test_masked_success_oracle_rejects_failures_and_leaks() {
         assert_rejected(|| assert_masked_success(Err(String::from("synthetic failure"))));
-        assert_rejected(|| assert_masked_success(Ok(serde_json::json!({}))));
-        assert_rejected(|| assert_masked_success(Ok(serde_json::json!("scalar"))));
+        assert_rejected(|| assert_masked_success(Ok(json!({}))));
+        assert_rejected(|| assert_masked_success(Ok(json!("scalar"))));
         assert_rejected(|| {
-            assert_masked_success(Ok(serde_json::json!({
+            assert_masked_success(Ok(json!({
                 "fixed-sensitive-key": "masked",
                 "other": "safe"
             })))
         });
-        assert_rejected(|| assert_masked_success(Ok(serde_json::json!({"other": super::FUZZ_SECRET}))));
+        assert_rejected(|| assert_masked_success(Ok(json!({"other": FUZZ_SECRET}))));
     }
 
     #[test]
-    fn visible_success_oracle_rejects_failures_and_value_loss() {
+    fn test_visible_success_oracle_rejects_failures_and_value_loss() {
         assert_rejected(|| assert_visible_success(Err(String::from("synthetic failure"))));
-        assert_rejected(|| assert_visible_success(Ok(serde_json::json!({}))));
-        assert_rejected(|| assert_visible_success(Ok(serde_json::json!("scalar"))));
-        assert_rejected(|| assert_visible_success(Ok(serde_json::json!({"masked-key": "wrong-value"}))));
+        assert_rejected(|| assert_visible_success(Ok(json!({}))));
+        assert_rejected(|| assert_visible_success(Ok(json!("scalar"))));
+        assert_rejected(|| assert_visible_success(Ok(json!({"masked-key": "wrong-value"}))));
         assert_rejected(|| {
-            assert_visible_success(Ok(serde_json::json!({
+            assert_visible_success(Ok(json!({
                 "fixed-sensitive-key": "rra001-visible"
             })))
         });

@@ -16,6 +16,13 @@ use crate::RedactionPolicy;
 use crate::Sensitivity;
 
 /// Borrowed serializer adapter carrying policy and key sensitivity.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed source map.
+/// - `'policy`: Independent lifetime of the immutable redaction policy.
+/// - `T`: Possibly unsized source type; serialization requires
+///   [`RedactMapKeySerialize`] to apply explicit key sensitivity.
 #[doc(hidden)]
 pub struct RedactedMapKeySerializeRef<'value, 'policy, T: ?Sized> {
     /// Borrowed map whose keys are classified explicitly.
@@ -81,6 +88,7 @@ impl<T: ?Sized + RedactMapKeySerialize> Serialize for RedactedMapKeySerializeRef
     /// # Returns
     ///
     /// The downstream result after the admitted representation is serialized.
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

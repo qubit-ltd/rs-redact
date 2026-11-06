@@ -35,7 +35,16 @@ fn encode_generic<T, S: Serializer>(_: &PhantomData<Generic<T>>, serializer: S) 
 
 fn main() {
     let record = Record { marker: PhantomData };
-    let generic = Generic { marker: PhantomData, value: 7_u8 };
-    assert_eq!(serde_json::to_value(record).unwrap(), serde_json::json!({"marker": null}));
-    assert_eq!(serde_json::to_value(generic).unwrap(), serde_json::json!({"marker": null, "value": 7}));
+    let generic = Generic {
+        marker: PhantomData,
+        value: 7_u8,
+    };
+    assert_eq!(
+        serde_json::to_value(record).unwrap(),
+        serde_json::json!({"marker": null})
+    );
+    assert_eq!(
+        serde_json::to_value(generic).unwrap(),
+        serde_json::json!({"marker": null, "value": 7})
+    );
 }

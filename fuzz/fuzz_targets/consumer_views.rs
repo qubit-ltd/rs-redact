@@ -10,47 +10,49 @@
 
 #![cfg_attr(not(test), no_main)]
 
+// Defines the composite payload used only by the fuzz entry point.
+#[cfg(not(test))]
+mod event;
+// Defines the record shared by fuzz inputs and controlled oracle checks.
+mod login;
+// Defines the independent refusal budgets.
+mod structural_limit;
+
 #[cfg(not(test))]
 use std::collections::BTreeMap;
 
 #[cfg(not(test))]
 use libfuzzer_sys::fuzz_target;
-use qubit_redact::Redact;
 use qubit_redact::RedactionPolicy;
 use qubit_redact::RedactionReason;
 use qubit_redact::RedactionReasons;
 use qubit_redact::Redactor;
+#[cfg(not(test))]
+use serde_json::Value;
+#[cfg(not(test))]
+use serde_json::from_str;
+#[cfg(not(test))]
+use serde_json::json;
+#[cfg(not(test))]
+use serde_json::to_string;
+
+#[cfg(not(test))]
+use self::event::Event;
+use self::login::Login;
+use self::structural_limit::StructuralLimit;
 
 const SECRET: &str = "consumer-view-secret-427b93";
 
-#[derive(Redact)]
-#[redact(serde)]
-struct Login {
-    label: String,
-    #[redact(level = "secret")]
-    password: String,
-}
-
-#[derive(Redact)]
-#[redact(serde)]
-#[cfg(not(test))]
-struct Event {
-    #[redact(nested)]
-    login: Login,
-    #[redact(map)]
-    attributes: BTreeMap<String, String>,
-    #[redact(json)]
-    body: serde_json::Value,
-}
-
-#[derive(Clone, Copy)]
-enum StructuralLimit {
-    Nodes,
-    Depth,
-    Collection,
-    Output,
-}
-
+/// Builds an otherwise standard policy with the selected budget set to zero.
+///
+/// # Parameters
+///
+/// * `limit` - Independent resource budget to exhaust for the refusal oracle.
+///
+/// # Returns
+///
+/// A fresh redactor owning the constrained policy.
+#[must_use]
 fn policy_with_structural_limit(limit: StructuralLimit) -> Redactor {
     let policy = RedactionPolicy::builder()
         .limits(|limits| match limit {
@@ -73,6 +75,7 @@ fn policy_with_structural_limit(limit: StructuralLimit) -> Redactor {
     Redactor::new(policy)
 }
 
+/// Checks that a fresh standard redactor still succeeds after a refusal.
 fn assert_complete_standard_login() {
     let login = Login {
         label: "safe".into(),
@@ -86,6 +89,17 @@ fn assert_complete_standard_login() {
     assert!(!status.json().contains(SECRET));
 }
 
+/// Checks masking or one refusal path, followed by an independent recovery.
+///
+/// # Parameters
+///
+/// * `scenario` - Zero checks normal masking; one through four exhaust the
+///   node, depth, collection, and output budgets, respectively.
+///
+/// # Panics
+///
+/// Panics if `scenario` exceeds four or an expected masking, refusal, or
+/// independent recovery invariant fails.
 fn check_controlled_status_case(scenario: u8) {
     let login = Login {
         label: "safe".into(),
@@ -147,7 +161,7 @@ fn check_controlled_status_case(scenario: u8) {
 
 #[cfg(test)]
 #[test]
-fn controlled_status_oracles_cover_each_refusal_and_recovery() {
+fn test_controlled_status_oracles_cover_each_refusal_and_recovery() {
     for scenario in 0..=4 {
         check_controlled_status_case(scenario);
     }
@@ -175,7 +189,7 @@ fuzz_target!(|data: &[u8]| {
             password: SECRET.into(),
         },
         attributes: BTreeMap::from([("password".into(), SECRET.into()), ("mode".into(), "visible".into())]),
-        body: serde_json::json!({"password": SECRET, "mode": "visible"}),
+        body: json!({"password": SECRET, "mode": "visible"}),
     };
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
@@ -195,7 +209,7 @@ fuzz_target!(|data: &[u8]| {
     let text = format!("{view}");
     assert!(text.len() <= output);
     assert!(!text.contains(SECRET));
-    if let Ok(json) = serde_json::to_string(&view) {
+    if let Ok(json) = to_string(&view) {
         assert!(!json.contains(SECRET));
     }
     let plain = redactor.to_json(&event);
@@ -205,7 +219,7 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(plain, reported.json());
         assert!(reported.json().len() <= output);
         assert!(!reported.json().contains(SECRET));
-        assert!(serde_json::from_str::<serde_json::Value>(reported.json()).is_ok());
+        assert!(from_str::<Value>(reported.json()).is_ok());
         assert_eq!(reported.is_complete(), reported.reasons() == RedactionReasons::empty());
     }
     let scenario = data.get(6).copied().unwrap_or_default() % 5;

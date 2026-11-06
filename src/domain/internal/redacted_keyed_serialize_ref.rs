@@ -22,6 +22,15 @@ use crate::policy::ResolvedField;
 /// The adapter retains the value, key, and policy by reference. Serialization
 /// applies the key's resolved sensitivity while using the shared resource
 /// scope; disabled policies and pass-through keys serialize the value directly.
+///
+/// # Type Parameters
+///
+/// - `'value`: Lifetime of the borrowed source value.
+/// - `'key`: Lifetime of the borrowed sibling key.
+/// - `'policy`: Lifetime of the borrowed classification and resource policy.
+/// - `T`: Possibly unsized source type; serialization requires
+///   [`RedactLevelSerialize`] and [`Serialize`].
+/// - `K`: Possibly unsized key type; serialization requires [`AsRef<str>`].
 #[doc(hidden)]
 pub struct RedactedKeyedSerializeRef<'value, 'key, 'policy, T: ?Sized, K: ?Sized> {
     /// Source value serialized under the sensitivity resolved from `key`.

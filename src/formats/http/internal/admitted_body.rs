@@ -32,7 +32,11 @@ pub(in crate::formats::http) enum AdmittedBody {
     /// A multipart JSON or NDJSON part failed syntactic validation.
     InvalidMultipartJson,
     /// Non-empty NDJSON lines admitted under the shared budgets.
-    Ndjson(AdmittedNdjson),
+    Ndjson(
+        /// Parsed records and source line positions retained for rendering
+        /// without reparsing.
+        AdmittedNdjson,
+    ),
     /// A body selected as NDJSON contained an invalid non-empty line.
     InvalidNdjson,
     /// A multipart body whose nested structured parts were admitted once.

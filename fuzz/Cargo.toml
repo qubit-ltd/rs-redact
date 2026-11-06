@@ -63,13 +63,13 @@ bench = false
 [[bin]]
 name = "structured_serde"
 path = "fuzz_targets/structured_serde.rs"
-test = false
+test = true
 doc = false
 bench = false
 
 [[bin]]
 name = "consumer_views"
 path = "fuzz_targets/consumer_views.rs"
-test = false
+test = true
 doc = false
 bench = false

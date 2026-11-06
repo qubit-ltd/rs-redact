@@ -36,6 +36,19 @@ impl<T> RedactSerializeSource for Option<T> {
         Self: 'a;
 
     /// Borrows the source; the caller must establish a serialization scope.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `'a`: The source borrow retained by the projection.
+    ///
+    /// # Parameters
+    ///
+    /// * `_policy`: Policy supplied by the caller, not retained or read here;
+    ///   serialization uses the policy from the active scope.
+    ///
+    /// # Returns
+    ///
+    /// A lazy projection borrowing the optional source without visiting it.
     #[inline(always)]
     fn redacted_fields<'a>(&'a self, _policy: &RedactionPolicy) -> Self::RedactedFields<'a> {
         OptionProjection(self)

@@ -158,6 +158,11 @@ impl RedactionPolicy {
     /// Its application rules are empty and its explicit floor is
     /// [`RedactionFloor::standard`], so it never observes later process-wide
     /// default installations.
+    ///
+    /// # Returns
+    ///
+    /// A clone of the fixed standard policy sharing its immutable
+    /// configuration.
     #[must_use]
     #[inline(always)]
     pub fn standard() -> Self {
@@ -170,6 +175,10 @@ impl RedactionPolicy {
     /// This preset is intended for untrusted external boundaries. It is more
     /// protective than [`Self::standard`] but may reduce diagnostic detail.
     /// Non-root HTTP and URI paths are hidden when their features are enabled.
+    ///
+    /// # Returns
+    ///
+    /// A clone of the fixed strict policy sharing its immutable configuration.
     #[must_use]
     #[inline(always)]
     pub fn strict() -> Self {
@@ -185,7 +194,12 @@ impl RedactionPolicy {
     /// Limits and control-character escaping remain active, but masking and
     /// redaction-specific field decisions do not. This deliberate debugging
     /// capability transfers confidentiality responsibility to the caller.
+    ///
+    /// # Returns
+    ///
+    /// The standard policy with confidentiality redaction disabled.
     #[must_use]
+    #[inline]
     pub fn disabled() -> Self {
         let mut policy = Self::standard();
         policy.disabled = true;
@@ -194,6 +208,10 @@ impl RedactionPolicy {
 
     /// Creates a deterministic builder with no application rules and the
     /// standard minimum-protection floor.
+    ///
+    /// # Returns
+    ///
+    /// A builder initialized with standard policy settings.
     #[must_use]
     #[inline(always)]
     pub fn builder() -> RedactionPolicyBuilder {
@@ -244,6 +262,10 @@ impl RedactionPolicy {
     /// limits and control-character escaping.
     ///
     /// A `true` result means confidentiality redaction is disabled.
+    ///
+    /// # Returns
+    ///
+    /// `true` when confidentiality redaction is disabled; otherwise `false`.
     #[must_use]
     #[inline(always)]
     pub const fn is_disabled(&self) -> bool {
@@ -251,6 +273,10 @@ impl RedactionPolicy {
     }
 
     /// Returns all static limits used by this policy.
+    ///
+    /// # Returns
+    ///
+    /// The resource ceilings retained by this policy.
     #[must_use]
     #[inline(always)]
     pub const fn limits(&self) -> &RedactionLimits {
@@ -258,6 +284,10 @@ impl RedactionPolicy {
     }
 
     /// Returns the unified HTTP context policy.
+    ///
+    /// # Returns
+    ///
+    /// The shared HTTP context policy.
     #[must_use]
     #[cfg(feature = "http")]
     #[inline(always)]
@@ -266,6 +296,10 @@ impl RedactionPolicy {
     }
 
     /// Returns the unified URI context policy.
+    ///
+    /// # Returns
+    ///
+    /// The shared URI component policy.
     #[must_use]
     #[cfg(feature = "uri")]
     #[inline(always)]
@@ -274,6 +308,10 @@ impl RedactionPolicy {
     }
 
     /// Returns the behavior for root and array JSON scalar values.
+    ///
+    /// # Returns
+    ///
+    /// The fallback for JSON scalars without an object key.
     #[must_use]
     #[cfg(feature = "json")]
     #[inline(always)]
@@ -282,6 +320,10 @@ impl RedactionPolicy {
     }
 
     /// Returns the immutable field rules without diagnostic resource limits.
+    ///
+    /// # Returns
+    ///
+    /// The immutable application rules and attached floor.
     #[must_use]
     #[inline(always)]
     pub const fn rules(&self) -> &RedactionRules {
@@ -295,6 +337,7 @@ impl RedactionPolicy {
     ///
     /// `Some(&RedactionFloor)` when a floor is enabled, or `None` when no
     /// floor is attached.
+    #[must_use]
     #[inline(always)]
     pub fn floor(&self) -> Option<&RedactionFloor> {
         self.rules.floor()
@@ -316,6 +359,7 @@ impl RedactionPolicy {
     /// `Some(sensitivity)` when an application rule, application unknown-field
     /// fallback, or floor layer yields a sensitivity, using the strongest
     /// result; `None` when none of those sources yields a sensitivity.
+    #[must_use]
     #[inline(always)]
     pub fn sensitivity_for(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for(field)
@@ -355,6 +399,10 @@ impl RedactionPolicy {
     /// Field classification determines the effective sensitivity; this table
     /// determines how that sensitivity is rendered. Floors never own a second
     /// mask table.
+    ///
+    /// # Returns
+    ///
+    /// The shared sensitivity-to-mask table.
     #[must_use]
     #[inline(always)]
     pub fn masking(&self) -> &MaskingPolicy {
@@ -388,6 +436,73 @@ impl RedactionPolicy {
         self.rules.application_allow_rules()
     }
 
+    /// Creates a builder that exactly copies `self`.
+    ///
+    /// The copy includes application rules, limits, and the attached floor.
+    ///
+    /// # Returns
+    ///
+    /// An editable builder preserving every setting of this policy.
+    #[must_use]
+    #[inline(always)]
+    pub fn to_builder(&self) -> RedactionPolicyBuilder {
+        RedactionPolicyBuilder::from_policy(self)
+    }
+
+    /// Explains application-rule matching for `field` without applying the
+    /// floor.
+    ///
+    /// This is useful for diagnostics about configured application rules. Use
+    /// [`Self::sensitivity_for`] for the final security decision.
+    ///
+    /// An [`FieldClassification::Unknown`] result describes only the
+    /// application layer. A floor may still classify the field, so consult
+    /// [`Self::sensitivity_for`] for the final result. See
+    /// [`RedactionRules::classify_field`] for an example.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to explain against application rules.
+    ///
+    /// # Returns
+    ///
+    /// The application-layer explanation. It must not be used as the final
+    /// confidentiality decision.
+    ///
+    /// A suffix rule can explain a weaker match even when another matching
+    /// rule determines the stronger final sensitivity:
+    ///
+    /// ```
+    /// use qubit_redact::{FieldClassification, FieldNameMatching, RedactionPolicy, Sensitivity};
+    ///
+    /// let policy = RedactionPolicy::builder()
+    ///     .fields(|fields| {
+    ///         fields
+    ///             .disable_floor()
+    ///             .override_level("token", Sensitivity::Secret)
+    ///             .override_level("access_token", Sensitivity::Medium)
+    ///             .matching(FieldNameMatching::ExactOrTokenSuffix);
+    ///     })
+    ///     .expect("valid field configuration")
+    ///     .build()
+    ///     .expect("valid sensitivity rules");
+    ///
+    /// let classification = policy.classify_field("OPENAI_ACCESS_TOKEN");
+    /// assert!(matches!(
+    ///     classification,
+    ///     FieldClassification::Sensitive { rule, .. } if rule.sensitivity() == Sensitivity::Medium
+    /// ));
+    /// assert_eq!(
+    ///     policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
+    ///     Some(Sensitivity::Secret),
+    /// );
+    /// ```
+    #[inline(always)]
+    #[must_use]
+    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
+        self.rules.classify_field(field)
+    }
+
     /// Changes this policy’s redaction switch and returns this policy for
     /// chaining.
     ///
@@ -396,20 +511,19 @@ impl RedactionPolicy {
     /// Passing `true` allows every supported redaction entry to publish its
     /// original value. The caller owns authorization and operational controls;
     /// the framework does not distinguish debugging use from misuse.
+    ///
+    /// # Parameters
+    ///
+    /// - `disabled`: Whether to publish original values while retaining limits.
+    ///
+    /// # Returns
+    ///
+    /// This policy after updating its redaction switch.
     #[must_use]
     #[inline(always)]
     pub fn set_disabled(&mut self, disabled: bool) -> &mut Self {
         self.disabled = disabled;
         self
-    }
-
-    /// Creates a builder that exactly copies `self`.
-    ///
-    /// The copy includes application rules, limits, and the attached floor.
-    #[must_use]
-    #[inline(always)]
-    pub fn to_builder(&self) -> RedactionPolicyBuilder {
-        RedactionPolicyBuilder::from_policy(self)
     }
 
     /// Replaces the floor for this immutable policy.
@@ -470,67 +584,31 @@ impl RedactionPolicy {
         self
     }
 
-    /// Explains application-rule matching for `field` without applying the
-    /// floor.
-    ///
-    /// This is useful for diagnostics about configured application rules. Use
-    /// [`Self::sensitivity_for`] for the final security decision.
-    ///
-    /// An [`FieldClassification::Unknown`] result describes only the
-    /// application layer. A floor may still classify the field, so consult
-    /// [`Self::sensitivity_for`] for the final result. See
-    /// [`RedactionRules::classify_field`] for an example.
+    /// Resolves final sensitivity with exact-only field matching.
     ///
     /// # Parameters
     ///
-    /// - `field`: Field name to explain against application rules.
+    /// - `field`: Field name to classify using exact-only matching.
     ///
     /// # Returns
     ///
-    /// The application-layer explanation. It must not be used as the final
-    /// confidentiality decision.
-    ///
-    /// A suffix rule can explain a weaker match even when another matching
-    /// rule determines the stronger final sensitivity:
-    ///
-    /// ```
-    /// use qubit_redact::{FieldClassification, FieldNameMatching, RedactionPolicy, Sensitivity};
-    ///
-    /// let policy = RedactionPolicy::builder()
-    ///     .fields(|fields| {
-    ///         fields
-    ///             .disable_floor()
-    ///             .override_level("token", Sensitivity::Secret)
-    ///             .override_level("access_token", Sensitivity::Medium)
-    ///             .matching(FieldNameMatching::ExactOrTokenSuffix);
-    ///     })
-    ///     .expect("valid field configuration")
-    ///     .build()
-    ///     .expect("valid sensitivity rules");
-    ///
-    /// let classification = policy.classify_field("OPENAI_ACCESS_TOKEN");
-    /// assert!(matches!(
-    ///     classification,
-    ///     FieldClassification::Sensitive { rule, .. } if rule.sensitivity() == Sensitivity::Medium
-    /// ));
-    /// assert_eq!(
-    ///     policy.sensitivity_for("OPENAI_ACCESS_TOKEN"),
-    ///     Some(Sensitivity::Secret),
-    /// );
-    /// ```
-    #[inline(always)]
+    /// `Some(sensitivity)` for the strongest exact application or floor
+    /// decision, or `None` when neither layer requires redaction.
     #[must_use]
-    pub fn classify_field<'a>(&'a self, field: &str) -> FieldClassification<'a> {
-        self.rules.classify_field(field)
-    }
-
-    /// Resolves final sensitivity with exact-only field matching.
     #[inline(always)]
     pub(crate) fn sensitivity_for_exact(&self, field: &str) -> Option<Sensitivity> {
         self.rules.sensitivity_for_exact(field)
     }
 
     /// Resolves final sensitivity with exact-only field matching.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to resolve using exact-only matching.
+    ///
+    /// # Returns
+    ///
+    /// The strongest exact-match sensitivity, or pass-through if none applies.
     #[must_use]
     #[inline(always)]
     #[cfg(test)]
@@ -538,9 +616,35 @@ impl RedactionPolicy {
         self.rules.resolve_field_exact(field)
     }
 
+    /// Resolves final sensitivity for `field`.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Field name to resolve using each layer’s matching mode.
+    ///
+    /// # Returns
+    ///
+    /// The strongest application or floor sensitivity, or pass-through if
+    /// none applies.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
+        self.rules.resolve_field(field)
+    }
+
     /// Replaces the mask table while preserving all classification and limit
     /// settings. This is used by format boundaries that own the mask policy.
+    ///
+    /// # Parameters
+    ///
+    /// - `masking`: Replacement sensitivity-to-mask table to share in this
+    ///   policy.
+    ///
+    /// # Returns
+    ///
+    /// This policy with the supplied masks, reusing the allocation when equal.
     #[doc(hidden)]
+    #[must_use]
     #[cfg(feature = "uri")]
     #[inline(always)]
     pub(crate) fn with_masking(mut self, masking: &MaskingPolicy) -> Self {
@@ -548,13 +652,6 @@ impl RedactionPolicy {
             self.masking = Arc::new(masking.clone());
         }
         self
-    }
-
-    /// Resolves final sensitivity for `field`.
-    #[inline(always)]
-    #[must_use]
-    pub(crate) fn resolve_field(&self, field: &str) -> super::ResolvedField {
-        self.rules.resolve_field(field)
     }
 }
 
@@ -573,19 +670,29 @@ mod tests {
         let policy = RedactionPolicy::standard();
         let original = Arc::clone(&policy.masking);
         let equal = policy.clone().with_masking(policy.masking());
-        assert!(Arc::ptr_eq(&original, &equal.masking));
+        assert!(
+            Arc::ptr_eq(&original, &equal.masking),
+            "equal masks must reuse the allocation",
+        );
 
         let mut replacement_builder = MaskingPolicy::builder();
         replacement_builder.secret(MaskPolicy::fixed("custom"));
         let replacement = replacement_builder.build();
         let changed = policy.with_masking(&replacement);
-        assert!(!Arc::ptr_eq(&original, &changed.masking));
-        assert_eq!(changed.masking(), &replacement);
+        assert!(
+            !Arc::ptr_eq(&original, &changed.masking),
+            "different masks must replace the allocation",
+        );
+        assert_eq!(changed.masking(), &replacement, "replacement masks must be installed",);
     }
 }
 
 impl Default for RedactionPolicy {
     /// Clones the fixed standard policy.
+    ///
+    /// # Returns
+    ///
+    /// A clone sharing the standard policy’s immutable configuration.
     #[inline(always)]
     fn default() -> Self {
         STANDARD_POLICY.clone()

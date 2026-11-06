@@ -61,20 +61,20 @@ fn test_non_unicode_plain_argv_differs_between_modes() {
 }
 
 #[test]
-fn explicit_mode_masks_only_caller_classified_items() {
+fn test_explicit_mode_masks_only_caller_classified_items() {
     let rendered = explicit([
         ArgvItem::plain(OsStr::new("client")),
         ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret),
         ArgvItem::plain(OsStr::new("--password")),
     ]);
 
-    assert!(rendered.contains("client"));
-    assert!(rendered.contains("--password"));
-    assert!(!rendered.contains("raw-secret"));
+    assert!(rendered.contains("client"), "unexpected argv output: {rendered:?}");
+    assert!(rendered.contains("--password"), "unexpected argv output: {rendered:?}");
+    assert!(!rendered.contains("raw-secret"), "unexpected argv output: {rendered:?}");
 }
 
 #[test]
-fn heuristic_mode_masks_sensitive_options_and_assignments() {
+fn test_heuristic_mode_masks_sensitive_options_and_assignments() {
     let rendered = heuristic([
         ArgvItem::plain(OsStr::new("client")),
         ArgvItem::plain(OsStr::new("--password")),
@@ -110,7 +110,10 @@ fn test_heuristic_inline_join_shapes_preserve_debug_escaping() {
         };
         assert_eq!(output.text().as_str(), format!("[{joined:?}]"));
         assert_eq!(output.summary().completion(), RedactionCompletion::Complete);
-        assert!(!output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+        assert!(
+            !output.summary().reasons().contains(RedactionReason::OutputLimitReached),
+            "complete inline argv must not report output exhaustion"
+        );
     }
 }
 
@@ -135,8 +138,14 @@ fn test_heuristic_inline_join_budget_failures_keep_batch_marker_and_provenance()
         let output = batch.finish_with_marker(MARKER);
 
         assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-        assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
-        assert!(output.summary().usage().output_bytes() <= max_output_bytes);
+        assert!(
+            output.summary().reasons().contains(RedactionReason::OutputLimitReached),
+            "exhausted argv must report the output limit"
+        );
+        assert!(
+            output.summary().usage().output_bytes() <= max_output_bytes,
+            "published argv must remain within the {max_output_bytes}-byte budget"
+        );
         for handle in handles {
             assert_eq!(output.text(handle).as_str(), MARKER);
         }
@@ -171,7 +180,7 @@ fn test_pending_medium_does_not_weaken_secret_inline_items() {
 }
 
 #[test]
-fn heuristic_does_not_parse_shell_payloads_or_unsupported_compact_forms() {
+fn test_heuristic_does_not_parse_shell_payloads_or_unsupported_compact_forms() {
     let rendered = heuristic([
         ArgvItem::plain(OsStr::new("sh")),
         ArgvItem::plain(OsStr::new("-c")),
@@ -179,12 +188,15 @@ fn heuristic_does_not_parse_shell_payloads_or_unsupported_compact_forms() {
         ArgvItem::plain(OsStr::new("-pCOMPACT")),
     ]);
 
-    assert!(rendered.contains("shell-secret"));
-    assert!(rendered.contains("-pCOMPACT"));
+    assert!(
+        rendered.contains("shell-secret"),
+        "unexpected argv output: {rendered:?}"
+    );
+    assert!(rendered.contains("-pCOMPACT"), "unexpected argv output: {rendered:?}");
 }
 
 #[test]
-fn heuristic_option_boundaries_and_consecutive_sensitive_options_keep_their_rules() {
+fn test_heuristic_option_boundaries_and_consecutive_sensitive_options_keep_their_rules() {
     let rendered = heuristic([
         ArgvItem::plain(OsStr::new("--")),
         ArgvItem::plain(OsStr::new("-")),
@@ -203,15 +215,15 @@ fn heuristic_option_boundaries_and_consecutive_sensitive_options_keep_their_rule
         "triple-option-secret",
         "consecutive-option-secret",
     ] {
-        assert!(!rendered.contains(secret));
+        assert!(!rendered.contains(secret), "unexpected argv output: {rendered:?}");
     }
     for boundary in ["\"--\"", "\"-\"", "\"---\""] {
-        assert!(rendered.contains(boundary));
+        assert!(rendered.contains(boundary), "unexpected argv output: {rendered:?}");
     }
 }
 
 #[test]
-fn composer_and_batch_argv_results_are_separate() {
+fn test_composer_and_batch_argv_results_are_separate() {
     let text = Redactor::standard()
         .text_composer()
         .literal("argv=")
@@ -227,13 +239,22 @@ fn composer_and_batch_argv_results_are_separate() {
     let handle = batch.redact_argv([ArgvItem::sensitive(OsStr::new("item-secret"), Sensitivity::Secret)]);
     let output = batch.finish_with_marker("<redaction incomplete>");
 
-    assert!(text.text().as_str().starts_with("argv="));
-    assert!(!text.text().as_str().contains("aggregate-secret"));
-    assert!(!output.text(handle).as_str().contains("item-secret"));
+    assert!(
+        text.text().as_str().starts_with("argv="),
+        "composed argv must preserve the literal prefix"
+    );
+    assert!(
+        !text.text().as_str().contains("aggregate-secret"),
+        "composed argv must mask the aggregate secret"
+    );
+    assert!(
+        !output.text(handle).as_str().contains("item-secret"),
+        "batch argv must mask the item secret"
+    );
 }
 
 #[test]
-fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
+fn test_direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
     let mut batch = Redactor::standard().diagnostic_batch();
     let explicit_handle = batch.redact_argv([
         ArgvItem::plain(OsStr::new("tool")),
@@ -246,13 +267,22 @@ fn direct_argv_handle_operations_publish_explicit_and_heuristic_results() {
     ]);
     let output = batch.finish_with_marker("<redaction incomplete>");
 
-    assert!(!output.text(explicit_handle).as_str().contains("explicit-secret"));
-    assert!(!output.text(heuristic_handle).as_str().contains("heuristic-secret"));
-    assert!(output.text(heuristic_handle).as_str().contains("--token"));
+    assert!(
+        !output.text(explicit_handle).as_str().contains("explicit-secret"),
+        "explicit argv handle must publish masked text"
+    );
+    assert!(
+        !output.text(heuristic_handle).as_str().contains("heuristic-secret"),
+        "heuristic argv handle must publish masked text"
+    );
+    assert!(
+        output.text(heuristic_handle).as_str().contains("--token"),
+        "heuristic argv must retain the option name"
+    );
 }
 
 #[test]
-fn refactor_argv_one_item_matches_batch() {
+fn test_argv_one_item_matches_batch() {
     let redactor = Redactor::standard();
     let items = [ArgvItem::sensitive(OsStr::new("raw-secret"), Sensitivity::Secret)];
     let one = redactor.redact_argv(items);
@@ -265,7 +295,7 @@ fn refactor_argv_one_item_matches_batch() {
 }
 
 #[test]
-fn exact_output_budget_fill_skips_later_argv_adapter_work() {
+fn test_exact_output_budget_fill_skips_later_argv_adapter_work() {
     let policy = RedactionPolicy::builder()
         .limits(|limits| {
             limits.max_output_bytes(4);
@@ -283,26 +313,29 @@ fn exact_output_budget_fill_skips_later_argv_adapter_work() {
 
     assert_eq!(output.text().as_str(), "safe");
     assert_eq!(output.summary().completion(), RedactionCompletion::Exhausted);
-    assert!(output.summary().reasons().contains(RedactionReason::OutputLimitReached));
+    assert!(
+        output.summary().reasons().contains(RedactionReason::OutputLimitReached),
+        "exhausted argv must report the output limit"
+    );
     assert_eq!(output.summary().usage().output_bytes(), 4);
 }
 
 #[cfg(unix)]
 #[test]
-fn non_utf8_sensitive_items_fail_closed() {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
-
+fn test_non_utf8_sensitive_items_fail_closed() {
     let secret = OsString::from_vec(b"prefix-secret-\xff-suffix".to_vec());
     let rendered = explicit([ArgvItem::sensitive(&secret, Sensitivity::Secret)]);
 
-    assert!(!rendered.contains("prefix-secret"));
-    assert!(rendered.contains("redacted"));
+    assert!(
+        !rendered.contains("prefix-secret"),
+        "unexpected argv output: {rendered:?}"
+    );
+    assert!(rendered.contains("redacted"), "unexpected argv output: {rendered:?}");
 }
 
 #[cfg(unix)]
 #[test]
-fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
+fn test_explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
     let value = OsString::from_vec(b"explicit\xff".to_vec());
     let redactor = Redactor::standard();
     let inspected = redactor
@@ -330,13 +363,16 @@ fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
         .text()
         .as_str()
         .to_owned();
-    assert!(explicit.contains("<redacted>"));
-    assert!(explicit.ends_with(", \"visible-after-explicit\"]"));
+    assert!(explicit.contains("<redacted>"), "opaque explicit item must be redacted");
+    assert!(
+        explicit.ends_with(", \"visible-after-explicit\"]"),
+        "pending classification must clear after an explicit item"
+    );
 }
 
 #[cfg(windows)]
 #[test]
-fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
+fn test_explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
     let value = OsString::from_wide(&[0x0065, 0x0063, 0xD800]);
     let redactor = Redactor::standard();
     let inspected = redactor
@@ -364,13 +400,16 @@ fn explicit_non_utf8_high_is_inspected_as_high_and_clears_pending() {
         .text()
         .as_str()
         .to_owned();
-    assert!(explicit.contains("<redacted>"));
-    assert!(explicit.ends_with(", \"visible-after-explicit\"]"));
+    assert!(explicit.contains("<redacted>"), "opaque explicit item must be redacted");
+    assert!(
+        explicit.ends_with(", \"visible-after-explicit\"]"),
+        "pending classification must clear after an explicit item"
+    );
 }
 
 proptest! {
     #[test]
-    fn heuristic_redaction_is_deterministic_and_does_not_leak_option_values(
+    fn test_heuristic_redaction_is_deterministic_and_does_not_leak_option_values(
         secret in "[A-Za-z0-9]{8,64}",
     ) {
         let one = heuristic([
@@ -384,13 +423,13 @@ proptest! {
             ArgvItem::plain(OsStr::new(secret.as_str())),
         ]);
 
-        prop_assert!(!one.contains(&secret));
+        prop_assert!(!one.contains(&secret), "heuristic argv must mask the generated option value");
         prop_assert_eq!(one, two);
     }
 }
 
 #[test]
-fn pending_option_semantics_survive_cached_classification() {
+fn test_pending_option_semantics_survive_cached_classification() {
     let redactor = Redactor::standard();
     let exact = [
         ArgvItem::plain(OsStr::new("-password")),
@@ -401,7 +440,8 @@ fn pending_option_semantics_survive_cached_classification() {
             .redact_heuristic_argv(exact)
             .text()
             .as_str()
-            .contains("exact-secret")
+            .contains("exact-secret"),
+        "exact option must mask its following value"
     );
     assert_eq!(
         redactor
@@ -417,20 +457,32 @@ fn pending_option_semantics_survive_cached_classification() {
         ArgvItem::plain(OsStr::new("visible-after-explicit")),
     ];
     let rendered = redactor.redact_heuristic_argv(cleared);
-    assert!(rendered.text().as_str().contains("visible-after-explicit"));
-    assert!(!rendered.text().as_str().contains("explicit-secret"));
+    assert!(
+        rendered.text().as_str().contains("visible-after-explicit"),
+        "explicit item must clear pending option classification"
+    );
+    assert!(
+        !rendered.text().as_str().contains("explicit-secret"),
+        "explicit secret must remain masked"
+    );
 
     let disabled = Redactor::new(RedactionPolicy::disabled());
     let restored = disabled.redact_heuristic_argv([
         ArgvItem::plain(OsStr::new("--password")),
         ArgvItem::plain(OsStr::new("disabled-secret")),
     ]);
-    assert!(restored.text().as_str().contains("disabled-secret"));
+    assert!(
+        restored.text().as_str().contains("disabled-secret"),
+        "disabled policy must preserve option values"
+    );
 
     let trailing = [ArgvItem::plain(OsStr::new("--password"))];
     assert_eq!(
         redactor.redact_heuristic_argv(trailing).summary().completion(),
         RedactionCompletion::Complete
     );
-    assert!(redactor.inspect_heuristic_argv(trailing).is_ok());
+    assert!(
+        redactor.inspect_heuristic_argv(trailing).is_ok(),
+        "an option without a following value must remain inspectable"
+    );
 }
