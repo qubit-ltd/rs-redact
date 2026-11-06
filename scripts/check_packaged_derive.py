@@ -103,7 +103,7 @@ def assert_derive_requirement(runtime_manifest: Path) -> None:
     if isinstance(requirement, dict):
         requirement = requirement.get("version")
     if requirement not in (DERIVE_VERSION, f"^{DERIVE_VERSION}"):
-        raise CheckError(f"runtime derive lower bound is not 0.9.0: {requirement!r}")
+        raise CheckError(f"runtime derive lower bound is not 0.10.0: {requirement!r}")
 
 
 def assert_derive_has_no_runtime_release_dependency(derive_manifest: Path) -> None:
