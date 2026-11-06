@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `NotSerializable: serde::Serialize` is not satisfied
-  --> tests/fixtures/fail/projection_without_serialize.rs:28:42
+  --> tests/fixtures/fail/projection_without_serialize.rs:30:42
    |
-28 |     let _ = Redactor::standard().to_json(&parent);
+30 |     let _ = Redactor::standard().to_json(&parent);
    |                                  ------- ^^^^^^^ unsatisfied trait bound
    |                                  |
    |                                  required by a bound introduced by this call

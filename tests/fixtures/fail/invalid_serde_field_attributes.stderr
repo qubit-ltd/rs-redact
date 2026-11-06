@@ -23,58 +23,58 @@ error: Redact serde for `DuplicateSkip` field `value` repeats a skip attribute
    |             ^^^^^^^^^^^^^^^^
 
 error: Redact serde for `DuplicatePredicate` field `value` repeats `skip_serializing_if`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:56:9
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:54:55
    |
-56 |         skip_serializing_if = "String::is_empty"
-   |         ^^^^^^^^^^^^^^^^^^^
+54 |     #[serde(skip_serializing_if = "String::is_empty", skip_serializing_if = "String::is_empty")]
+   |                                                       ^^^^^^^^^^^^^^^^^^^
 
 error: Redact serde for `UnsupportedControl` field `value` does not support `flatten` because it can change structure or bypass redaction; use only `rename`, `skip`, `skip_serializing`, `skip_serializing_if`, `with`, `serialize_with`, or deserialization-only controls such as `default`, `alias`, and `skip_deserializing`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:66:13
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:63:13
    |
-66 |     #[serde(flatten)]
+63 |     #[serde(flatten)]
    |             ^^^^^^^
 
 error: Redact serde for `InvalidTuple` field `0` expects `#[serde(...)]`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:73:21
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:70:21
    |
-73 | struct InvalidTuple(#[serde] String);
+70 | struct InvalidTuple(#[serde] String);
    |                     ^^^^^^^^
 
 error: Redact serde for `SensitiveAdapter` field `value` cannot use a serialization adapter with a redaction mode that observes raw field state; use it only on unmarked fields or with `redact(skip)`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:79:5
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:76:5
    |
-79 | /     /// Sensitive field with an intentionally rejected adapter.
-80 | |     #[redact(level = "secret")]
-81 | |     #[serde(with = "adapter")]
-82 | |     value: String,
+76 | /     /// Sensitive field with an intentionally rejected adapter.
+77 | |     #[redact(level = "secret")]
+78 | |     #[serde(with = "adapter")]
+79 | |     value: String,
    | |_________________^
 
 error: Redact serde expects `rename = "..."` or `rename(serialize = "...", deserialize = "...")`
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:90:13
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:87:13
    |
-90 |     #[serde(rename)]
+87 |     #[serde(rename)]
    |             ^^^^^^
 
 error: expected string literal
-  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:99:22
+  --> tests/fixtures/fail/invalid_serde_field_attributes.rs:96:22
    |
-99 |     #[serde(rename = 7)]
+96 |     #[serde(rename = 7)]
    |                      ^
 
 error: expected `=`
-   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:108:32
+   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:105:32
     |
-108 |     #[serde(skip_serializing_if)]
+105 |     #[serde(skip_serializing_if)]
     |                                ^
 
 error: expected string literal
-   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:117:35
+   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:114:35
     |
-117 |     #[serde(skip_serializing_if = 7)]
+114 |     #[serde(skip_serializing_if = 7)]
     |                                   ^
 
 error: unexpected token
-   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:126:35
+   --> tests/fixtures/fail/invalid_serde_field_attributes.rs:123:35
     |
-126 |     #[serde(skip_serializing_if = "not a path")]
+123 |     #[serde(skip_serializing_if = "not a path")]
     |                                   ^^^^^^^^^^^^
