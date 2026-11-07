@@ -347,9 +347,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-json"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ca9db6748b7adb03191688291692d5a16a66a7fd1513ace19dc0c2f2769b2e8"
+checksum = "8decf1ed9d6d96b76b2e22acd346987e454e514e766d7f19aaf40b50a51f7e35"
 dependencies = [
  "qubit-budget",
  "qubit-io",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "fluent-uri",
  "form_urlencoded",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -489,9 +489,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "smallvec"
-version = "1.16.4"
+version = "1.16.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
+checksum = "149309498a5f7334b12ddae0cad8aba81ce785fe91755068867e017cf98fee46"
 
 [[package]]
 name = "stable_deref_trait"
