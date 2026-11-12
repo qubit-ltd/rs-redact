@@ -22,6 +22,28 @@ import tomllib
 ANNOTATION = re.compile(r"<!-- redact-example: kind=(run|cargo) features=([a-z,]+) -->")
 DOCUMENTS = ("README.md", "README.zh_CN.md", "doc/user_guide.md", "doc/user_guide.zh_CN.md", "derive/README.md", "derive/README.zh_CN.md")
 VALID_FEATURES = frozenset({"derive", "serde", "bigdecimal", "json", "http", "uri"})
+DERIVE_LINK = re.compile(r"\[[^\]]*\]\((https://github\.com/qubit-ltd/rs-redact/blob/[^)\s]+)\)")
+DERIVE_GUIDE_PATH = re.compile(r"(?:^|/)derive/README(?:\.zh_CN)?\.md(?:[?#].*)?$")
+
+
+def validate_derive_guide_links(root, version):
+    """Require each root README's derive guide links to match its release and language."""
+    for filename, guide in (("README.md", "README.md"), ("README.zh_CN.md", "README.zh_CN.md")):
+        expected = f"https://github.com/qubit-ltd/rs-redact/blob/v{version}/derive/{guide}"
+        path = root / filename
+        matches = []
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for match in DERIVE_LINK.finditer(line):
+                target = match.group(1)
+                if DERIVE_GUIDE_PATH.search(target.split("/blob/", 1)[-1]):
+                    matches.append((line_number, target))
+        if not matches:
+            raise ValueError(f"{filename}: missing derive guide link; expected {expected}")
+        for line_number, target in matches:
+            if target != expected:
+                raise ValueError(
+                    f"{filename}:{line_number}: derive guide link is {target}; expected {expected}"
+                )
 
 
 def extract(path):
@@ -176,6 +198,7 @@ def run_examples(root, runner=None):
     if shutil.which("cargo") is None:
         raise ValueError("cargo is required to verify documentation examples")
     package = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    validate_derive_guide_links(root, package["package"]["version"])
     examples = [example for name in DOCUMENTS for example in extract(root / name)]
     if not examples:
         raise ValueError("no executable documentation examples found")

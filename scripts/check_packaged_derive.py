@@ -20,7 +20,7 @@ def package_version(manifest: Path) -> str:
 
 RUNTIME_VERSION = package_version(ROOT / "Cargo.toml")
 DERIVE_VERSION = package_version(ROOT / "derive/Cargo.toml")
-DERIVE_DOC_COMMIT = "6f51ef2634e3f79b75449626826fc1a1ac42e14f"
+DERIVE_DOC_TAG = f"v{RUNTIME_VERSION}"
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
 
 
@@ -114,12 +114,12 @@ def assert_derive_has_no_runtime_release_dependency(derive_manifest: Path) -> No
 
 
 def assert_published_documentation(package_root: Path) -> None:
-    """Require both READMEs and both user guides to link to pinned derive docs."""
+    """Require both READMEs and both user guides to link to release derive docs."""
     expected = {
-        "README.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.md",
-        "README.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.zh_CN.md",
-        "doc/user_guide.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.md",
-        "doc/user_guide.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_COMMIT}/derive/README.zh_CN.md",
+        "README.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_TAG}/derive/README.md",
+        "README.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_TAG}/derive/README.zh_CN.md",
+        "doc/user_guide.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_TAG}/derive/README.md",
+        "doc/user_guide.zh_CN.md": f"https://github.com/qubit-ltd/rs-redact/blob/{DERIVE_DOC_TAG}/derive/README.zh_CN.md",
     }
     for source_name, target in expected.items():
         source = package_root / source_name

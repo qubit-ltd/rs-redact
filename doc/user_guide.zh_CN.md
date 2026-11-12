@@ -1,6 +1,6 @@
 # qubit-redact 用户手册
 
-[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact/0.10/qubit_redact/)
+[README](../README.zh_CN.md) · [英文用户手册](user_guide.md) · [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md) · [API 文档](https://docs.rs/qubit-redact/0.10/qubit_redact/)
 
 本手册适用于 **qubit-redact 0.10**，需要 **Rust 1.94 或更新版本**，
 面向应用和库作者：先跑通日志与业务序列化共存，再配置领域类型、输入格式和预算。
@@ -1437,7 +1437,7 @@ composer、batch 和 inspection 会话默认不应跨线程共享；每个诊断
 
 - [中文 README](../README.zh_CN.md) · [English README](../README.md)
 - [0.10 API 文档](https://docs.rs/qubit-redact/0.10/qubit_redact/)
-- [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/6f51ef2634e3f79b75449626826fc1a1ac42e14f/derive/README.zh_CN.md) · [英文用户手册](user_guide.md)
+- [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md) · [英文用户手册](user_guide.md)
 - [设计文档](design.zh_CN.md) · [English design](design.md)
 
 在仓库根目录运行 `python3 -B scripts/check_doc_examples.py`，可以编译并执行两种语言的 README

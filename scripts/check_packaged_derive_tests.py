@@ -23,9 +23,9 @@ class PackagedDeriveChecks(unittest.TestCase):
     }
 
     def _documentation_fixture(self, root, *, english=True, chinese=True):
-        commit = CHECKER.DERIVE_DOC_COMMIT
-        english_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.md"
-        chinese_target = f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/README.zh_CN.md"
+        tag = f"v{CHECKER.RUNTIME_VERSION}"
+        english_target = f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/README.md"
+        chinese_target = f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/README.zh_CN.md"
         for source_name, language in self.DOCUMENTS.items():
             target = english_target if language == "en" else chinese_target
             if source_name == "README.md" and not english:
@@ -38,7 +38,7 @@ class PackagedDeriveChecks(unittest.TestCase):
 
     def _expected_target(self, source_name):
         language_path = "README.zh_CN.md" if source_name.endswith("zh_CN.md") else "README.md"
-        return f"https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_COMMIT}/derive/{language_path}"
+        return f"https://github.com/qubit-ltd/rs-redact/blob/v{CHECKER.RUNTIME_VERSION}/derive/{language_path}"
 
     def test_published_documentation_links_resolve_inside_package(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -59,14 +59,14 @@ class PackagedDeriveChecks(unittest.TestCase):
                     self.assertIn(self._expected_target(source_name), str(raised.exception))
 
     def test_published_guides_reject_stale_derive_targets(self):
-        commit = CHECKER.DERIVE_DOC_COMMIT
+        tag = f"v{CHECKER.RUNTIME_VERSION}"
         for source_name in ("doc/user_guide.md", "doc/user_guide.zh_CN.md"):
             expected = self._expected_target(source_name)
             wrong_language = "README.md" if source_name.endswith("zh_CN.md") else "README.zh_CN.md"
             invalid_targets = {
                 "local relative": "../derive/README.md",
                 "floating main": f"https://github.com/qubit-ltd/rs-redact/blob/main/derive/{expected.rsplit('/', 1)[-1]}",
-                "wrong language": f"https://github.com/qubit-ltd/rs-redact/blob/{commit}/derive/{wrong_language}",
+                "wrong language": f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/{wrong_language}",
                 "wrong commit": f"https://github.com/qubit-ltd/rs-redact/blob/0000000000000000000000000000000000000000/derive/{expected.rsplit('/', 1)[-1]}",
             }
             for description, invalid in invalid_targets.items():
@@ -116,7 +116,7 @@ class PackagedDeriveChecks(unittest.TestCase):
             root = Path(temp)
             self._documentation_fixture(root)
             (root / "README.zh_CN.md").write_text(
-                f"[derive](https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_COMMIT}/derive/README.md)\n",
+                f"[derive](https://github.com/qubit-ltd/rs-redact/blob/v{CHECKER.RUNTIME_VERSION}/derive/README.md)\n",
                 encoding="utf-8",
             )
             with self.assertRaises(CHECKER.CheckError) as raised:
