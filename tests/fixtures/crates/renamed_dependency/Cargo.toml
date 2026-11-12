@@ -7,7 +7,7 @@ publish = false
 [workspace]
 
 [dependencies]
-qubit-redact-derive = { version = "^0.10" }
+qubit-redact-derive = { version = "0.10.0", path = "../../../../derive" }
 redaction-runtime = {
     package = "qubit-redact", version = "^0.10", path = "../../../../",
     default-features = false,

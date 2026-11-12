@@ -112,7 +112,7 @@ fn main() {
 }
 ```
 
-属性与类型支持表见 [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md)；自定义字段规则、HTTP、URI、
+属性与类型支持表见 [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.3/derive/README.zh_CN.md)；自定义字段规则、HTTP、URI、
 argv/env、batch 与预算等详见用户手册。
 
 ## 选择入口
@@ -154,7 +154,7 @@ disabled 是恢复原值的调试选项；库不擦除源对象，也不保护�
 [中文用户手册](doc/user_guide.zh_CN.md) 和 [英文用户手册](doc/user_guide.md)。
 URI 准入需要保留强制保密边界时，请使用
 [UriRedactionBoundary](doc/user_guide.zh_CN.md#使用强制-uri-边界)。
-另见 [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md) 与 [API 文档](https://docs.rs/qubit-redact)。
+另见 [derive 说明](https://github.com/qubit-ltd/rs-redact/blob/v0.10.3/derive/README.zh_CN.md) 与 [API 文档](https://docs.rs/qubit-redact)。
 
 ## 测试
 

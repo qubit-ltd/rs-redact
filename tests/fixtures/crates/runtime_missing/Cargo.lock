@@ -50,9 +50,7 @@ dependencies = [
 
 [[package]]
 name = "qubit-redact-derive"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ebbe63200ff05a921d003f4f2542dc34323d48f7eddd1e946176c8adc426bc"
+version = "0.10.2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

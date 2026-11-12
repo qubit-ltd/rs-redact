@@ -10,4 +10,4 @@ publish = false
 qubit-redact = { version = "^0.10", path = "../../../../",
     features = ["serde"],
 }
-qubit-redact-derive = { version = "^0.10" }
+qubit-redact-derive = { version = "0.10.0", path = "../../../../derive" }
