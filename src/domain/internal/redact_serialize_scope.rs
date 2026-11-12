@@ -7,6 +7,7 @@
 // =============================================================================
 //! Shared structural admission for generated Serde redaction.
 
+use std::cell::Cell as ReleaseCell;
 use std::cell::RefCell;
 #[cfg(feature = "json")]
 use std::cell::RefCell as Cell;
@@ -52,6 +53,11 @@ thread_local! {
 /// stores a raw pointer, so forgetting or moving a caller's policy cannot make
 /// [`current_policy`] dangle. Generated projections and scoped adapters use
 /// this guard to restore the previous policy and budget on return or unwinding.
+/// Each guard is associated with its own policy frame. Dropping a non-top frame
+/// marks it as released and defers removal until newer frames have also been
+/// released; removal then drains the released stack tail and each frame's owned
+/// budget. The guard is thread-affine. `mem::forget` skips this cleanup and can
+/// retain the frame and its budget for the rest of the thread's lifetime.
 ///
 /// # Type Parameters
 ///
@@ -77,8 +83,8 @@ pub struct RedactSerializeScope<'policy> {
     _policy: PhantomData<&'policy crate::RedactionPolicy>,
     /// Makes the guard thread-affine because it mutates thread-local state.
     _not_send: PhantomData<Rc<()>>,
-    /// Whether this guard installed the active root budget.
-    owns_budget: bool,
+    /// Marks this exact frame as released, even when it is not the stack top.
+    released: Rc<ReleaseCell<bool>>,
 }
 
 impl<'policy> RedactSerializeScope<'policy> {
@@ -87,6 +93,11 @@ impl<'policy> RedactSerializeScope<'policy> {
     /// Source addresses are only a reuse hint: the owned snapshot must still
     /// equal the supplied policy, because a forgotten guard permits the caller
     /// to replace its policy at the same address.
+    ///
+    /// Dropping this guard releases its own frame. If newer frames are still
+    /// active, the released frame remains in thread-local state until those
+    /// frames drop; the final active frame drop also clears consecutive
+    /// released ancestors and their owned budgets.
     ///
     /// # Parameters
     ///
@@ -135,16 +146,19 @@ impl<'policy> RedactSerializeScope<'policy> {
             });
             true
         });
+        let released = Rc::new(ReleaseCell::new(false));
         STRUCTURED_SERDE_POLICIES.with(|slot| {
             slot.borrow_mut().push(PolicyFrame {
                 source_identity,
                 snapshot,
+                released: Rc::clone(&released),
+                owns_budget,
             })
         });
         Self {
             _policy: PhantomData,
             _not_send: PhantomData,
-            owns_budget,
+            released,
         }
     }
 }
@@ -217,15 +231,25 @@ pub(super) fn record_reasons(reasons: RedactionReasons) {
 }
 
 impl Drop for RedactSerializeScope<'_> {
-    /// Pops this policy frame and releases its owned root ledger, if any.
+    /// Marks this frame released and drains released frames from the stack
+    /// tail.
     fn drop(&mut self) {
-        if self.owns_budget {
-            STRUCTURED_SERDE_BUDGETS.with(|slot| {
-                let _ = slot.borrow_mut().pop();
-            });
-        }
-        STRUCTURED_SERDE_POLICIES.with(|slot| {
-            let _ = slot.borrow_mut().pop();
+        self.released.set(true);
+        let owned_budgets = STRUCTURED_SERDE_POLICIES.with(|slot| {
+            let mut policies = slot.borrow_mut();
+            let mut owned_budgets = 0;
+            while policies.last().is_some_and(|frame| frame.released.get()) {
+                if policies.pop().is_some_and(|frame| frame.owns_budget) {
+                    owned_budgets += 1;
+                }
+            }
+            owned_budgets
+        });
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            let mut budgets = slot.borrow_mut();
+            for _ in 0..owned_budgets {
+                let _ = budgets.pop();
+            }
         });
     }
 }
@@ -684,5 +708,105 @@ mod report_tests {
             parent.reasons().contains(RedactionReason::TraversalLimitReached),
             "parent receives events while child is active"
         );
+    }
+
+    #[test]
+    fn test_released_outer_scope_preserves_shared_budget_until_inner_drop() {
+        use super::STRUCTURED_SERDE_BUDGETS;
+        use super::admit_node;
+        use super::leave_node;
+
+        let policy = RedactionPolicy::standard();
+        let baseline = STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len());
+        let outer = RedactSerializeScope::new(&policy);
+        assert!(admit_node());
+        leave_node();
+        let inner = RedactSerializeScope::new(&policy);
+
+        drop(outer);
+        assert!(admit_node());
+        leave_node();
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            assert_eq!(slot.borrow().last().map(|budget| budget.nodes), Some(2));
+        });
+
+        drop(inner);
+        assert_eq!(STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len()), baseline);
+
+        let recovered = RedactSerializeScope::new(&policy);
+        assert!(admit_node());
+        leave_node();
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            assert_eq!(slot.borrow().last().map(|budget| budget.nodes), Some(1));
+        });
+        drop(recovered);
+        assert_eq!(STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len()), baseline);
+    }
+
+    #[test]
+    fn test_released_outer_scope_preserves_inner_budget_and_reason_observer() {
+        use super::STRUCTURED_SERDE_BUDGETS;
+        use super::admit_node;
+        use super::leave_node;
+
+        let outer_policy = RedactionPolicy::disabled();
+        let inner_policy = RedactionPolicy::standard()
+            .to_builder()
+            .limits(|limits| {
+                limits.max_nodes(1);
+            })
+            .expect("custom limits should be valid")
+            .build()
+            .expect("custom policy should build");
+        let baseline = STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len());
+        let outer = RedactSerializeScope::new(&outer_policy);
+        let outer_report = register_report();
+        let inner = RedactSerializeScope::new(&inner_policy);
+        let inner_report = register_report();
+        assert!(admit_node());
+        leave_node();
+
+        drop(outer);
+        assert!(!admit_node(), "the inner node quota must remain consumed");
+        record_reason(RedactionReason::InputLimitReached);
+        assert!(inner_report.reasons().contains(RedactionReason::InputLimitReached));
+        assert!(!outer_report.reasons().contains(RedactionReason::InputLimitReached));
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            assert_eq!(slot.borrow().len(), baseline + 2);
+            assert_eq!(slot.borrow().last().map(|budget| budget.nodes), Some(1));
+        });
+
+        drop(inner);
+        assert_eq!(STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len()), baseline);
+        let recovered = RedactSerializeScope::new(&inner_policy);
+        let fresh_report = register_report();
+        assert!(!fresh_report.reasons().contains(RedactionReason::InputLimitReached));
+        drop(recovered);
+        assert_eq!(STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len()), baseline);
+    }
+
+    #[test]
+    fn test_out_of_order_drop_preserves_raw_serializer_budget_pin() {
+        use super::STRUCTURED_SERDE_BUDGETS;
+        use super::enter_raw_serializer;
+        use super::leave_raw_serializer;
+
+        let outer_policy = RedactionPolicy::disabled();
+        let inner_policy = RedactionPolicy::standard();
+        let baseline = STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len());
+        let outer = RedactSerializeScope::new(&outer_policy);
+        assert!(enter_raw_serializer());
+        let inner = RedactSerializeScope::new(&inner_policy);
+
+        drop(outer);
+        STRUCTURED_SERDE_BUDGETS.with(|slot| {
+            let budgets = slot.borrow();
+            assert_eq!(budgets.len(), baseline + 1);
+            assert_eq!(budgets.last().map(|budget| budget.raw_serializers), Some(1));
+        });
+
+        leave_raw_serializer();
+        drop(inner);
+        assert_eq!(STRUCTURED_SERDE_BUDGETS.with(|slot| slot.borrow().len()), baseline);
     }
 }

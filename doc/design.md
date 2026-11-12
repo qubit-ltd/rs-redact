@@ -139,6 +139,13 @@ ordinary serializers share the active budget, and errors or panic unwinding rele
 An original policy address is only a snapshot-reuse hint: its contents must still equal
 the owned snapshot. This prevents a forgotten guard from applying an obsolete policy
 after the caller replaces a policy at the same address.
+Each guard belongs to its own policy frame. Dropping a non-top frame marks it released but
+keeps its policy and budget in place while newer frames remain active. Dropping the last active
+inner frame then removes it and any consecutive released ancestors, releasing each frame's
+independent budget only when that frame is removed. This preserves active policy, shared budget
+usage, and reason observers during out-of-order drops. Scopes remain thread-affine; normal return
+and panic unwinding run this cleanup. `mem::forget` skips the guard's cleanup and may retain its
+frame and budget for the thread's remaining lifetime.
 Pre-serialization for measurement followed by a second execution is forbidden.
 
 ## 4. Policy model

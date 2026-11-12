@@ -7,6 +7,8 @@
 // =============================================================================
 //! Owned policy snapshots held by thread-local serialization scopes.
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::RedactionPolicy;
@@ -19,4 +21,8 @@ pub(super) struct PolicyFrame {
     pub(super) source_identity: usize,
     /// Owned immutable policy used throughout the active serialization scope.
     pub(super) snapshot: Arc<RedactionPolicy>,
+    /// Per-scope release token shared with its guard.
+    pub(super) released: Rc<Cell<bool>>,
+    /// Whether this frame installed a distinct budget ledger.
+    pub(super) owns_budget: bool,
 }
