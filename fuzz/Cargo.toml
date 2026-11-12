@@ -13,7 +13,7 @@ cargo-fuzz = true
 fluent-uri = "^0.4"
 http = "^1.5"
 libfuzzer-sys = "^0.4"
-qubit-redact = { path = "..", default-features = false, features = ["http", "uri", "derive"] }
+qubit-redact = { path = "../", default-features = false, features = ["http", "uri", "derive"] , version = "^0.10" }
 url = "^2.5"
 serde_json = "^1.0"
 serde = { version = "^1.0", features = ["derive"] }

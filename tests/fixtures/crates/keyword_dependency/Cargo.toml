@@ -7,4 +7,4 @@ publish = false
 [workspace]
 
 [dependencies]
-type = { package = "qubit-redact", version = "0.10", path = "../../../../", default-features = false, features = ["derive"] }
+type = { package = "qubit-redact", version = "^0.10", path = "../../../../", default-features = false, features = ["derive"] }
