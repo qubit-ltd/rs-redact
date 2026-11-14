@@ -147,10 +147,10 @@ pub(crate) fn admit_uri_structure(session: &mut dyn RuntimeSession, input: &str)
             return false;
         }
         if let Some((raw_key, _)) = pair.split_once('=') {
-            let Ok(key) = super::redaction::decode_uri_component(raw_key) else {
+            let Ok(key_bytes) = super::redaction::decoded_uri_component_len(raw_key) else {
                 continue;
             };
-            if !session.admit_domain_key(&key) {
+            if !session.admit_domain_key_bytes(key_bytes) {
                 return false;
             }
         }

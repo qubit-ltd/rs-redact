@@ -167,6 +167,22 @@ pub(crate) trait RuntimeSession {
         self.runtime_mut().admit_domain_key(key)
     }
 
+    /// Checks a validated decoded key length against the shared key budget.
+    ///
+    /// # Parameters
+    ///
+    /// - `bytes`: Validated UTF-8 byte length of the decoded key.
+    ///
+    /// # Returns
+    ///
+    /// Whether the key fits and structural traversal remains open.
+    #[cfg(feature = "uri")]
+    #[must_use]
+    #[inline(always)]
+    fn admit_domain_key_bytes(&mut self, bytes: usize) -> bool {
+        self.runtime_mut().admit_domain_key_bytes(bytes)
+    }
+
     /// Admits one format node through the shared structural ledger.
     ///
     /// # Parameters

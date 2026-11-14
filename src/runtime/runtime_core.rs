@@ -373,7 +373,21 @@ impl RuntimeCore {
     /// Whether the key fits and structural traversal remains open.
     #[inline]
     pub(super) fn admit_domain_key(&mut self, key: &str) -> bool {
-        let admitted = self.budget.structural().admit_key(key.len());
+        self.admit_domain_key_bytes(key.len())
+    }
+
+    /// Admits a domain key using its already validated UTF-8 byte length.
+    ///
+    /// # Parameters
+    ///
+    /// - `bytes`: Validated UTF-8 byte length of the decoded key.
+    ///
+    /// # Returns
+    ///
+    /// Whether the key fits and structural traversal remains open.
+    #[inline]
+    pub(super) fn admit_domain_key_bytes(&mut self, bytes: usize) -> bool {
+        let admitted = self.budget.structural().admit_key(bytes);
         if !admitted {
             self.record_summary(RedactionSummary::truncated(RedactionReason::TraversalLimitReached));
         }

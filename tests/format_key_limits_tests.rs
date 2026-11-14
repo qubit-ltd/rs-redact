@@ -331,6 +331,23 @@ mod uri {
                 .reasons()
                 .contains(RedactionReason::TraversalLimitReached)
         );
+        let ample = Redactor::new(policy_with_key_limit(256));
+        let admitted_usage = ample.redact_uri(input).summary().usage();
+        let rejected_usage = output.summary().usage();
+        assert_eq!(
+            rejected_usage.presented_input_bytes(),
+            admitted_usage.presented_input_bytes()
+        );
+        assert_eq!(
+            rejected_usage.inspected_input_bytes(),
+            admitted_usage.inspected_input_bytes()
+        );
+        assert_eq!(rejected_usage.visited_nodes(), admitted_usage.visited_nodes());
+        assert_eq!(
+            rejected_usage.visited_collection_items(),
+            admitted_usage.visited_collection_items()
+        );
+        assert_eq!(rejected_usage.max_depth(), admitted_usage.max_depth());
         let error = redactor
             .inspect_uri(input)
             .expect_err("oversized key must make inspection inconclusive");
@@ -367,6 +384,72 @@ mod uri {
                 .reasons()
                 .contains(RedactionReason::TraversalLimitReached)
         );
+    }
+
+    #[test]
+    fn test_uri_key_byte_boundaries_and_invalid_tail_reason_precedence() {
+        let redactor = Redactor::new(policy_with_key_limit(256));
+        for length in [0, 255, 256] {
+            let input = format!("custom://example.test/?{}=value", "a".repeat(length));
+            assert!(redactor.redact_uri(&input).complete_text().is_ok(), "length={length}");
+        }
+        let oversized = redactor.redact_uri(&format!("custom://example.test/?{}=secret", "a".repeat(257)));
+        assert!(oversized.complete_text().is_err());
+        assert!(
+            oversized
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(!oversized.text().as_str().contains("secret"));
+
+        let one = Redactor::new(policy_with_key_limit(1));
+        for suffix in ["%FF", "%GG"] {
+            let input = format!("custom://example.test/?%61b{suffix}=secret");
+            let output = one.redact_uri(&input);
+            assert!(
+                output.summary().reasons().contains(RedactionReason::InvalidUri),
+                "{suffix}"
+            );
+            assert!(
+                !output
+                    .summary()
+                    .reasons()
+                    .contains(RedactionReason::TraversalLimitReached),
+                "{suffix}"
+            );
+            assert!(!output.text().as_str().contains("secret"));
+            let error = one.inspect_uri(&input).expect_err("invalid decoded key");
+            assert!(error.reasons().contains(RedactionReason::InvalidUri), "{suffix}");
+        }
+        let valid_over = one.redact_uri("custom://example.test/?%61bc=value");
+        assert!(
+            valid_over
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(!valid_over.summary().reasons().contains(RedactionReason::InvalidUri));
+    }
+
+    #[test]
+    fn test_uri_structure_budget_rejection_precedes_key_decoding() {
+        let policy = RedactionPolicy::builder()
+            .limits(|limits| {
+                limits.max_collection_items(0);
+            })
+            .expect("valid limits")
+            .build()
+            .expect("valid policy");
+        let redactor = Redactor::new(policy);
+        let output = redactor.redact_uri("custom://example.test/?%FF=value");
+        assert!(
+            output
+                .summary()
+                .reasons()
+                .contains(RedactionReason::TraversalLimitReached)
+        );
+        assert!(!output.summary().reasons().contains(RedactionReason::InvalidUri));
     }
 
     #[test]

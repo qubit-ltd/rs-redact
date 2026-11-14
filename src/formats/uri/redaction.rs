@@ -320,6 +320,71 @@ pub(super) fn decode_uri_component(raw: &str) -> Result<Cow<'_, str>, ()> {
     String::from_utf8(decoded).map(Cow::Owned).map_err(|_| ())
 }
 
+/// Validates percent decoding and returns the decoded UTF-8 byte length without
+/// allocating.
+///
+/// # Parameters
+///
+/// - `raw`: Percent-encoded URI component to validate.
+///
+/// # Returns
+///
+/// The decoded UTF-8 byte length, or `Err(())` for invalid escapes or UTF-8.
+pub(super) fn decoded_uri_component_len(raw: &str) -> Result<usize, ()> {
+    let bytes = raw.as_bytes();
+    if !bytes.contains(&b'%') {
+        return Ok(bytes.len());
+    }
+    let mut decoded_len = 0usize;
+    let mut pending = [0u8; 4];
+    let mut pending_len = 0usize;
+    let mut expected_len = 0usize;
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err(());
+            }
+            let value = (hex_value(bytes[index + 1]).ok_or(())? << 4) | hex_value(bytes[index + 2]).ok_or(())?;
+            index += 3;
+            value
+        } else {
+            let value = bytes[index];
+            index += 1;
+            value
+        };
+        decoded_len = decoded_len.checked_add(1).ok_or(())?;
+        if pending_len == 0 {
+            if byte < 0x80 {
+                continue;
+            }
+            expected_len = match byte {
+                0xC2..=0xDF => 2,
+                0xE0..=0xEF => 3,
+                0xF0..=0xF4 => 4,
+                _ => return Err(()),
+            };
+            pending[0] = byte;
+            pending_len = 1;
+        } else {
+            if !(0x80..=0xBF).contains(&byte) {
+                return Err(());
+            }
+            pending[pending_len] = byte;
+            pending_len += 1;
+            if pending_len == expected_len {
+                std::str::from_utf8(&pending[..pending_len]).map_err(|_| ())?;
+                pending_len = 0;
+                expected_len = 0;
+            }
+        }
+    }
+    if pending_len != 0 {
+        return Err(());
+    }
+    Ok(decoded_len)
+}
+
 /// Streams one sensitive value through URI encoding and the bounded writer.
 ///
 /// # Parameters
@@ -396,6 +461,7 @@ mod tests {
     use std::borrow::Cow;
 
     use super::decode_uri_component;
+    use super::decoded_uri_component_len;
 
     /// Verifies unescaped URI components are borrowed without changing text.
     #[test]
@@ -430,6 +496,24 @@ mod tests {
             assert!(
                 decode_uri_component(raw).is_err(),
                 "invalid component must be rejected: {raw:?}"
+            );
+        }
+    }
+
+    /// Compares allocation-free validation against the materializing decoder.
+    #[test]
+    fn test_decoded_uri_component_len_matches_decoder() {
+        for raw in ["", "plain", "a+b", "%61", "%C3%A9", "x%C3%A9y", "%F0%9F%8C%8D"] {
+            assert_eq!(
+                decoded_uri_component_len(raw).unwrap(),
+                decode_uri_component(raw).unwrap().len()
+            );
+        }
+        for raw in ["%", "%0", "%GG", "%FF", "%C3%28", "%E0%80%80", "%F4%90%80%80", "%C3"] {
+            assert_eq!(
+                decoded_uri_component_len(raw).is_err(),
+                decode_uri_component(raw).is_err(),
+                "{raw}"
             );
         }
     }
