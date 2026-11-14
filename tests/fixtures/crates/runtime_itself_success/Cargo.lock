@@ -61,13 +61,13 @@ dependencies = [
 name = "qubit-redact"
 version = "0.0.0"
 dependencies = [
- "qubit-redact 0.10.3",
+ "qubit-redact 0.10.4",
  "qubit-redact-derive",
 ]
 
 [[package]]
 name = "qubit-redact"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "qubit-budget",
 ]
@@ -75,6 +75,8 @@ dependencies = [
 [[package]]
 name = "qubit-redact-derive"
 version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d18ca38b9c9a86747dbf059f97954d1c463a0bdc5e5371d676ba7b9a4377cdf3"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
