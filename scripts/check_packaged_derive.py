@@ -134,23 +134,6 @@ def assert_published_documentation(package_root: Path) -> None:
             )
 
 
-def local_qubit_json_source() -> Path | None:
-    candidate = ROOT.parent / "rs-json"
-    if not (candidate / "Cargo.toml").is_file():
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"], cwd=ROOT,
-            text=True, capture_output=True, check=False,
-        )
-        if result.returncode == 0:
-            common_dir = Path(result.stdout.strip())
-            if not common_dir.is_absolute():
-                common_dir = ROOT / common_dir
-            candidate = common_dir.resolve().parent.parent / "rs-json"
-    if not (candidate / "Cargo.toml").is_file():
-        return None
-    return candidate.resolve()
-
-
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="redact-package-") as temp:
         temp_root = Path(temp).resolve()
@@ -158,29 +141,8 @@ def main() -> None:
         env = os.environ.copy()
         env["CARGO_TARGET_DIR"] = str(target)
         package_args = ["cargo", "package", "--workspace", "--no-verify", "--allow-dirty", "--target-dir", str(target)]
-        local_json = local_qubit_json_source()
-        json_manifest = local_json / "Cargo.toml" if local_json is not None else None
-        json_version = None
-        if json_manifest is not None and json_manifest.is_file():
-            json_version = tomllib.loads(json_manifest.read_text(encoding="utf-8")).get("package", {}).get("version")
-        if json_version == "0.12.0":
-            # crates.io currently has no qubit-json 0.12.0. This temporary
-            # source lets Cargo package the root archive without changing its
-            # normalized registry dependency or the root/derive archive checks.
-            package_args = ["cargo", "--config", f'patch.crates-io.qubit-json.path="{json_manifest.parent.resolve()}"', *package_args[1:]]
-            print("ENVIRONMENT ADAPTATION: crates.io lacks qubit-json 0.12.0; this single temporary source does not replace either target archive.", flush=True)
         print(f"PACKAGING: {package_args!r}", flush=True)
-        workspace_json = ROOT.parent / "rs-json"
-        created_workspace_link = False
-        if json_version == "0.12.0" and not workspace_json.exists() and not workspace_json.is_symlink():
-            workspace_json.symlink_to(local_json, target_is_directory=True)
-            created_workspace_link = True
-        try:
-            run(package_args, cwd=ROOT, env=env)
-        finally:
-            if (created_workspace_link and workspace_json.is_symlink()
-                    and workspace_json.resolve() == local_json.resolve()):
-                workspace_json.unlink()
+        run(package_args, cwd=ROOT, env=env)
         archive_dir = target / "package"
         runtime_archive = archive_dir / f"qubit-redact-{RUNTIME_VERSION}.crate"
         derive_archive = archive_dir / f"qubit-redact-derive-{DERIVE_VERSION}.crate"
@@ -205,7 +167,6 @@ def main() -> None:
         (consumer / "src").mkdir(parents=True)
         (consumer / "tests").mkdir()
         (consumer / "src/main.rs").write_text("fn main() {}\n", encoding="utf-8")
-        json_consumer_patch = f'qubit-json = {{ path = "{local_json.resolve()}" }}\n' if json_version == "0.12.0" else ""
         (consumer / "Cargo.toml").write_text(
             f'''[package]
 name = "redact-package-regression"
@@ -229,7 +190,7 @@ serde_json = "1"
 [patch.crates-io]
 qubit-redact = {{ path = "{runtime_dir}" }}
 qubit-redact-derive = {{ path = "{derive_dir}" }}
-{json_consumer_patch}''', encoding="utf-8"
+''', encoding="utf-8"
         )
         metadata = json.loads(run(["cargo", "metadata", "--format-version", "1", "--all-features"], cwd=consumer, env=env))
         for name, expected in (("qubit-redact", runtime_dir), ("qubit-redact-derive", derive_dir)):
@@ -238,10 +199,6 @@ qubit-redact-derive = {{ path = "{derive_dir}" }}
             assert_manifest_location(actual, expected)
             if temp_root not in actual.parents:
                 raise CheckError(f"{name} resolved outside this temporary archive root: {actual}")
-        if json_version == "0.12.0":
-            package = next(p for p in metadata["packages"] if p["name"] == "qubit-json")
-            assert_manifest_location(Path(package["manifest_path"]), local_json)
-            print(f"DEPENDENCY SOURCE: qubit-json 0.12.0 from {local_json.resolve()} (temporary registry substitute)", flush=True)
         run(["cargo", "generate-lockfile"], cwd=consumer, env=env)
         skip = ROOT / "tests/fixtures/pass/generic_skip_bounds.rs"
         keyed = ROOT / "tests/fixtures/pass/generic_keyed_by.rs"
