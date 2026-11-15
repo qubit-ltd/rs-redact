@@ -29,7 +29,8 @@ DERIVE_GUIDE_PATH = re.compile(r"(?:^|/)derive/README(?:\.zh_CN)?\.md(?:[?#].*)?
 def validate_derive_guide_links(root, version):
     """Require each root README's derive guide links to match its release and language."""
     for filename, guide in (("README.md", "README.md"), ("README.zh_CN.md", "README.zh_CN.md")):
-        expected = f"https://github.com/qubit-ltd/rs-redact/blob/v{version}/derive/{guide}"
+        release_line = version.rsplit(".", 1)[0]
+        expected = f"https://github.com/qubit-ltd/rs-redact/blob/v{release_line}/derive/{guide}"
         path = root / filename
         matches = []
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):

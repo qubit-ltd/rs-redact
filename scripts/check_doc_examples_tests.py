@@ -16,14 +16,15 @@ SPEC.loader.exec_module(MODULE)
 
 class ExampleContractTests(unittest.TestCase):
     def add_valid_derive_links(self, root, version="0.8.1"):
+        tag = version.rsplit(".", 1)[0]
         (root / "README.md").write_text(
             (root / "README.md").read_text(encoding="utf-8") if (root / "README.md").exists() else "",
             encoding="utf-8",
         )
         with (root / "README.md").open("a", encoding="utf-8") as readme:
-            readme.write(f"\n[derive](https://github.com/qubit-ltd/rs-redact/blob/v{version}/derive/README.md)\n")
+            readme.write(f"\n[derive](https://github.com/qubit-ltd/rs-redact/blob/v{tag}/derive/README.md)\n")
         (root / "README.zh_CN.md").write_text(
-            f"[derive](https://github.com/qubit-ltd/rs-redact/blob/v{version}/derive/README.zh_CN.md)\n",
+            f"[derive](https://github.com/qubit-ltd/rs-redact/blob/v{tag}/derive/README.zh_CN.md)\n",
             encoding="utf-8",
         )
 
@@ -31,28 +32,29 @@ class ExampleContractTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         root = Path(directory.name)
         (root / "README.md").write_text(
-            english if english is not None else "[derive](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.md)\n",
+            english if english is not None else "[derive](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.md)\n",
             encoding="utf-8",
         )
         (root / "README.zh_CN.md").write_text(
-            chinese if chinese is not None else "[derive](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md)\n",
+            chinese if chinese is not None else "[derive](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.zh_CN.md)\n",
             encoding="utf-8",
         )
         return directory, root
 
     def test_derive_guide_links_accept_correct_multiple_entries_and_unrelated_links(self):
         directory, root = self.derive_link_fixture(
-            "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.md)\n"
-            "[again](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.md) [API](https://docs.rs/qubit-redact)\n"
+            "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.md)\n"
+            "[again](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.md) [API](https://docs.rs/qubit-redact)\n"
         )
         try:
-            self.assertIsNone(MODULE.validate_derive_guide_links(root, "0.10.1"))
+            self.assertIsNone(MODULE.validate_derive_guide_links(root, "0.10.4"))
         finally:
             directory.cleanup()
 
     def test_derive_guide_links_reject_stale_and_wrong_language_targets_with_location(self):
         for target in (
             "6f51ef2634e3f79b75449626826fc1a1ac42e14f",
+            "v0.10.3",
             "v0.9.0",
             "main",
         ):
@@ -61,16 +63,16 @@ class ExampleContractTests(unittest.TestCase):
                     f"[guide](https://github.com/qubit-ltd/rs-redact/blob/{target}/derive/README.md)\n"
                 )
                 try:
-                    with self.assertRaisesRegex(ValueError, r"README\.md:1.*expected.*v0\.10\.1"):
-                        MODULE.validate_derive_guide_links(root, "0.10.1")
+                    with self.assertRaisesRegex(ValueError, r"README\.md:1.*expected.*v0\.10"):
+                        MODULE.validate_derive_guide_links(root, "0.10.4")
                 finally:
                     directory.cleanup()
         directory, root = self.derive_link_fixture(
-            chinese="[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.md)\n"
+            chinese="[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.md)\n"
         )
         try:
             with self.assertRaisesRegex(ValueError, r"README\.zh_CN\.md:1.*README\.zh_CN\.md"):
-                MODULE.validate_derive_guide_links(root, "0.10.1")
+                MODULE.validate_derive_guide_links(root, "0.10.4")
         finally:
             directory.cleanup()
 
@@ -78,7 +80,7 @@ class ExampleContractTests(unittest.TestCase):
         directory, root = self.derive_link_fixture(english="[API](https://docs.rs/qubit-redact)\n")
         try:
             with self.assertRaisesRegex(ValueError, r"README\.md.*missing.*derive"):
-                MODULE.validate_derive_guide_links(root, "0.10.1")
+                MODULE.validate_derive_guide_links(root, "0.10.4")
         finally:
             directory.cleanup()
 
@@ -87,11 +89,11 @@ class ExampleContractTests(unittest.TestCase):
             root = Path(directory)
             (root / "Cargo.toml").write_text('[package]\nversion = "0.10.1"\n', encoding="utf-8")
             (root / "README.md").write_text(
-                "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.9.0/derive/README.md)\n"
+                "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.9/derive/README.md)\n"
                 "<!-- redact-example: kind=run features=none -->\n```rust\nfn main() {}\n```\n", encoding="utf-8"
             )
             (root / "README.zh_CN.md").write_text(
-                "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10.1/derive/README.zh_CN.md)\n", encoding="utf-8"
+                "[guide](https://github.com/qubit-ltd/rs-redact/blob/v0.10/derive/README.zh_CN.md)\n", encoding="utf-8"
             )
             old_documents = MODULE.DOCUMENTS
             MODULE.DOCUMENTS = ("README.md",)
