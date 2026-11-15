@@ -23,7 +23,7 @@ class PackagedDeriveChecks(unittest.TestCase):
     }
 
     def _documentation_fixture(self, root, *, english=True, chinese=True):
-        tag = f"v{CHECKER.RUNTIME_VERSION}"
+        tag = CHECKER.DERIVE_DOC_TAG
         english_target = f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/README.md"
         chinese_target = f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/README.zh_CN.md"
         for source_name, language in self.DOCUMENTS.items():
@@ -38,7 +38,7 @@ class PackagedDeriveChecks(unittest.TestCase):
 
     def _expected_target(self, source_name):
         language_path = "README.zh_CN.md" if source_name.endswith("zh_CN.md") else "README.md"
-        return f"https://github.com/qubit-ltd/rs-redact/blob/v{CHECKER.RUNTIME_VERSION}/derive/{language_path}"
+        return f"https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_TAG}/derive/{language_path}"
 
     def test_published_documentation_links_resolve_inside_package(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -59,13 +59,14 @@ class PackagedDeriveChecks(unittest.TestCase):
                     self.assertIn(self._expected_target(source_name), str(raised.exception))
 
     def test_published_guides_reject_stale_derive_targets(self):
-        tag = f"v{CHECKER.RUNTIME_VERSION}"
+        tag = CHECKER.DERIVE_DOC_TAG
         for source_name in ("doc/user_guide.md", "doc/user_guide.zh_CN.md"):
             expected = self._expected_target(source_name)
             wrong_language = "README.md" if source_name.endswith("zh_CN.md") else "README.zh_CN.md"
             invalid_targets = {
                 "local relative": "../derive/README.md",
                 "floating main": f"https://github.com/qubit-ltd/rs-redact/blob/main/derive/{expected.rsplit('/', 1)[-1]}",
+                "patch-specific tag": f"https://github.com/qubit-ltd/rs-redact/blob/v0.10.3/derive/{expected.rsplit('/', 1)[-1]}",
                 "wrong language": f"https://github.com/qubit-ltd/rs-redact/blob/{tag}/derive/{wrong_language}",
                 "wrong commit": f"https://github.com/qubit-ltd/rs-redact/blob/0000000000000000000000000000000000000000/derive/{expected.rsplit('/', 1)[-1]}",
             }
@@ -116,7 +117,7 @@ class PackagedDeriveChecks(unittest.TestCase):
             root = Path(temp)
             self._documentation_fixture(root)
             (root / "README.zh_CN.md").write_text(
-                f"[derive](https://github.com/qubit-ltd/rs-redact/blob/v{CHECKER.RUNTIME_VERSION}/derive/README.md)\n",
+                f"[derive](https://github.com/qubit-ltd/rs-redact/blob/{CHECKER.DERIVE_DOC_TAG}/derive/README.md)\n",
                 encoding="utf-8",
             )
             with self.assertRaises(CHECKER.CheckError) as raised:
@@ -129,6 +130,26 @@ class PackagedDeriveChecks(unittest.TestCase):
             manifest = Path(temp) / "Cargo.toml"
             manifest.write_text('[package]\nname = "qubit-redact"\nversion = "0.10.0"\n\n[dependencies]\nqubit-redact-derive = "^0.8.1"\n')
             with self.assertRaises(CHECKER.CheckError):
+                CHECKER.assert_derive_requirement(manifest)
+
+    def test_accepts_minor_scoped_derive_requirement(self):
+        for requirement in ("0.10", "^0.10"):
+            with self.subTest(requirement=requirement), tempfile.TemporaryDirectory() as temp:
+                manifest = Path(temp) / "Cargo.toml"
+                manifest.write_text(
+                    '[package]\nname = "qubit-redact"\nversion = "0.10.4"\n\n'
+                    f'[dependencies]\nqubit-redact-derive = "{requirement}"\n'
+                )
+                CHECKER.assert_derive_requirement(manifest)
+
+    def test_rejects_patch_scoped_derive_requirement(self):
+        with tempfile.TemporaryDirectory() as temp:
+            manifest = Path(temp) / "Cargo.toml"
+            manifest.write_text(
+                '[package]\nname = "qubit-redact"\nversion = "0.10.4"\n\n'
+                '[dependencies]\nqubit-redact-derive = "^0.10.2"\n'
+            )
+            with self.assertRaisesRegex(CHECKER.CheckError, "minor version 0.10"):
                 CHECKER.assert_derive_requirement(manifest)
 
     def test_rejects_workspace_metadata_path(self):

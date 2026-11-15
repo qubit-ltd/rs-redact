@@ -20,7 +20,7 @@ def package_version(manifest: Path) -> str:
 
 RUNTIME_VERSION = package_version(ROOT / "Cargo.toml")
 DERIVE_VERSION = package_version(ROOT / "derive/Cargo.toml")
-DERIVE_DOC_TAG = f"v{RUNTIME_VERSION}"
+DERIVE_DOC_TAG = f"v{RUNTIME_VERSION.rsplit('.', 1)[0]}"
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
 
 
@@ -102,8 +102,9 @@ def assert_derive_requirement(runtime_manifest: Path) -> None:
     requirement = manifest.get("dependencies", {}).get("qubit-redact-derive")
     if isinstance(requirement, dict):
         requirement = requirement.get("version")
-    if requirement not in (DERIVE_VERSION, f"^{DERIVE_VERSION}"):
-        raise CheckError(f"runtime derive lower bound is not 0.10.0: {requirement!r}")
+    minor_version = DERIVE_VERSION.rsplit(".", 1)[0]
+    if requirement not in (minor_version, f"^{minor_version}"):
+        raise CheckError(f"runtime derive requirement must target minor version {minor_version}: {requirement!r}")
 
 
 def assert_derive_has_no_runtime_release_dependency(derive_manifest: Path) -> None:
