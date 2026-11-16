@@ -1,6 +1,6 @@
 [package]
 name = "qubit-redact"
-version = "0.10.4"
+version = "0.10.5"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Haixing Hu <starfish.hu@gmail.com>"]
@@ -99,7 +99,7 @@ required-features = ["derive", "serde", "json"]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
 [profile.dev]
-debug = 0
+debug = false
 
 [profile.test]
-debug = 0
+debug = false

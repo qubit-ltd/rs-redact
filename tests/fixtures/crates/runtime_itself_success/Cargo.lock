@@ -50,9 +50,9 @@ dependencies = [
 
 [[package]]
 name = "qubit-budget"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69c4626ee27ff1e9e818a0791e9b4ee2dff0026d7ef1b0424b7cd285e6de6d0f"
+checksum = "560adfab9ea973d61949de25be0b547f9e518ac7f9ceafd2146c67cdb634dc4f"
 dependencies = [
  "thiserror",
 ]
@@ -61,13 +61,13 @@ dependencies = [
 name = "qubit-redact"
 version = "0.0.0"
 dependencies = [
- "qubit-redact 0.10.4",
+ "qubit-redact 0.10.5",
  "qubit-redact-derive",
 ]
 
 [[package]]
 name = "qubit-redact"
-version = "0.10.4"
+version = "0.10.5"
 dependencies = [
  "qubit-budget",
 ]
